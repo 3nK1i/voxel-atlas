@@ -26,9 +26,6 @@ run_check "PHASE0C1_INTEGRITY" \
 run_check "V2B3A_SMOKE" \
     python3 scripts/check_v2b3a_prototype.py
 
-run_check "V2B3B_SMOKE" \
-    python3 scripts/check_v2b3b_prototype.py
-
 run_check "PHASE0C1_UNIT" \
     python3 -m unittest discover -s tests -p 'test_phase0c1_baseline_contract.py' -v
 
@@ -57,8 +54,7 @@ if command -v node >/dev/null 2>&1; then
     echo "NODE=$(node --version)"
     for js in \
         web/js/app.js \
-        prototypes/v2b3a/app.js \
-        prototypes/v2b3b/app.js
+        prototypes/v2b3a/app.js
     do
         if node --check "$js"; then
             echo "PASS $js"

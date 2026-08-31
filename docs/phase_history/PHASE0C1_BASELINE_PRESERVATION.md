@@ -31,3 +31,7 @@ Phase 0C1 is accepted only when:
 - the Phase 0C1 unit contract passes
 - `git diff --check` is clean
 - a minimal browser sanity check confirms the accepted baseline still loads
+
+## Contract evolution in Phase 2A
+
+Phase 0C1 originally froze both prototype directories. Phase 2A later made an explicit product decision to retain the VA cranial-opening reference (`prototypes/v2b3a/`) and mark VB (`prototypes/v2b3b/`) as retired from the live tree. Phase 0 regression therefore continues to fingerprint VA while VB remains preserved in Git history and the original verified handoff archive.

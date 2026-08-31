@@ -43,7 +43,6 @@ class Phase0C1BaselineContractTests(unittest.TestCase):
             ROOT / "web/assets/models/skull_full.glb",
             ROOT / "web/assets/models/skull_open.glb",
             ROOT / "prototypes/v2b3a/assets/skull_full.glb",
-            ROOT / "prototypes/v2b3b/assets/skull_full.glb",
         )
         for path in glbs:
             with self.subTest(path=path):
@@ -59,7 +58,6 @@ class Phase0C1BaselineContractTests(unittest.TestCase):
     def test_legacy_prototype_smoke_scripts_remain_present(self) -> None:
         for relative in (
             "scripts/check_v2b3a_prototype.py",
-            "scripts/check_v2b3b_prototype.py",
         ):
             with self.subTest(relative=relative):
                 self.assertTrue((ROOT / relative).is_file())

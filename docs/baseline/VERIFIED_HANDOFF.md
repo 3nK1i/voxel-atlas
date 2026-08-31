@@ -22,3 +22,7 @@ Before the first Git commit, the extracted handoff passed:
 `web/` is the current product baseline and is expected to evolve in later phases. It is therefore validated structurally rather than frozen by content hash.
 
 The empty baseline `src/` and `tests/` directories were present in the handoff but were not part of the initial Git commit because Git does not track empty directories. Phase 0C1 begins tracking `tests/` with the baseline contract test.
+
+## Phase 2A prototype retirement note
+
+The original handoff did include both prototype lines and Phase 0C1 preserved them byte-for-byte. In Phase 2A, product direction explicitly retained `prototypes/v2b3a/` as the VA cranial-opening reference and **retired** `prototypes/v2b3b/` from the current tree. The retired VB source remains recoverable from Git history and the verified handoff archive; its removal is intentional, not evidence loss.

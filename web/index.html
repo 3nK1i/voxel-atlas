@@ -6,184 +6,203 @@
     name="viewport"
     content="width=device-width, initial-scale=1.0, viewport-fit=cover"
   >
-  <meta name="theme-color" content="#03101f">
+  <meta name="theme-color" content="#020a13">
   <link rel="icon" href="data:,">
-  <title>Medical 3D Skull Demo</title>
+  <title>VoxelAtlas - Anatomy Workspace</title>
 
-  <link rel="stylesheet" href="./css/styles.css?v=v2b2-5">
+  <link rel="stylesheet" href="/css/styles.css?v=phase2a-1">
 
-  <script
-    type="module"
-    src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.3.1/model-viewer.min.js"
-  ></script>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/"
+    }
+  }
+  </script>
 </head>
-<body>
-  <div class="app-shell">
-    <header class="hero">
-      <div class="hero__main">
-        <p class="eyebrow">SPATIAL MEDICAL VISUALIZATION</p>
-        <h1>Patient-Specific Skull</h1>
+<body data-workspace="voxelatlas-va">
+  <div class="app">
+    <header class="topbar">
+      <a class="brand" href="/workspace" aria-label="VoxelAtlas workspace">
+        <img
+          class="brand-logo"
+          src="/assets/logo.png"
+          alt=""
+          aria-hidden="true"
+        >
+        <span class="brand-copy">
+          <strong class="brand-name">VoxelAtlas</strong>
+          <span class="brand-subtitle">Interactive anatomy explorer</span>
+        </span>
+      </a>
 
-        <div class="hero__chips">
-          <span class="chip chip--primary">A0101</span>
-          <span class="chip">MUG500+ skull model</span>
-          <span class="chip chip--soft" id="modeChip">Open cranial view</span>
+      <div class="topbar-actions">
+        <div id="modelStatus" class="model-status" data-state="loading">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="statusText">Loading model…</span>
         </div>
-      </div>
-
-      <div class="status-pill" id="statusPill" data-state="loading">
-        <span class="status-pill__dot"></span>
-        <span id="statusText">Loading 3D model…</span>
+        <button id="logoutButton" class="logout-button" type="button">
+          Logout
+        </button>
       </div>
     </header>
 
-    <main class="viewer-shell">
-      <div class="viewer-glow"></div>
+    <main class="workspace">
+      <section class="viewer" aria-label="VoxelAtlas 3D anatomy workspace">
+        <div
+          id="viewport"
+          class="viewport"
+          aria-label="Interactive 3D anatomy viewer"
+        ></div>
 
-      <model-viewer
-        id="skullViewer"
-        src="./assets/models/skull_open.glb?v=v2b2"
-        alt="A0101 premium patient-specific skull"
-        ar
-        ar-modes="webxr scene-viewer quick-look"
-        camera-controls
-        touch-action="none"
-        disable-pan
-        interpolation-decay="80"
-        interaction-prompt="none"
-        shadow-intensity="0.85"
-        shadow-softness="0.95"
-        exposure="0.82"
-        environment-image="neutral"
-        auto-rotate
-        rotation-per-second="6deg"
-        camera-orbit="-25deg 72deg 0.48m"
-        camera-target="0m 0m 0m"
-        min-camera-orbit="auto 1deg 0.26m"
-        max-camera-orbit="auto 179deg 1.60m"
-        field-of-view="26deg"
-      ></model-viewer>
+        <div id="modelChip" class="model-chip">A0101 · Skull</div>
 
-      <div class="viewer-hint">
-        Drag to rotate &nbsp;&nbsp;•&nbsp;&nbsp; Scroll / pinch to zoom
-      </div>
+        <div class="interaction-hint">
+          <span>Left drag · Rotate</span>
+          <i>•</i>
+          <span>Right drag · Pan</span>
+          <i>•</i>
+          <span>Wheel · Zoom</span>
+        </div>
+
+        <aside class="sidebar" aria-label="3D anatomy controls">
+          <section class="control-group">
+            <div class="group-heading">
+              <div>
+                <div class="group-title">Section</div>
+                <div class="group-description">Directional anatomical cut</div>
+              </div>
+              <strong id="sectionValue" class="value">0%</strong>
+            </div>
+
+            <div class="direction-row" role="group" aria-label="Section direction">
+              <button
+                type="button"
+                class="direction-button is-active"
+                data-section-axis="y"
+                aria-label="Section from top to bottom"
+              >
+                <span class="direction-icon">↕</span>
+                <span>Up / Down</span>
+              </button>
+              <button
+                type="button"
+                class="direction-button"
+                data-section-axis="z"
+                aria-label="Section from front to back"
+              >
+                <span class="direction-icon">↔</span>
+                <span>Front / Back</span>
+              </button>
+              <button
+                type="button"
+                class="direction-button"
+                data-section-axis="x"
+                aria-label="Section from left to right"
+              >
+                <span class="direction-icon">⇆</span>
+                <span>Left / Right</span>
+              </button>
+            </div>
+
+            <input
+              id="sectionSlider"
+              class="slider"
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value="0"
+              aria-label="Section depth"
+            >
+            <div class="range-labels">
+              <span>Full model</span>
+              <span>Deep section</span>
+            </div>
+          </section>
+
+          <section class="control-group">
+            <div class="group-heading compact-heading">
+              <div>
+                <div class="group-title">Cranial opening</div>
+                <div id="openingDescription" class="group-description">Standard opening</div>
+              </div>
+              <strong id="openingValue" class="value">58%</strong>
+            </div>
+
+            <input
+              id="openingSlider"
+              class="slider"
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value="58"
+              aria-label="Cranial opening percentage"
+            >
+            <div class="range-labels">
+              <span>Closed</span>
+              <span>Wide</span>
+            </div>
+          </section>
+
+          <section class="control-group anatomy-group">
+            <div class="group-title">Anatomical layers</div>
+            <div class="layer-row" role="group" aria-label="Anatomical layers">
+              <button type="button" class="layer-button is-active" data-layer="skull">
+                Skull
+              </button>
+              <button type="button" class="layer-button" data-layer="brain" disabled>
+                Brain
+              </button>
+              <button type="button" class="layer-button" data-layer="combined" disabled>
+                Skull + Brain
+              </button>
+            </div>
+            <p id="anatomyNote" class="anatomy-note">
+              Brain layer activates when a co-registered brain.glb is available.
+            </p>
+          </section>
+
+          <section class="control-group">
+            <div class="group-heading compact-heading">
+              <div class="group-title">Skull opacity</div>
+              <strong id="opacityValue" class="value">94%</strong>
+            </div>
+            <input
+              id="opacitySlider"
+              class="slider"
+              type="range"
+              min="30"
+              max="100"
+              step="1"
+              value="94"
+              aria-label="Skull opacity"
+            >
+            <div class="range-labels">
+              <span>30%</span>
+              <span>100%</span>
+            </div>
+          </section>
+
+          <section class="control-group action-group">
+            <div class="action-row">
+              <button id="resetButton" type="button">Reset</button>
+              <button id="autoRotateButton" type="button">Auto rotate</button>
+            </div>
+          </section>
+
+          <div class="sidebar-footer" aria-label="Model metadata">
+            <div><span>Model</span><strong>A0101</strong></div>
+            <div><span>Source</span><strong>MUG500+</strong></div>
+            <div><span>Rendering</span><strong>Clinical</strong></div>
+          </div>
+        </aside>
+      </section>
     </main>
-
-    <section class="controls-grid">
-      <article class="control-card">
-        <div class="control-card__label">View mode</div>
-        <div class="segmented">
-          <button
-            type="button"
-            class="segmented__btn"
-            data-mode="full"
-          >
-            Closed skull
-          </button>
-          <button
-            type="button"
-            class="segmented__btn is-active"
-            data-mode="open"
-          >
-            Open skull
-          </button>
-        </div>
-      </article>
-
-      <article class="control-card">
-        <div class="control-card__label">Visual preset</div>
-        <div class="segmented">
-          <button
-            type="button"
-            class="segmented__btn"
-            data-preset="clinical"
-          >
-            Clinical
-          </button>
-          <button
-            type="button"
-            class="segmented__btn is-active"
-            data-preset="xr"
-          >
-            Premium XR
-          </button>
-          <button
-            type="button"
-            class="segmented__btn"
-            data-preset="holo"
-          >
-            Holographic
-          </button>
-        </div>
-      </article>
-
-      <article class="control-card">
-        <div class="control-card__topline">
-          <span class="control-card__label">Opacity</span>
-          <strong id="opacityValue">78%</strong>
-        </div>
-
-        <input
-          id="opacityInput"
-          type="range"
-          min="30"
-          max="100"
-          step="1"
-          value="78"
-        >
-
-        <div class="range-labels">
-          <span>30%</span>
-          <span>100%</span>
-        </div>
-      </article>
-
-      <article class="control-card control-card--actions">
-        <div class="control-card__label">Actions</div>
-        <div class="action-stack">
-          <button type="button" class="btn btn--primary" id="arButton">
-            View in AR
-          </button>
-          <button type="button" class="btn" id="autoRotateButton">
-            Pause rotation
-          </button>
-          <button type="button" class="btn" id="resetViewButton">
-            Reset view
-          </button>
-        </div>
-      </article>
-    </section>
-
-    <footer class="footer-bar">
-      <div class="stats">
-        <div class="stat">
-          <span class="stat__label">Model</span>
-          <strong>A0101</strong>
-        </div>
-
-        <div class="stat">
-          <span class="stat__label">Triangles</span>
-          <strong id="triangleStat">250,000</strong>
-        </div>
-
-        <div class="stat">
-          <span class="stat__label">Height</span>
-          <strong id="heightStat">~209 mm</strong>
-        </div>
-
-        <div class="stat">
-          <span class="stat__label">View</span>
-          <strong id="modeStat">Open cranial view</strong>
-        </div>
-
-        <div class="stat">
-          <span class="stat__label">Look</span>
-          <strong id="presetStat">Premium XR</strong>
-        </div>
-      </div>
-    </footer>
   </div>
 
-  <script src="./js/app.js?v=v2b2-5"></script>
+  <script type="module" src="/js/app.js?v=phase2a-ergonomic1"></script>
 </body>
 </html>

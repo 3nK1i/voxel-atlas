@@ -1,75 +1,83 @@
 # VoxelAtlas
 
-VoxelAtlas is a web-based medical imaging workspace under active development. The V1 direction combines interactive 3D anatomy, synchronized multiplanar imaging, selective anatomical layers, and atlas-based exploration in a clean responsive interface.
+VoxelAtlas is a web-based medical imaging workspace under active development. The V1 direction combines authenticated 3D anatomical exploration, synchronized multiplanar imaging, and selective anatomical layers in a clean responsive interface.
+
+VoxelAtlas is currently an engineering/research application. It is not a certified diagnostic or medical-device product.
 
 ## Current status
 
-This repository currently contains the verified pre-V1 skull visualization baseline and preserved interaction prototypes. The baseline is intentionally kept intact while the production application is hardened in small validated phases.
+The accepted foundation includes real FastAPI authentication with Argon2id password verification, opaque server-side sessions, and the responsive VoxelAtlas login UI. Phase 2 migrates the production workspace to the retained VA cranial-opening lineage.
 
-VoxelAtlas is an engineering/research application at this stage. It is not a certified diagnostic or medical-device product.
+## Workspace direction
 
-## Preserved baseline
+The production workspace is intentionally focused on clinical anatomy rather than presentation presets:
 
-The verified handoff includes:
+- Three.js interactive 3D viewer
+- VA continuous cranial-opening control
+- directional sectioning: Up / Down, Front / Back, Left / Right
+- Clinical rendering only
+- skull opacity
+- reset and auto-rotate actions
+- anatomical-layer architecture for **Skull**, **Brain**, and **Skull + Brain**
 
-- `web/` — existing standalone skull viewer.
-- `prototypes/v2b3a/` — preserved cranial-opening prototype.
-- `prototypes/v2b3b/` — preserved Three.js directional-sectioning prototype.
-- `scripts/` — existing DICOM, CT, mesh-building, inspection, and prototype validation utilities.
+AR/XR, holographic rendering, and visual-preset selectors are outside the V1 workspace. Atlas-region exploration is deferred to **post-V1**.
 
-The two prototype directories are preservation references and must not be modified casually. Their exact Phase 0C1 fingerprints are checked automatically.
+## Preserved and retired prototypes
 
-## Validation and environment
+- `prototypes/v2b3a/` — preserved VA cranial-opening engineering reference.
+- `prototypes/v2b3b/` — intentionally retired from the current tree in Phase 2A; still recoverable from Git history and the verified handoff archive.
 
-From the repository root, run the current full validation check:
+The VA reference remains fingerprinted by the Phase 0 regression and must not be modified casually.
 
-```bash
-bash scripts/run_phase1b_checks.sh
+## Runtime assets
+
+Runtime web assets live under `web/assets/`. The qualified skull is `web/assets/models/skull_full.glb`.
+
+The reserved V1 brain-layer path is:
+
+```text
+web/assets/models/brain.glb
 ```
 
-This chains the complete Phase 0 foundation regression, the Phase 1A authentication core, and the Phase 1B FastAPI/Argon2id HTTP authentication contract.
+A brain mesh is never fabricated by the browser. Brain and Skull + Brain remain disabled until a real co-registered `brain.glb` is supplied. See `web/assets/models/README.md`.
 
-The existing DICOM/CT/mesh scripts have a separate dependency inventory in `requirements/medical-processing.txt`. Their active Python environment can be qualified explicitly with:
+The product logo is served from `web/assets/logo.png`. Authoritative design references remain immutable under `design/reference/`.
+
+## Development environment
+
+Create/activate the project-local Python environment and install the declared backend/test profiles:
 
 ```bash
-python3 scripts/check_phase0c2_environment.py --profile medical
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements/backend.txt -r requirements/test.txt
 ```
 
-The medical profile is intentionally not installed or required by the preserved browser baseline.
+The separate medical-processing dependency inventory is in `requirements/medical-processing.txt` and is qualified only when DICOM/processing work requires it.
 
-## Authoritative visual references
+## Validation
 
-The supplied product assets are preserved in `design/reference/`. `logo.png` is the product logo; `login.png` and `ui.png` are the authoritative login/dashboard visual references. Their exact hashes and intended use are documented in `docs/design/VISUAL_REFERENCE_CONTRACT.md`.
+Run the current workspace regression from the repository root:
 
-## Backend foundation
+```bash
+bash scripts/run_phase2a_checks.sh
+```
 
-Phase 0C3 establishes the standard-library configuration/security boundary in `backend/voxelatlas/` and an unpinned Phase 1 backend dependency inventory in `requirements/backend.txt`. Real secrets remain outside Git; `.env.example` contains names and safe development defaults only.
-
-## Authentication implementation
-
-Phase 1A establishes the framework-independent authentication core. Phase 1B adds the FastAPI login/logout/session lifecycle, Argon2id verification, protected-route behavior, and opaque `HttpOnly` cookie transport. The visual login page remains the next staged step. No plaintext or default login password is committed.
-
-## V1 direction
-
-The locked V1 sequence is:
+## V1 roadmap
 
 1. baseline hardening and preservation
 2. login and authentication
-3. responsive dashboard shell
-4. production Three.js viewer and directional sectioning
-5. upload/study lifecycle and DICOM foundation
-6. Axial/Coronal/Sagittal MPR
-7. Skull/Brain anatomical layers
-8. atlas-region interaction in 2D and 3D
-9. integrated UX/performance polish
-10. security, reliability, deployment hardening, and V1 qualification
+3. authoritative responsive 3D workspace
+4. upload/study lifecycle and DICOM foundation
+5. Axial / Coronal / Sagittal MPR
+6. Skull / Brain / Skull + Brain anatomical layers
+7. integrated UX/performance polish
+8. security, reliability, deployment hardening, and V1 qualification
+
+Post-V1 work includes atlas-region interaction, AR/XR, advanced surgical-planning workflows, PACS/DICOMweb, and additional anatomical atlases.
 
 ## Development policy
 
 Development is performed on phase branches. `main` represents accepted validated states. Each implementation step is kept narrow and is closed only after automated checks, a small targeted manual validation, diff inspection, commit, and push.
 
-Raw medical datasets and generated outputs are intentionally excluded from Git.
-
-## Phase 1 login UI
-
-With the project `.venv` active and authentication environment variables configured, run the FastAPI application and open `/login`. Runtime image assets live in `web/assets/`; the design screenshots in `design/reference/` are reference-only and are not used as page backgrounds.
+Raw medical datasets, generated outputs, `.env`, and local virtual environments are intentionally excluded from Git.
