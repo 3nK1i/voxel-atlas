@@ -19,15 +19,23 @@ The verified handoff includes:
 
 The two prototype directories are preservation references and must not be modified casually. Their exact Phase 0C1 fingerprints are checked automatically.
 
-## Baseline validation
+## Validation and environment
 
-From the repository root:
+From the repository root, run the current full foundation check:
 
 ```bash
-bash scripts/run_phase0c1_checks.sh
+bash scripts/run_phase0c2_checks.sh
 ```
 
-The check covers the preserved prototype fingerprints, existing prototype smoke contracts, Python syntax, JavaScript syntax, critical web assets, and the Phase 0C1 unit contract.
+This includes the Phase 0C1 preservation regression, the Phase 0C2 dependency/environment contract, and a non-mutating core tool probe.
+
+The existing DICOM/CT/mesh scripts have a separate dependency inventory in `requirements/medical-processing.txt`. Their active Python environment can be qualified explicitly with:
+
+```bash
+python3 scripts/check_phase0c2_environment.py --profile medical
+```
+
+The medical profile is intentionally not installed or required by the preserved browser baseline.
 
 ## V1 direction
 

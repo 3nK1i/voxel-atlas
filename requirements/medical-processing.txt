@@ -1,0 +1,9 @@
+# Phase 0C2 dependency inventory for the existing medical-processing scripts.
+# Intentionally unpinned until the project environment is qualified and locked.
+numpy
+scipy
+scikit-image
+SimpleITK
+trimesh
+pyvista
+matplotlib
