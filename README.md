@@ -24,10 +24,10 @@ The two prototype directories are preservation references and must not be modifi
 From the repository root, run the current full foundation check:
 
 ```bash
-bash scripts/run_phase0c2_checks.sh
+bash scripts/run_phase0c3_checks.sh
 ```
 
-This includes the Phase 0C1 preservation regression, the Phase 0C2 dependency/environment contract, and a non-mutating core tool probe.
+This includes the Phase 0C1 preservation regression, the Phase 0C2 dependency/environment contract, the Phase 0C3 application/security contract, and non-mutating environment/foundation probes.
 
 The existing DICOM/CT/mesh scripts have a separate dependency inventory in `requirements/medical-processing.txt`. Their active Python environment can be qualified explicitly with:
 
@@ -36,6 +36,14 @@ python3 scripts/check_phase0c2_environment.py --profile medical
 ```
 
 The medical profile is intentionally not installed or required by the preserved browser baseline.
+
+## Authoritative visual references
+
+The supplied product assets are preserved in `design/reference/`. `logo.png` is the product logo; `login.png` and `ui.png` are the authoritative login/dashboard visual references. Their exact hashes and intended use are documented in `docs/design/VISUAL_REFERENCE_CONTRACT.md`.
+
+## Backend foundation
+
+Phase 0C3 establishes the standard-library configuration/security boundary in `backend/voxelatlas/` and an unpinned Phase 1 backend dependency inventory in `requirements/backend.txt`. Real secrets remain outside Git; `.env.example` contains names and safe development defaults only.
 
 ## V1 direction
 

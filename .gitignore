@@ -15,6 +15,9 @@ __pycache__/
 
 # Environment / IDE
 .env
+.env.*
+!.env.example
+secrets/
 .vscode/
 .idea/
 

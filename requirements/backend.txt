@@ -1,0 +1,6 @@
+# Phase 0C3 backend/authentication dependency inventory.
+# Versions remain unpinned until the backend environment is qualified in Phase 1.
+fastapi
+uvicorn[standard]
+argon2-cffi
+python-multipart
