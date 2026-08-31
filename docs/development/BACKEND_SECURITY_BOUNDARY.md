@@ -40,3 +40,7 @@ Browser-visible session identifiers are opaque random values. The current proces
 FastAPI now exposes the authentication lifecycle through server-side opaque sessions. Argon2id verifies the externally configured password hash. Successful login sets the session identifier only as an `HttpOnly` cookie with `SameSite=Lax`, explicit path/TTL, and `Secure` when configured; API response bodies do not expose the token. Logout revokes the server-side session before clearing the cookie.
 
 The production HTTP application now refuses to start without the authentication username/hash pair, in addition to the existing production session-secret and secure-cookie requirements. Login rate limiting, CSRF protection for future authenticated state-changing application APIs, and persistent multi-worker session storage remain follow-on hardening work rather than hidden assumptions in this phase.
+
+## Phase 1C browser boundary
+
+The login UI is served by FastAPI at `/login`. Anonymous access to `/workspace` redirects to the login page, while authenticated access serves the preserved browser viewer as a temporary workspace target. Static brand/style/script assets are public; authenticated medical-study data must not be placed in the public static asset tree.

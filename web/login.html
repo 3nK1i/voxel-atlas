@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+  >
+  <meta name="theme-color" content="#020b19">
+  <meta name="color-scheme" content="dark">
+  <link rel="icon" href="data:,">
+  <title>VoxelAtlas — Sign in</title>
+  <link rel="stylesheet" href="/css/login.css?v=phase1c-ergonomic1">
+</head>
+<body>
+  <main class="login-page" aria-labelledby="loginTitle">
+    <section class="login-card" aria-describedby="loginSubtitle">
+      <div class="login-brandmark" id="loginBrandmark">
+        <img
+          class="login-brandmark__image"
+          id="loginLogo"
+          src="/assets/logo.png"
+          alt="VoxelAtlas anatomical visualization logo"
+        >
+        <div class="login-brandmark__placeholder" aria-hidden="true">
+          <span>VA</span>
+        </div>
+      </div>
+
+      <div class="login-copy">
+        <h1 id="loginTitle">Welcome Back</h1>
+        <p id="loginSubtitle">Access your medical imaging workspace</p>
+      </div>
+
+      <form class="login-form" id="loginForm" novalidate>
+        <div class="login-field-group">
+          <label for="username">Username</label>
+          <div class="login-field">
+            <svg class="login-field__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm7 8a7 7 0 0 0-14 0h14Z"></path>
+            </svg>
+            <input
+              id="username"
+              name="username"
+              type="text"
+              autocomplete="username"
+              inputmode="text"
+              maxlength="254"
+              placeholder="Enter your username"
+              required
+            >
+          </div>
+        </div>
+
+        <div class="login-field-group">
+          <label for="password">Password</label>
+          <div class="login-field">
+            <svg class="login-field__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M7 10V8a5 5 0 0 1 10 0v2m-9 0h8a2 2 0 0 1 2 2v7H6v-7a2 2 0 0 1 2-2Z"></path>
+            </svg>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              maxlength="1024"
+              placeholder="Enter your password"
+              required
+            >
+            <button
+              class="password-toggle"
+              id="passwordToggle"
+              type="button"
+              aria-label="Show password"
+              aria-pressed="false"
+            >
+              <svg class="password-toggle__show" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M2.8 12s3.1-5 9.2-5 9.2 5 9.2 5-3.1 5-9.2 5-9.2-5-9.2-5Z"></path>
+                <circle cx="12" cy="12" r="2.6"></circle>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <p class="login-message" id="loginMessage" role="alert" aria-live="polite"></p>
+
+        <button class="login-submit" id="loginSubmit" type="submit">
+          <span id="loginSubmitLabel">Login</span>
+        </button>
+      </form>
+    </section>
+  </main>
+
+  <script src="/js/login.js?v=phase1c"></script>
+</body>
+</html>

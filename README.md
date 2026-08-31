@@ -69,3 +69,7 @@ The locked V1 sequence is:
 Development is performed on phase branches. `main` represents accepted validated states. Each implementation step is kept narrow and is closed only after automated checks, a small targeted manual validation, diff inspection, commit, and push.
 
 Raw medical datasets and generated outputs are intentionally excluded from Git.
+
+## Phase 1 login UI
+
+With the project `.venv` active and authentication environment variables configured, run the FastAPI application and open `/login`. Runtime image assets live in `web/assets/`; the design screenshots in `design/reference/` are reference-only and are not used as page backgrounds.

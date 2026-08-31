@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .auth import AuthenticationService, InMemorySessionStore
@@ -13,6 +16,8 @@ from .passwords import verify_password
 
 COOKIE_SAMESITE = "lax"
 COOKIE_PATH = "/"
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+WEB_ROOT = REPOSITORY_ROOT / "web"
 
 
 class LoginRequest(BaseModel):
@@ -67,6 +72,10 @@ def create_app(
     app.state.settings = runtime_settings
     app.state.auth_service = service
 
+    app.mount("/assets", StaticFiles(directory=WEB_ROOT / "assets"), name="assets")
+    app.mount("/css", StaticFiles(directory=WEB_ROOT / "css"), name="css")
+    app.mount("/js", StaticFiles(directory=WEB_ROOT / "js"), name="js")
+
     def current_username(request: Request) -> str | None:
         current_service: AuthenticationService | None = request.app.state.auth_service
         if current_service is None:
@@ -82,6 +91,29 @@ def create_app(
                 detail="Authentication required",
             )
         return username
+
+    @app.get("/", include_in_schema=False)
+    def root(request: Request) -> RedirectResponse:
+        destination = "/workspace" if current_username(request) is not None else "/login"
+        return RedirectResponse(url=destination, status_code=status.HTTP_302_FOUND)
+
+    @app.get("/login", include_in_schema=False)
+    def login_page(request: Request):
+        if current_username(request) is not None:
+            return RedirectResponse(url="/workspace", status_code=status.HTTP_302_FOUND)
+        return FileResponse(
+            WEB_ROOT / "login.html",
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @app.get("/workspace", include_in_schema=False)
+    def workspace(request: Request):
+        if current_username(request) is None:
+            return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+        return FileResponse(
+            WEB_ROOT / "index.html",
+            headers={"Cache-Control": "no-store"},
+        )
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
