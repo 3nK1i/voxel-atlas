@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <meta name="theme-color" content="#020b16">
+
+  <title>V2B3A — Continuous Cranial Aperture</title>
+
+  <link rel="stylesheet" href="./styles.css?v=v2b3a-2">
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three":
+        "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js",
+
+      "three/addons/":
+        "https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+
+<body>
+
+  <main class="prototype">
+
+    <header class="header">
+
+      <div>
+        <div class="eyebrow">
+          V2B3A · APERTURE PROTOTYPE
+        </div>
+
+        <div class="title-row">
+          <h1>Patient-Specific Skull</h1>
+
+          <span class="chip">
+            A0101
+          </span>
+
+          <span class="chip">
+            Dynamic cranial opening
+          </span>
+        </div>
+      </div>
+
+      <div
+        id="status"
+        class="status"
+        data-state="loading"
+      >
+        <span class="status-dot"></span>
+        <span id="statusText">
+          Loading skull…
+        </span>
+      </div>
+
+    </header>
+
+
+    <section class="viewer-card">
+
+      <div
+        id="viewport"
+        class="viewport"
+        aria-label="Interactive 3D skull"
+      ></div>
+
+      <div class="viewer-hint">
+        Drag to rotate
+        <span>•</span>
+        Scroll to zoom
+      </div>
+
+    </section>
+
+
+    <section class="aperture-panel">
+
+      <div class="aperture-heading">
+
+        <div>
+          <div class="control-label">
+            Cranial opening
+          </div>
+
+          <div
+            id="openingDescription"
+            class="control-description"
+          >
+            Standard opening
+          </div>
+        </div>
+
+        <output
+          id="openingValue"
+          class="opening-value"
+          for="openingSlider"
+        >
+          58%
+        </output>
+
+      </div>
+
+
+      <div class="slider-shell">
+
+        <input
+          id="openingSlider"
+          class="opening-slider"
+          type="range"
+          min="0"
+          max="100"
+          step="1"
+          value="58"
+          aria-label="Cranial opening percentage"
+        >
+
+        <div class="slider-labels">
+          <span>Closed</span>
+          <span>Standard</span>
+          <span>Wide</span>
+        </div>
+
+      </div>
+
+
+      <div class="preset-row">
+
+        <button
+          type="button"
+          class="preset-button"
+          data-opening="0"
+        >
+          Closed
+        </button>
+
+        <button
+          type="button"
+          class="preset-button"
+          data-opening="30"
+        >
+          Small
+        </button>
+
+        <button
+          type="button"
+          class="preset-button is-active"
+          data-opening="58"
+        >
+          Standard
+        </button>
+
+        <button
+          type="button"
+          class="preset-button"
+          data-opening="78"
+        >
+          Large
+        </button>
+
+        <button
+          type="button"
+          class="preset-button"
+          data-opening="100"
+        >
+          Wide
+        </button>
+
+      </div>
+
+    </section>
+
+
+    <footer class="footer">
+
+      <div>
+        <span>Source</span>
+        <strong>A0101 canonical full skull</strong>
+      </div>
+
+      <div>
+        <span>Geometry</span>
+        <strong>Original GLB unchanged</strong>
+      </div>
+
+      <div>
+        <span>Aperture</span>
+        <strong>GPU dynamic cutaway</strong>
+      </div>
+
+    </footer>
+
+  </main>
+
+
+  <script
+    type="module"
+    src="./app.js?v=v2b3a-2"
+  ></script>
+
+</body>
+</html>

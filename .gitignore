@@ -1,0 +1,22 @@
+# Medical data
+data/
+*.dcm
+*.nii
+*.nii.gz
+*.nrrd
+
+# Generated outputs
+outputs/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Environment / IDE
+.env
+.vscode/
+.idea/
+
+# OS
+.DS_Store

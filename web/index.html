@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+  >
+  <meta name="theme-color" content="#03101f">
+  <link rel="icon" href="data:,">
+  <title>Medical 3D Skull Demo</title>
+
+  <link rel="stylesheet" href="./css/styles.css?v=v2b2-5">
+
+  <script
+    type="module"
+    src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.3.1/model-viewer.min.js"
+  ></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="hero">
+      <div class="hero__main">
+        <p class="eyebrow">SPATIAL MEDICAL VISUALIZATION</p>
+        <h1>Patient-Specific Skull</h1>
+
+        <div class="hero__chips">
+          <span class="chip chip--primary">A0101</span>
+          <span class="chip">MUG500+ skull model</span>
+          <span class="chip chip--soft" id="modeChip">Open cranial view</span>
+        </div>
+      </div>
+
+      <div class="status-pill" id="statusPill" data-state="loading">
+        <span class="status-pill__dot"></span>
+        <span id="statusText">Loading 3D model…</span>
+      </div>
+    </header>
+
+    <main class="viewer-shell">
+      <div class="viewer-glow"></div>
+
+      <model-viewer
+        id="skullViewer"
+        src="./assets/models/skull_open.glb?v=v2b2"
+        alt="A0101 premium patient-specific skull"
+        ar
+        ar-modes="webxr scene-viewer quick-look"
+        camera-controls
+        touch-action="none"
+        disable-pan
+        interpolation-decay="80"
+        interaction-prompt="none"
+        shadow-intensity="0.85"
+        shadow-softness="0.95"
+        exposure="0.82"
+        environment-image="neutral"
+        auto-rotate
+        rotation-per-second="6deg"
+        camera-orbit="-25deg 72deg 0.48m"
+        camera-target="0m 0m 0m"
+        min-camera-orbit="auto 1deg 0.26m"
+        max-camera-orbit="auto 179deg 1.60m"
+        field-of-view="26deg"
+      ></model-viewer>
+
+      <div class="viewer-hint">
+        Drag to rotate &nbsp;&nbsp;•&nbsp;&nbsp; Scroll / pinch to zoom
+      </div>
+    </main>
+
+    <section class="controls-grid">
+      <article class="control-card">
+        <div class="control-card__label">View mode</div>
+        <div class="segmented">
+          <button
+            type="button"
+            class="segmented__btn"
+            data-mode="full"
+          >
+            Closed skull
+          </button>
+          <button
+            type="button"
+            class="segmented__btn is-active"
+            data-mode="open"
+          >
+            Open skull
+          </button>
+        </div>
+      </article>
+
+      <article class="control-card">
+        <div class="control-card__label">Visual preset</div>
+        <div class="segmented">
+          <button
+            type="button"
+            class="segmented__btn"
+            data-preset="clinical"
+          >
+            Clinical
+          </button>
+          <button
+            type="button"
+            class="segmented__btn is-active"
+            data-preset="xr"
+          >
+            Premium XR
+          </button>
+          <button
+            type="button"
+            class="segmented__btn"
+            data-preset="holo"
+          >
+            Holographic
+          </button>
+        </div>
+      </article>
+
+      <article class="control-card">
+        <div class="control-card__topline">
+          <span class="control-card__label">Opacity</span>
+          <strong id="opacityValue">78%</strong>
+        </div>
+
+        <input
+          id="opacityInput"
+          type="range"
+          min="30"
+          max="100"
+          step="1"
+          value="78"
+        >
+
+        <div class="range-labels">
+          <span>30%</span>
+          <span>100%</span>
+        </div>
+      </article>
+
+      <article class="control-card control-card--actions">
+        <div class="control-card__label">Actions</div>
+        <div class="action-stack">
+          <button type="button" class="btn btn--primary" id="arButton">
+            View in AR
+          </button>
+          <button type="button" class="btn" id="autoRotateButton">
+            Pause rotation
+          </button>
+          <button type="button" class="btn" id="resetViewButton">
+            Reset view
+          </button>
+        </div>
+      </article>
+    </section>
+
+    <footer class="footer-bar">
+      <div class="stats">
+        <div class="stat">
+          <span class="stat__label">Model</span>
+          <strong>A0101</strong>
+        </div>
+
+        <div class="stat">
+          <span class="stat__label">Triangles</span>
+          <strong id="triangleStat">250,000</strong>
+        </div>
+
+        <div class="stat">
+          <span class="stat__label">Height</span>
+          <strong id="heightStat">~209 mm</strong>
+        </div>
+
+        <div class="stat">
+          <span class="stat__label">View</span>
+          <strong id="modeStat">Open cranial view</strong>
+        </div>
+
+        <div class="stat">
+          <span class="stat__label">Look</span>
+          <strong id="presetStat">Premium XR</strong>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script src="./js/app.js?v=v2b2-5"></script>
+</body>
+</html>
