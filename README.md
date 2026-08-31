@@ -21,13 +21,13 @@ The two prototype directories are preservation references and must not be modifi
 
 ## Validation and environment
 
-From the repository root, run the current full foundation check:
+From the repository root, run the current full validation check:
 
 ```bash
-bash scripts/run_phase0c3_checks.sh
+bash scripts/run_phase1a_checks.sh
 ```
 
-This includes the Phase 0C1 preservation regression, the Phase 0C2 dependency/environment contract, the Phase 0C3 application/security contract, and non-mutating environment/foundation probes.
+This chains the complete Phase 0 foundation regression and the Phase 1A authentication-core contract/probe.
 
 The existing DICOM/CT/mesh scripts have a separate dependency inventory in `requirements/medical-processing.txt`. Their active Python environment can be qualified explicitly with:
 
@@ -44,6 +44,10 @@ The supplied product assets are preserved in `design/reference/`. `logo.png` is 
 ## Backend foundation
 
 Phase 0C3 establishes the standard-library configuration/security boundary in `backend/voxelatlas/` and an unpinned Phase 1 backend dependency inventory in `requirements/backend.txt`. Real secrets remain outside Git; `.env.example` contains names and safe development defaults only.
+
+## Authentication implementation
+
+Phase 1A establishes the framework-independent authentication core: paired external credential configuration, generic authentication failures, opaque server-side sessions, expiry, and logout invalidation. FastAPI routes, Argon2id wiring, secure cookies, and the visual login page remain staged follow-on steps. No plaintext or default login password is committed.
 
 ## V1 direction
 

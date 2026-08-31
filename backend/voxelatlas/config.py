@@ -11,6 +11,8 @@ DEFAULT_SESSION_COOKIE_NAME = "voxelatlas_session"
 DEFAULT_ALLOWED_HOSTS = ("127.0.0.1", "localhost")
 DEFAULT_MAX_UPLOAD_MIB = 512
 MAX_UPLOAD_MIB_LIMIT = 4096
+DEFAULT_SESSION_TTL_MINUTES = 60
+MAX_SESSION_TTL_MINUTES = 1440
 
 
 class ConfigurationError(ValueError):
@@ -25,6 +27,9 @@ class AppSettings(NamedTuple):
     allowed_hosts: tuple[str, ...]
     data_dir: Path
     max_upload_mib: int
+    auth_username: str | None
+    auth_password_hash: str | None
+    session_ttl_minutes: int
 
 
 def _parse_bool(name: str, raw_value: str) -> bool:
@@ -110,6 +115,24 @@ def load_settings(environ: dict[str, str] | None = None) -> AppSettings:
             f"VOXELATLAS_MAX_UPLOAD_MIB must not exceed {MAX_UPLOAD_MIB_LIMIT}"
         )
 
+    raw_auth_username = env.get("VOXELATLAS_AUTH_USERNAME", "").strip()
+    raw_auth_password_hash = env.get("VOXELATLAS_AUTH_PASSWORD_HASH", "").strip()
+    auth_username = raw_auth_username or None
+    auth_password_hash = raw_auth_password_hash or None
+    if (auth_username is None) != (auth_password_hash is None):
+        raise ConfigurationError(
+            "VOXELATLAS_AUTH_USERNAME and VOXELATLAS_AUTH_PASSWORD_HASH must be configured together"
+        )
+
+    session_ttl_minutes = _parse_positive_int(
+        "VOXELATLAS_SESSION_TTL_MINUTES",
+        env.get("VOXELATLAS_SESSION_TTL_MINUTES", str(DEFAULT_SESSION_TTL_MINUTES)),
+    )
+    if session_ttl_minutes > MAX_SESSION_TTL_MINUTES:
+        raise ConfigurationError(
+            f"VOXELATLAS_SESSION_TTL_MINUTES must not exceed {MAX_SESSION_TTL_MINUTES}"
+        )
+
     return AppSettings(
         environment=environment,
         session_secret=session_secret,
@@ -118,4 +141,7 @@ def load_settings(environ: dict[str, str] | None = None) -> AppSettings:
         allowed_hosts=allowed_hosts,
         data_dir=data_dir,
         max_upload_mib=max_upload_mib,
+        auth_username=auth_username,
+        auth_password_hash=auth_password_hash,
+        session_ttl_minutes=session_ttl_minutes,
     )

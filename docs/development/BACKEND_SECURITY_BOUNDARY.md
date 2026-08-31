@@ -29,3 +29,8 @@ The login phase will build on this boundary with:
 - protected dashboard routes.
 
 The Phase 0C3 dependency inventory is intentionally unpinned until the dedicated Phase 1 backend environment is qualified and tested on the target workstation.
+## Phase 1A authentication core
+
+The first authentication implementation keeps credential verification and session lifecycle independent of the HTTP framework. `backend/voxelatlas/auth.py` accepts an injected password verifier so the next HTTP step can wire the qualified Argon2id adapter without coupling the core service to FastAPI.
+
+Browser-visible session identifiers are opaque random values. The current process-local server-side store retains only SHA-256 token digests, supports expiry, and revokes immediately on logout. It is a Phase 1 development contract, not yet the final multi-worker production session persistence layer.
