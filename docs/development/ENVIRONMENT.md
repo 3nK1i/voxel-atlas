@@ -46,3 +46,15 @@ bash scripts/run_phase0c2_checks.sh
 ```
 
 This chains the Phase 0C1 preservation regression, the Phase 0C2 contract tests, and the core environment probe.
+
+## Phase 1 backend profile
+
+Phase 1B introduces executable FastAPI/Argon2id HTTP contracts. Before running Phase 1B validation, the active Python environment must provide the packages in `requirements/backend.txt` and `requirements/test.txt`.
+
+Check without installing anything:
+
+```bash
+python3 scripts/check_phase1b_backend_environment.py
+```
+
+If dependencies are absent, use a controlled project Python environment before installation rather than modifying unrelated system/project environments.

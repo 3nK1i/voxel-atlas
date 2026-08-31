@@ -1,0 +1,3 @@
+# Phase 1B HTTP-contract test dependency inventory.
+# Versions remain unpinned until target-workstation backend qualification is recorded.
+httpx

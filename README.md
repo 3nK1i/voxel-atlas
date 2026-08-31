@@ -24,10 +24,10 @@ The two prototype directories are preservation references and must not be modifi
 From the repository root, run the current full validation check:
 
 ```bash
-bash scripts/run_phase1a_checks.sh
+bash scripts/run_phase1b_checks.sh
 ```
 
-This chains the complete Phase 0 foundation regression and the Phase 1A authentication-core contract/probe.
+This chains the complete Phase 0 foundation regression, the Phase 1A authentication core, and the Phase 1B FastAPI/Argon2id HTTP authentication contract.
 
 The existing DICOM/CT/mesh scripts have a separate dependency inventory in `requirements/medical-processing.txt`. Their active Python environment can be qualified explicitly with:
 
@@ -47,7 +47,7 @@ Phase 0C3 establishes the standard-library configuration/security boundary in `b
 
 ## Authentication implementation
 
-Phase 1A establishes the framework-independent authentication core: paired external credential configuration, generic authentication failures, opaque server-side sessions, expiry, and logout invalidation. FastAPI routes, Argon2id wiring, secure cookies, and the visual login page remain staged follow-on steps. No plaintext or default login password is committed.
+Phase 1A establishes the framework-independent authentication core. Phase 1B adds the FastAPI login/logout/session lifecycle, Argon2id verification, protected-route behavior, and opaque `HttpOnly` cookie transport. The visual login page remains the next staged step. No plaintext or default login password is committed.
 
 ## V1 direction
 
