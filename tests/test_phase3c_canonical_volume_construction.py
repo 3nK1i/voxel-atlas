@@ -315,14 +315,14 @@ class Phase3CCanonicalVolumeConstructionTests(unittest.TestCase):
             self.assertTrue(built.json()["study"]["volume_ready"])
             self.assertEqual(fake_volume.calls, 1)
 
-    def test_workspace_auto_builds_qualified_volume_without_faking_mpr(self) -> None:
+    def test_workspace_auto_builds_qualified_volume_and_defers_3d_patient_anatomy(self) -> None:
         html = (ROOT / "web/index.html").read_text(encoding="utf-8")
         js = (ROOT / "web/js/app.js").read_text(encoding="utf-8")
         self.assertIn('fetch("/api/studies/latest/volume"', js)
         self.assertIn("Patient volume ready", js)
-        self.assertIn("Volume ready - MPR rendering pending", js)
+        self.assertIn('/api/studies/latest/mpr', js)
         self.assertIn("DICOM volume not loaded", html)
-        self.assertNotIn("registerLayer(\"volume\"", js)
+        self.assertNotIn('registerLayer("volume"', js)
 
     def test_backend_runtime_manifest_declares_numpy_for_volume_construction(self) -> None:
         requirements = (ROOT / "requirements/backend.txt").read_text(encoding="utf-8")

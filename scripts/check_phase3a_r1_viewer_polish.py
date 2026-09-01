@@ -33,9 +33,9 @@ require("function updateOrientationGizmo()", JS, "orientation_gizmo_runtime")
 require("anatomyGroup.quaternion", JS, "orientation_gizmo_anatomy_sync")
 require("camera.quaternion", JS, "orientation_gizmo_camera_sync")
 require(".orientation-cube svg", CSS, "orientation_gizmo_style")
-if not any(marker in HTML for marker in ('/css/styles.css?v=phase3a-r1', '/css/styles.css?v=phase3a-r2', '/css/styles.css?v=phase3a-r2-final1', '/css/styles.css?v=phase3b-geometry1', '/css/styles.css?v=phase3c-volume1')):
+if not any(marker in HTML for marker in ('/css/styles.css?v=phase3a-r1', '/css/styles.css?v=phase3a-r2', '/css/styles.css?v=phase3a-r2-final1', '/css/styles.css?v=phase3b-geometry1', '/css/styles.css?v=phase3c-volume1', '/css/styles.css?v=phase3d-mpr1', '/css/styles.css?v=phase3d-r1', '/css/styles.css?v=phase3d-r2')):
     raise SystemExit("FAIL css_cache_version: missing supported Phase 3A viewer cache version")
-if not any(marker in HTML for marker in ('/js/app.js?v=phase3a-r1', '/js/app.js?v=phase3a-r2', '/js/app.js?v=phase3a-r2-final1', '/js/app.js?v=phase3b-geometry1', '/js/app.js?v=phase3c-volume1')):
+if not any(marker in HTML for marker in ('/js/app.js?v=phase3a-r1', '/js/app.js?v=phase3a-r2', '/js/app.js?v=phase3a-r2-final1', '/js/app.js?v=phase3b-geometry1', '/js/app.js?v=phase3c-volume1', '/js/app.js?v=phase3d-mpr1', '/js/app.js?v=phase3d-r1', '/js/app.js?v=phase3d-r2')):
     raise SystemExit("FAIL js_cache_version: missing supported Phase 3A viewer cache version")
 
 print("PASS opacity=direct_100_percent_opaque")

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import timedelta
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, File, HTTPException, Request, Response, UploadFile, status
+from fastapi import Depends, FastAPI, File, HTTPException, Query, Request, Response, UploadFile, status
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -17,6 +17,12 @@ from .dicom_ingestion import (
     DicomIngestionService,
     DicomStudyValidationError,
     DicomUploadLimitExceeded,
+)
+from .dicom_mpr import (
+    CanonicalMprService,
+    DicomMprDependencyUnavailable,
+    DicomMprError,
+    DicomMprValidationError,
 )
 from .dicom_volume import (
     CanonicalVolumeService,
@@ -66,6 +72,7 @@ def create_app(
     auth_service: AuthenticationService | None = None,
     dicom_service: DicomIngestionService | None = None,
     volume_service: CanonicalVolumeService | None = None,
+    mpr_service: CanonicalMprService | None = None,
 ) -> FastAPI:
     runtime_settings = load_settings() if settings is None else settings
     if (
@@ -92,6 +99,11 @@ def create_app(
         if volume_service is not None
         else CanonicalVolumeService(data_dir=runtime_settings.data_dir)
     )
+    patient_mpr_service = (
+        mpr_service
+        if mpr_service is not None
+        else CanonicalMprService(data_dir=runtime_settings.data_dir)
+    )
 
     app = FastAPI(title="VoxelAtlas", docs_url=None, redoc_url=None)
     app.add_middleware(
@@ -102,6 +114,7 @@ def create_app(
     app.state.auth_service = service
     app.state.dicom_service = study_service
     app.state.volume_service = patient_volume_service
+    app.state.mpr_service = patient_mpr_service
 
     app.mount("/assets", StaticFiles(directory=WEB_ROOT / "assets"), name="assets")
     app.mount("/css", StaticFiles(directory=WEB_ROOT / "css"), name="css")
@@ -267,6 +280,78 @@ def create_app(
                 detail=str(exc),
             ) from exc
         return {"study": study}
+
+    @app.get("/api/studies/latest/mpr")
+    def latest_mpr_descriptor(
+        response: Response,
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        current_service: CanonicalMprService = app.state.mpr_service
+        try:
+            descriptor = current_service.descriptor_latest()
+        except DicomMprDependencyUnavailable as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=str(exc),
+            ) from exc
+        except DicomMprValidationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=str(exc),
+            ) from exc
+        except DicomMprError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+            ) from exc
+        response.headers["Cache-Control"] = "no-store"
+        return {"mpr": descriptor}
+
+    @app.get("/api/studies/latest/mpr/{plane}")
+    def latest_mpr_plane(
+        plane: str,
+        index: int = Query(ge=0),
+        window: float = Query(gt=0.0, le=1_000_000.0),
+        level: float = Query(ge=-1_000_000.0, le=1_000_000.0),
+        username: str = Depends(require_username),
+    ) -> Response:
+        del username
+        current_service: CanonicalMprService = app.state.mpr_service
+        try:
+            image = current_service.render_latest(
+                plane,
+                index=index,
+                window=window,
+                level=level,
+            )
+        except DicomMprDependencyUnavailable as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=str(exc),
+            ) from exc
+        except DicomMprValidationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(exc),
+            ) from exc
+        except DicomMprError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+            ) from exc
+        return Response(
+            content=image.pixels,
+            media_type="application/x-voxelatlas-gray8",
+            headers={
+                "Cache-Control": "no-store",
+                "X-VoxelAtlas-Plane": image.plane,
+                "X-VoxelAtlas-Index": str(image.index),
+                "X-VoxelAtlas-Position-Mm": f"{image.position_mm:.6f}",
+                "X-VoxelAtlas-Width": str(image.width),
+                "X-VoxelAtlas-Height": str(image.height),
+            },
+        )
 
     @app.get("/api/protected/ping")
     def protected_ping(username: str = Depends(require_username)) -> dict[str, object]:

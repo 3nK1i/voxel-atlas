@@ -1048,7 +1048,7 @@ button:disabled {
   font-size: 7px;
   font-weight: 720;
   cursor: pointer;
-  transition: border-color 130ms ease, background 130ms ease, transform 130ms ease;
+  transition: border-color 130ms ease, background 130ms ease, color 130ms ease, box-shadow 130ms ease, transform 130ms ease;
 }
 
 .layer-button:disabled {
@@ -1541,4 +1541,486 @@ button:disabled {
 
 .series-dialog-geometry[data-state="review"] {
   color: #e8b96d;
+}
+
+/* Phase 3D - real patient-space MPR */
+.mpr-view {
+  touch-action: none;
+  user-select: none;
+  cursor: crosshair;
+}
+
+.mpr-image-surface {
+  --mpr-crosshair-x: 50%;
+  --mpr-crosshair-y: 50%;
+  position: relative;
+  display: none;
+  flex: 0 0 auto;
+  overflow: hidden;
+  background: #000;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--line-soft) 78%, transparent);
+}
+
+.mpr-panel[data-volume-state="ready"] .mpr-image-surface,
+.mpr-panel[data-volume-state="loading"] .mpr-image-surface {
+  display: block;
+}
+
+.mpr-panel[data-volume-state="ready"] .mpr-empty::before,
+.mpr-panel[data-volume-state="loading"] .mpr-empty::before {
+  display: none;
+}
+
+.mpr-image-surface canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: auto;
+  background: #000;
+}
+
+.mpr-panel[data-volume-state="ready"] .mpr-empty > p {
+  display: none;
+}
+
+.mpr-panel[data-volume-state="loading"] .mpr-empty > p {
+  z-index: 5;
+  bottom: 8px;
+  padding: 3px 7px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel-solid) 88%, transparent);
+  color: var(--text-soft);
+}
+
+.mpr-image-surface .mpr-crosshair {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.mpr-image-surface .mpr-crosshair::before,
+.mpr-image-surface .mpr-crosshair::after {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  background: color-mix(in srgb, var(--accent) 72%, white 12%);
+  box-shadow: 0 0 5px color-mix(in srgb, var(--accent) 34%, transparent);
+}
+
+.mpr-image-surface .mpr-crosshair::before {
+  top: 0;
+  bottom: 0;
+  left: var(--mpr-crosshair-x);
+  width: 1px;
+  transform: translateX(-0.5px);
+}
+
+.mpr-image-surface .mpr-crosshair::after {
+  left: 0;
+  right: 0;
+  top: var(--mpr-crosshair-y);
+  height: 1px;
+  transform: translateY(-0.5px);
+}
+
+.mpr-image-surface .orientation-label {
+  z-index: 4;
+  color: rgba(225, 238, 248, 0.82);
+  font-size: 7px;
+  text-shadow: 0 1px 3px #000;
+  pointer-events: none;
+}
+
+.mpr-image-surface .orientation-top,
+.mpr-image-surface .orientation-bottom {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.mpr-image-surface .orientation-top { top: 6px; }
+.mpr-image-surface .orientation-bottom { bottom: 6px; }
+
+.mpr-image-surface .orientation-left { left: 7px; }
+.mpr-image-surface .orientation-right { right: 7px; }
+
+.mpr-panel[data-volume-state="ready"] .mpr-header strong {
+  color: var(--text);
+}
+
+.mpr-panel[data-volume-state="ready"] .mpr-header span,
+.mpr-panel[data-volume-state="ready"] .mpr-footer span {
+  color: var(--text-soft);
+}
+
+.mpr-view[data-interaction="window-level"] {
+  cursor: ew-resize;
+}
+
+/* Phase 3D-R1 - professional physical MPR presentation */
+.mpr-panel {
+  --mpr-v-line: #51d693;
+  --mpr-h-line: #ea5966;
+  grid-template-rows: 42px minmax(0, 1fr) 34px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--panel-solid) 96%, black 4%);
+}
+
+.mpr-panel[data-mpr-plane="axial"] {
+  --mpr-v-line: #55d78d;
+  --mpr-h-line: #ef5968;
+}
+
+.mpr-panel[data-mpr-plane="coronal"] {
+  --mpr-v-line: #55d78d;
+  --mpr-h-line: #46aef1;
+}
+
+.mpr-panel[data-mpr-plane="sagittal"] {
+  --mpr-v-line: #35aef7;
+  --mpr-h-line: #ef5968;
+}
+
+.mpr-header {
+  padding: 5px 10px 4px;
+  align-items: center;
+  background: color-mix(in srgb, var(--panel-solid) 97%, black 3%);
+}
+
+.mpr-title-block {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+}
+
+.mpr-title-block strong {
+  color: var(--text);
+  font-size: 10px;
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+}
+
+.mpr-position {
+  color: #59d795 !important;
+  font-size: 7px !important;
+  font-weight: 720;
+  font-variant-numeric: tabular-nums;
+}
+
+.mpr-index {
+  color: var(--text-soft) !important;
+  font-size: 8px !important;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.mpr-panel[data-volume-state="ready"] .mpr-empty,
+.mpr-panel[data-volume-state="loading"] .mpr-empty {
+  background: #01060b;
+}
+
+.mpr-image-surface {
+  background: #000;
+  box-shadow: none;
+}
+
+.mpr-image-surface canvas {
+  image-rendering: auto;
+}
+
+.mpr-image-surface .mpr-crosshair::before {
+  background: var(--mpr-v-line);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--mpr-v-line) 30%, transparent);
+}
+
+.mpr-image-surface .mpr-crosshair::after {
+  background: var(--mpr-h-line);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--mpr-h-line) 30%, transparent);
+}
+
+.mpr-image-surface .orientation-label {
+  color: #e9f4fb;
+  font-size: 8px;
+  font-weight: 820;
+  text-shadow: 0 1px 4px #000, 0 0 6px #000;
+}
+
+.mpr-image-surface .orientation-top { top: 7px; }
+.mpr-image-surface .orientation-bottom { bottom: 7px; }
+.mpr-image-surface .orientation-left { left: 8px; }
+.mpr-image-surface .orientation-right { right: 8px; }
+
+.mpr-footer {
+  padding: 0 8px 0 10px;
+  background: color-mix(in srgb, var(--panel-solid) 97%, black 3%);
+}
+
+.mpr-wl {
+  color: var(--text-soft) !important;
+  font-size: 8px !important;
+  font-weight: 680;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
+}
+
+.mpr-panel-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.mpr-panel-tools button {
+  width: 25px;
+  height: 25px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--panel-soft) 84%, transparent);
+  color: var(--text-soft);
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
+}
+
+.mpr-panel-tools button:hover {
+  border-color: var(--line-strong);
+  background: var(--panel-hover);
+  color: var(--text);
+}
+
+.mpr-panel-tools svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.45;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media (min-width: 981px) {
+  .mpr-panel { grid-template-rows: 46px minmax(0, 1fr) 38px; }
+  .mpr-header { padding: 6px 12px 5px; }
+  .mpr-title-block strong { font-size: 11px; }
+  .mpr-position { font-size: 8px !important; }
+  .mpr-index { font-size: 9px !important; }
+  .mpr-wl { font-size: 9px !important; }
+  .mpr-panel-tools button { width: 27px; height: 27px; }
+  .mpr-panel-tools svg { width: 16px; height: 16px; }
+  .mpr-image-surface .orientation-label { font-size: 9px; }
+}
+
+/* Phase 3D-R2 - final MPR framing and target-style 3D controls */
+.mpr-panel[data-volume-state="ready"] .mpr-view,
+.mpr-panel[data-volume-state="loading"] .mpr-view {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  background: #000;
+}
+
+.mpr-image-surface {
+  --mpr-image-width: 100%;
+  --mpr-image-height: 100%;
+  --mpr-image-left: 0px;
+  --mpr-image-top: 0px;
+  --mpr-image-right: 100%;
+  --mpr-image-bottom: 100%;
+  --mpr-image-center-x: 50%;
+  --mpr-image-center-y: 50%;
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  background: #000;
+}
+
+.mpr-image-surface canvas {
+  position: absolute;
+  left: var(--mpr-image-left);
+  top: var(--mpr-image-top);
+  width: var(--mpr-image-width);
+  height: var(--mpr-image-height);
+  max-width: 100%;
+  max-height: 100%;
+  background: #000;
+}
+
+.mpr-image-surface .mpr-crosshair {
+  left: var(--mpr-image-left);
+  top: var(--mpr-image-top);
+  width: var(--mpr-image-width);
+  height: var(--mpr-image-height);
+  inset: auto;
+}
+
+.mpr-image-surface .orientation-top {
+  left: var(--mpr-image-center-x);
+  top: calc(var(--mpr-image-top) + 7px);
+}
+
+.mpr-image-surface .orientation-bottom {
+  left: var(--mpr-image-center-x);
+  top: calc(var(--mpr-image-bottom) - 14px);
+  bottom: auto;
+}
+
+.mpr-image-surface .orientation-left {
+  left: calc(var(--mpr-image-left) + 8px);
+  top: var(--mpr-image-center-y);
+}
+
+.mpr-image-surface .orientation-right {
+  left: calc(var(--mpr-image-right) - 14px);
+  right: auto;
+  top: var(--mpr-image-center-y);
+}
+
+
+.viewer-toolbar {
+  right: 12px;
+  display: grid;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 58%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--panel-solid) 78%, transparent);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(12px);
+}
+
+.viewer-toolbar button.viewer-tool-button {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  color: #d6e4ef;
+  box-shadow: none;
+  transition: color 130ms ease, background 130ms ease, box-shadow 130ms ease;
+}
+
+.viewer-toolbar button.viewer-tool-button:last-child {
+  border-bottom: 0;
+}
+
+.viewer-toolbar button.viewer-tool-button svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.55;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.viewer-toolbar button.viewer-tool-button:hover {
+  color: #ffffff;
+  background: color-mix(in srgb, var(--accent-bg) 66%, transparent);
+}
+
+.viewer-toolbar button.viewer-tool-button:active,
+.viewer-tool-button.is-active,
+.viewer-tool-button[aria-pressed="true"],
+.direction-button.is-active,
+.layer-button.is-active {
+  border-color: color-mix(in srgb, var(--accent) 82%, #ffffff 6%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, #0757a6 82%, var(--accent) 18%),
+    color-mix(in srgb, #06386d 90%, var(--accent) 10%)
+  );
+  color: #f5fbff;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 78%, #ffffff 6%),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 0 18px color-mix(in srgb, var(--accent) 16%, transparent),
+    0 0 15px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.direction-button.is-active {
+  border-width: 1px;
+}
+
+@media (min-width: 981px) {
+  .viewer-toolbar button.viewer-tool-button {
+    width: 46px;
+    height: 46px;
+  }
+
+  .viewer-toolbar button.viewer-tool-button svg {
+    width: 22px;
+    height: 22px;
+  }
+}
+
+/* Phase 3D-R2.1 - image-registered MPR crosshair and primary DICOM CTA */
+.mpr-image-surface {
+  --mpr-crosshair-x-px: 50%;
+  --mpr-crosshair-y-px: 50%;
+}
+
+.mpr-image-surface .mpr-crosshair {
+  inset: 0;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.mpr-image-surface .mpr-crosshair::before {
+  top: var(--mpr-image-top);
+  bottom: auto;
+  left: var(--mpr-crosshair-x-px);
+  width: 1px;
+  height: var(--mpr-image-height);
+}
+
+.mpr-image-surface .mpr-crosshair::after {
+  left: var(--mpr-image-left);
+  right: auto;
+  top: var(--mpr-crosshair-y-px);
+  width: var(--mpr-image-width);
+  height: 1px;
+}
+
+.upload-button:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 82%, #ffffff 6%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, #0757a6 82%, var(--accent) 18%),
+    color-mix(in srgb, #06386d 90%, var(--accent) 10%)
+  );
+  color: #f5fbff;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 78%, #ffffff 6%),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 0 18px color-mix(in srgb, var(--accent) 16%, transparent),
+    0 0 15px color-mix(in srgb, var(--accent) 18%, transparent),
+    0 10px 24px rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+  transition: border-color 130ms ease, background 130ms ease, color 130ms ease, box-shadow 130ms ease, transform 130ms ease;
+}
+
+.upload-button:not(:disabled):hover {
+  border-color: color-mix(in srgb, var(--accent) 94%, #ffffff 10%);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 88%, #ffffff 8%),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 0 20px color-mix(in srgb, var(--accent) 20%, transparent),
+    0 0 22px color-mix(in srgb, var(--accent) 26%, transparent),
+    0 12px 28px rgba(0, 0, 0, 0.20);
+  transform: translateY(-1px);
+}
+
+.upload-button:not(:disabled):active {
+  transform: translateY(0) scale(0.995);
 }

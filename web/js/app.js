@@ -24,10 +24,13 @@ const autoRotateButton = document.getElementById("autoRotateButton");
 const logoutButton = document.getElementById("logoutButton");
 const accountName = document.getElementById("accountName");
 const themeToggle = document.getElementById("themeToggle");
+const rotateToolButton = document.getElementById("rotateToolButton");
+const panToolButton = document.getElementById("panToolButton");
 const fitViewButton = document.getElementById("fitViewButton");
 const zoomInButton = document.getElementById("zoomInButton");
 const zoomOutButton = document.getElementById("zoomOutButton");
 const fullscreenButton = document.getElementById("fullscreenButton");
+const primaryInteractionHint = document.getElementById("primaryInteractionHint");
 const themeColorMeta = document.querySelector('meta[name="theme-color"]');
 const uploadDicomButton = document.getElementById("uploadDicomButton");
 const uploadDicomLabel = document.getElementById("uploadDicomLabel");
@@ -57,7 +60,40 @@ const workflowVisualization = document.getElementById("workflowVisualization");
 const volumeStatusRow = document.getElementById("volumeStatusRow");
 const volumeStatusText = document.getElementById("volumeStatusText");
 const mprPanels = Array.from(document.querySelectorAll(".mpr-panel"));
-const mprVolumeMessages = Array.from(document.querySelectorAll(".mpr-empty p"));
+const mprVolumeMessages = Array.from(document.querySelectorAll("[data-mpr-message]"));
+const mprViews = Array.from(document.querySelectorAll("[data-mpr-view]"));
+const mprRegistry = new Map([
+  ["axial", {
+    panel: document.getElementById("mprAxial"),
+    view: document.querySelector('[data-mpr-view="axial"]'),
+    surface: document.querySelector('[data-mpr-surface="axial"]'),
+    canvas: document.getElementById("mprAxialCanvas"),
+    index: document.getElementById("mprAxialIndex"),
+    position: document.getElementById("mprAxialPosition"),
+    wl: document.getElementById("mprAxialWl"),
+    message: document.querySelector('[data-mpr-message="axial"]'),
+  }],
+  ["coronal", {
+    panel: document.getElementById("mprCoronal"),
+    view: document.querySelector('[data-mpr-view="coronal"]'),
+    surface: document.querySelector('[data-mpr-surface="coronal"]'),
+    canvas: document.getElementById("mprCoronalCanvas"),
+    index: document.getElementById("mprCoronalIndex"),
+    position: document.getElementById("mprCoronalPosition"),
+    wl: document.getElementById("mprCoronalWl"),
+    message: document.querySelector('[data-mpr-message="coronal"]'),
+  }],
+  ["sagittal", {
+    panel: document.getElementById("mprSagittal"),
+    view: document.querySelector('[data-mpr-view="sagittal"]'),
+    surface: document.querySelector('[data-mpr-surface="sagittal"]'),
+    canvas: document.getElementById("mprSagittalCanvas"),
+    index: document.getElementById("mprSagittalIndex"),
+    position: document.getElementById("mprSagittalPosition"),
+    wl: document.getElementById("mprSagittalWl"),
+    message: document.querySelector('[data-mpr-message="sagittal"]'),
+  }],
+]);
 const orientationGizmo = document.getElementById("orientationGizmo");
 const gizmoEdges = Array.from(document.querySelectorAll("[data-gizmo-edge]"));
 const gizmoAxisS = document.getElementById("gizmoAxisS");
@@ -81,8 +117,15 @@ const state = {
   opacity: DEFAULT_OPACITY,
   layer: "skull",
   autoRotate: false,
+  viewerInteractionMode: "rotate",
   studyLoaded: false,
   study: null,
+  mpr: {
+    descriptor: null,
+    crosshairLpsMm: [0, 0, 0],
+    window: 400,
+    level: 40,
+  },
   size: new THREE.Vector3(1, 1, 1),
   min: new THREE.Vector3(),
   max: new THREE.Vector3(),
@@ -92,6 +135,10 @@ const state = {
 };
 
 let volumeBuildPromise = null;
+let mprDescriptorPromise = null;
+let mprRenderGeneration = 0;
+let mprRenderTimer = null;
+let mprAbortController = null;
 
 const scene = new THREE.Scene();
 const anatomyGroup = new THREE.Group();
@@ -227,7 +274,9 @@ function allRegisteredMeshes() {
 
 function updateLayerUI() {
   for (const button of layerButtons) {
-    button.classList.toggle("is-active", button.dataset.layer === state.layer);
+    const isActive = button.dataset.layer === state.layer;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", isActive ? "true" : "false");
   }
 
   if (state.layer === "brain") {
@@ -517,6 +566,7 @@ function resetWorkspace() {
   applyOpacity();
   applySection();
   applyLayerVisibility();
+  setViewerInteractionMode("rotate");
   fitSavedView();
 }
 
@@ -604,14 +654,374 @@ function setWorkflowForStudy(study) {
 function setMprVolumeState(study) {
   const ready = Boolean(study?.volume_ready);
   for (const panel of mprPanels) {
-    panel.dataset.volumeState = ready ? "ready" : "empty";
+    panel.dataset.volumeState = ready ? "loading" : "empty";
   }
   for (const message of mprVolumeMessages) {
-    message.textContent = ready
-      ? "Volume ready - MPR rendering pending"
-      : "DICOM volume not loaded";
+    message.textContent = ready ? "Loading patient volume..." : "DICOM volume not loaded";
+  }
+  if (!ready) {
+    state.mpr.descriptor = null;
+    for (const entry of mprRegistry.values()) {
+      entry.index.textContent = "-- / --";
+      entry.position.textContent = `${entry.panel.id === "mprAxial" ? "Z" : entry.panel.id === "mprCoronal" ? "Y" : "X"}: --`;
+      entry.wl.textContent = "W: --   L: --";
+    }
   }
 }
+
+const MPR_AXIS_INDEX = { x: 0, y: 1, z: 2 };
+
+function clamp(value, minimum, maximum) {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
+function mprPlaneIndex(planeDescriptor) {
+  const axis = MPR_AXIS_INDEX[planeDescriptor.normal_axis];
+  const [minimum] = planeDescriptor.position_range_mm;
+  const spacing = Number(planeDescriptor.slice_spacing_mm);
+  const raw = Math.round((state.mpr.crosshairLpsMm[axis] - minimum) / spacing);
+  return clamp(raw, 0, Number(planeDescriptor.slice_count) - 1);
+}
+
+function mprPositionForIndex(planeDescriptor, index) {
+  return Number(planeDescriptor.position_range_mm[0])
+    + Number(index) * Number(planeDescriptor.slice_spacing_mm);
+}
+
+function mprPhysicalMetrics(planeDescriptor) {
+  const width = Math.max(1, Number(planeDescriptor.image_width) || 1);
+  const height = Math.max(1, Number(planeDescriptor.image_height) || 1);
+  const spacing = Array.isArray(planeDescriptor.pixel_spacing_mm)
+    ? planeDescriptor.pixel_spacing_mm.map(Number)
+    : [1, 1];
+  const verticalSpacing = Number.isFinite(spacing[0]) && spacing[0] > 0 ? spacing[0] : 1;
+  const horizontalSpacing = Number.isFinite(spacing[1]) && spacing[1] > 0 ? spacing[1] : 1;
+  const hRange = Array.isArray(planeDescriptor.horizontal_range_mm)
+    ? planeDescriptor.horizontal_range_mm.map(Number)
+    : [0, Math.max(width - 1, 1) * horizontalSpacing];
+  const vRange = Array.isArray(planeDescriptor.vertical_range_mm)
+    ? planeDescriptor.vertical_range_mm.map(Number)
+    : [0, Math.max(height - 1, 1) * verticalSpacing];
+  const physicalWidth = Math.abs(hRange[1] - hRange[0])
+    || Math.max(width - 1, 1) * horizontalSpacing;
+  const physicalHeight = Math.abs(vRange[1] - vRange[0])
+    || Math.max(height - 1, 1) * verticalSpacing;
+  return { width, height, physicalWidth, physicalHeight };
+}
+
+function configureMprSurface(entry, planeDescriptor) {
+  const frame = entry.view.getBoundingClientRect();
+  const availableWidth = Math.max(frame.width, 1);
+  const availableHeight = Math.max(frame.height, 1);
+  const { physicalWidth, physicalHeight } = mprPhysicalMetrics(planeDescriptor);
+  const aspect = physicalWidth / physicalHeight;
+
+  let displayWidth = availableWidth;
+  let displayHeight = displayWidth / aspect;
+  if (displayHeight > availableHeight) {
+    displayHeight = availableHeight;
+    displayWidth = displayHeight * aspect;
+  }
+
+  // The diagnostic surface itself always fills the MPR viewport with black.
+  // Only the patient image is contained inside that surface, preserving the
+  // physical field of view without clipping, cropping or stretching anatomy.
+  const imageWidth = Math.max(1, displayWidth);
+  const imageHeight = Math.max(1, displayHeight);
+  const imageLeft = Math.max(0, (availableWidth - imageWidth) / 2);
+  const imageTop = Math.max(0, (availableHeight - imageHeight) / 2);
+  const imageRight = imageLeft + imageWidth;
+  const imageBottom = imageTop + imageHeight;
+
+  entry.surface.style.width = "100%";
+  entry.surface.style.height = "100%";
+  entry.surface.style.setProperty("--mpr-image-width", `${imageWidth}px`);
+  entry.surface.style.setProperty("--mpr-image-height", `${imageHeight}px`);
+  entry.surface.style.setProperty("--mpr-image-left", `${imageLeft}px`);
+  entry.surface.style.setProperty("--mpr-image-top", `${imageTop}px`);
+  entry.surface.style.setProperty("--mpr-image-right", `${imageRight}px`);
+  entry.surface.style.setProperty("--mpr-image-bottom", `${imageBottom}px`);
+  entry.surface.style.setProperty("--mpr-image-center-x", `${imageLeft + imageWidth / 2}px`);
+  entry.surface.style.setProperty("--mpr-image-center-y", `${imageTop + imageHeight / 2}px`);
+  entry.imageRect = {
+    left: imageLeft,
+    top: imageTop,
+    width: imageWidth,
+    height: imageHeight,
+    right: imageRight,
+    bottom: imageBottom,
+  };
+  updateMprCrosshairOverlayForEntry(entry, planeDescriptor);
+}
+
+function updateMprCrosshairOverlayForEntry(entry, planeDescriptor) {
+  const imageRect = entry.imageRect;
+  if (!imageRect) return;
+  const horizontalAxis = MPR_AXIS_INDEX[planeDescriptor.horizontal_axis];
+  const verticalAxis = MPR_AXIS_INDEX[planeDescriptor.vertical_axis];
+  const [hMin, hMax] = planeDescriptor.horizontal_range_mm.map(Number);
+  const [vMin, vMax] = planeDescriptor.vertical_range_mm.map(Number);
+  const hFraction = hMax > hMin
+    ? (state.mpr.crosshairLpsMm[horizontalAxis] - hMin) / (hMax - hMin)
+    : 0.5;
+  let vFraction = vMax > vMin
+    ? (state.mpr.crosshairLpsMm[verticalAxis] - vMin) / (vMax - vMin)
+    : 0.5;
+  if (planeDescriptor.vertical_reverse) vFraction = 1 - vFraction;
+
+  const x = imageRect.left + clamp(hFraction, 0, 1) * imageRect.width;
+  const y = imageRect.top + clamp(vFraction, 0, 1) * imageRect.height;
+  entry.surface.style.setProperty("--mpr-crosshair-x-px", `${x}px`);
+  entry.surface.style.setProperty("--mpr-crosshair-y-px", `${y}px`);
+}
+
+function updateMprCrosshairOverlays() {
+  const descriptor = state.mpr.descriptor;
+  if (!descriptor) return;
+  for (const [plane, entry] of mprRegistry.entries()) {
+    updateMprCrosshairOverlayForEntry(entry, descriptor.planes[plane]);
+  }
+}
+
+function drawGray8(entry, pixels, width, height, planeDescriptor) {
+  entry.canvas.width = width;
+  entry.canvas.height = height;
+  const context = entry.canvas.getContext("2d", { alpha: false });
+  const image = context.createImageData(width, height);
+  for (let source = 0, target = 0; source < pixels.length; source += 1, target += 4) {
+    const value = pixels[source];
+    image.data[target] = value;
+    image.data[target + 1] = value;
+    image.data[target + 2] = value;
+    image.data[target + 3] = 255;
+  }
+  context.putImageData(image, 0, 0);
+  configureMprSurface(entry, planeDescriptor);
+}
+
+async function renderMprPlane(plane, generation, signal) {
+  const descriptor = state.mpr.descriptor;
+  const entry = mprRegistry.get(plane);
+  if (!descriptor || !entry) return;
+  const planeDescriptor = descriptor.planes[plane];
+  const index = mprPlaneIndex(planeDescriptor);
+  const position = mprPositionForIndex(planeDescriptor, index);
+  const params = new URLSearchParams({
+    index: String(index),
+    window: String(state.mpr.window),
+    level: String(state.mpr.level),
+  });
+  const response = await fetch(`/api/studies/latest/mpr/${plane}?${params}`, {
+    credentials: "same-origin",
+    headers: { "Accept": "application/x-voxelatlas-gray8" },
+    signal,
+  });
+  if (!response.ok) {
+    const detail = await response.json().catch(() => ({}));
+    throw new Error(detail.detail || `MPR rendering failed (${response.status})`);
+  }
+  const width = Number(response.headers.get("X-VoxelAtlas-Width"));
+  const height = Number(response.headers.get("X-VoxelAtlas-Height"));
+  const buffer = new Uint8Array(await response.arrayBuffer());
+  if (generation !== mprRenderGeneration) return;
+  if (!Number.isInteger(width) || !Number.isInteger(height) || buffer.length !== width * height) {
+    throw new Error("MPR image payload is invalid");
+  }
+  drawGray8(entry, buffer, width, height, planeDescriptor);
+  entry.panel.dataset.volumeState = "ready";
+  entry.index.textContent = `${index + 1} / ${planeDescriptor.slice_count}`;
+  entry.position.textContent = `${planeDescriptor.coordinate}: ${position.toFixed(2)} mm`;
+  entry.wl.textContent = `W: ${Math.round(state.mpr.window)}   L: ${Math.round(state.mpr.level)}`;
+}
+
+async function renderAllMprPlanes() {
+  if (!state.mpr.descriptor) return;
+  const generation = ++mprRenderGeneration;
+  mprAbortController?.abort();
+  mprAbortController = new AbortController();
+  const signal = mprAbortController.signal;
+  updateMprCrosshairOverlays();
+  try {
+    await Promise.all([
+      renderMprPlane("axial", generation, signal),
+      renderMprPlane("coronal", generation, signal),
+      renderMprPlane("sagittal", generation, signal),
+    ]);
+    if (generation === mprRenderGeneration) {
+      for (const entry of mprRegistry.values()) entry.panel.dataset.volumeState = "ready";
+    }
+  } catch (error) {
+    if (generation !== mprRenderGeneration || error?.name === "AbortError") return;
+    for (const entry of mprRegistry.values()) {
+      entry.panel.dataset.volumeState = "loading";
+      entry.message.textContent = error instanceof Error ? error.message : "MPR rendering failed";
+    }
+  }
+}
+
+function scheduleMprRender(delay = 0) {
+  if (mprRenderTimer !== null) window.clearTimeout(mprRenderTimer);
+  mprRenderTimer = window.setTimeout(() => {
+    mprRenderTimer = null;
+    void renderAllMprPlanes();
+  }, delay);
+}
+
+async function ensureMprReady() {
+  if (!state.study?.volume_ready) return null;
+  if (state.mpr.descriptor) {
+    scheduleMprRender();
+    return state.mpr.descriptor;
+  }
+  if (mprDescriptorPromise) return mprDescriptorPromise;
+
+  mprDescriptorPromise = (async () => {
+    const response = await fetch("/api/studies/latest/mpr", {
+      credentials: "same-origin",
+      headers: { "Accept": "application/json" },
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.mpr?.ready) {
+      throw new Error(payload.detail || `MPR initialization failed (${response.status})`);
+    }
+    state.mpr.descriptor = payload.mpr;
+    state.mpr.crosshairLpsMm = payload.mpr.crosshair_lps_mm.map(Number);
+    state.mpr.window = Number(payload.mpr.default_window.width);
+    state.mpr.level = Number(payload.mpr.default_window.level);
+    for (const entry of mprRegistry.values()) {
+      entry.panel.dataset.volumeState = "loading";
+      entry.message.textContent = "Rendering patient volume...";
+    }
+    await renderAllMprPlanes();
+    return payload.mpr;
+  })();
+
+  try {
+    return await mprDescriptorPromise;
+  } catch (error) {
+    for (const entry of mprRegistry.values()) {
+      entry.panel.dataset.volumeState = "loading";
+      entry.message.textContent = error instanceof Error ? error.message : "MPR initialization failed";
+    }
+    return null;
+  } finally {
+    mprDescriptorPromise = null;
+  }
+}
+
+function setMprCrosshairFromPointer(plane, event) {
+  const descriptor = state.mpr.descriptor;
+  const entry = mprRegistry.get(plane);
+  if (!descriptor || !entry) return;
+  const planeDescriptor = descriptor.planes[plane];
+  const rect = entry.canvas.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return;
+  if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) return;
+  const x = clamp((event.clientX - rect.left) / rect.width, 0, 1);
+  const y = clamp((event.clientY - rect.top) / rect.height, 0, 1);
+  const hAxis = MPR_AXIS_INDEX[planeDescriptor.horizontal_axis];
+  const vAxis = MPR_AXIS_INDEX[planeDescriptor.vertical_axis];
+  const [hMin, hMax] = planeDescriptor.horizontal_range_mm.map(Number);
+  const [vMin, vMax] = planeDescriptor.vertical_range_mm.map(Number);
+  state.mpr.crosshairLpsMm[hAxis] = hMin + x * (hMax - hMin);
+  const verticalFraction = planeDescriptor.vertical_reverse ? 1 - y : y;
+  state.mpr.crosshairLpsMm[vAxis] = vMin + verticalFraction * (vMax - vMin);
+  updateMprCrosshairOverlays();
+  scheduleMprRender(35);
+}
+
+function stepMprSlice(plane, direction) {
+  const descriptor = state.mpr.descriptor;
+  if (!descriptor) return;
+  const planeDescriptor = descriptor.planes[plane];
+  const axis = MPR_AXIS_INDEX[planeDescriptor.normal_axis];
+  const currentIndex = mprPlaneIndex(planeDescriptor);
+  const nextIndex = clamp(currentIndex + direction, 0, Number(planeDescriptor.slice_count) - 1);
+  state.mpr.crosshairLpsMm[axis] = mprPositionForIndex(planeDescriptor, nextIndex);
+  updateMprCrosshairOverlays();
+  scheduleMprRender(20);
+}
+
+function adjustMprWindowLevel(start, event) {
+  const dx = event.clientX - start.x;
+  const dy = event.clientY - start.y;
+  const widthScale = Math.max(start.window / 240, 0.5);
+  state.mpr.window = Math.max(1, start.window + dx * widthScale);
+  state.mpr.level = start.level - dy * widthScale;
+  for (const entry of mprRegistry.values()) {
+    entry.wl.textContent = `W: ${Math.round(state.mpr.window)}   L: ${Math.round(state.mpr.level)}`;
+  }
+  scheduleMprRender(45);
+}
+
+for (const [plane, entry] of mprRegistry.entries()) {
+  let pointerMode = null;
+  let wlStart = null;
+  entry.view.addEventListener("contextmenu", (event) => event.preventDefault());
+  entry.view.addEventListener("pointerdown", (event) => {
+    if (!state.mpr.descriptor || entry.panel.dataset.volumeState === "empty") return;
+    if (event.button === 2) {
+      pointerMode = "window-level";
+      wlStart = { x: event.clientX, y: event.clientY, window: state.mpr.window, level: state.mpr.level };
+      entry.view.dataset.interaction = "window-level";
+    } else if (event.button === 0) {
+      pointerMode = "crosshair";
+      setMprCrosshairFromPointer(plane, event);
+    } else {
+      return;
+    }
+    entry.view.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+  });
+  entry.view.addEventListener("pointermove", (event) => {
+    if (pointerMode === "crosshair") setMprCrosshairFromPointer(plane, event);
+    if (pointerMode === "window-level" && wlStart) adjustMprWindowLevel(wlStart, event);
+  });
+  const finishPointer = (event) => {
+    if (pointerMode !== null) entry.view.releasePointerCapture?.(event.pointerId);
+    pointerMode = null;
+    wlStart = null;
+    delete entry.view.dataset.interaction;
+  };
+  entry.view.addEventListener("pointerup", finishPointer);
+  entry.view.addEventListener("pointercancel", finishPointer);
+  entry.view.addEventListener("wheel", (event) => {
+    if (!state.mpr.descriptor) return;
+    event.preventDefault();
+    stepMprSlice(plane, event.deltaY >= 0 ? 1 : -1);
+  }, { passive: false });
+}
+
+function centerMprCrosshair() {
+  const descriptor = state.mpr.descriptor;
+  if (!descriptor) return;
+  const bounds = descriptor.patient_bounds_lps_mm;
+  state.mpr.crosshairLpsMm = ["x", "y", "z"].map((axis) => {
+    const range = Array.isArray(bounds?.[axis]) ? bounds[axis].map(Number) : [0, 0];
+    return (range[0] + range[1]) / 2;
+  });
+  updateMprCrosshairOverlays();
+  scheduleMprRender();
+}
+
+function resetMprWindowLevel() {
+  const descriptor = state.mpr.descriptor;
+  if (!descriptor) return;
+  state.mpr.window = Number(descriptor.default_window.width);
+  state.mpr.level = Number(descriptor.default_window.level);
+  for (const entry of mprRegistry.values()) {
+    entry.wl.textContent = `W: ${Math.round(state.mpr.window)}   L: ${Math.round(state.mpr.level)}`;
+  }
+  scheduleMprRender();
+}
+
+document.querySelectorAll("[data-mpr-center]").forEach((button) => {
+  button.addEventListener("click", centerMprCrosshair);
+});
+
+document.querySelectorAll("[data-mpr-reset-window]").forEach((button) => {
+  button.addEventListener("click", resetMprWindowLevel);
+});
 
 
 function formatStudyDate(raw) {
@@ -737,7 +1147,7 @@ function applyStudy(study) {
   seriesButtonLabel.textContent = `${study.series_count} DICOM series discovered`;
   uploadDicomLabel.textContent = "Replace DICOM Study";
   anatomyNote.textContent = study.volume_ready
-    ? "Patient volume is built. 3D volume rendering and anatomical extraction continue in the next reconstruction steps."
+    ? "Patient volume and synchronized MPR are available. 3D patient anatomy reconstruction continues next."
     : "Patient volume and brain layers activate when the reconstruction pipeline provides them.";
   renderSeriesDialog(study);
   updateLayerUI();
@@ -764,8 +1174,9 @@ async function ensureCanonicalVolume(study) {
     applyStudy(payload.study || null);
     setUploadStatus(
       "ready",
-      "Canonical patient volume built. MPR rendering and patient anatomy reconstruction are next.",
+      "Canonical patient volume built. Loading synchronized MPR views...",
     );
+    await ensureMprReady();
     return payload.study || null;
   })();
 
@@ -795,7 +1206,8 @@ async function refreshLatestStudy() {
     applyStudy(payload.study || null);
     if (payload.study) {
       if (payload.study.volume_ready) {
-        setUploadStatus("ready", "Stored canonical patient volume restored.");
+        setUploadStatus("ready", "Stored canonical patient volume restored. Loading MPR views...");
+        await ensureMprReady();
       } else if (payload.study.reconstruction_ready) {
         setUploadStatus("uploading", "Stored DICOM geometry restored. Building patient volume...");
         await ensureCanonicalVolume(payload.study);
@@ -916,6 +1328,27 @@ themeToggle.addEventListener("click", () => {
   applyTheme(next, true);
 });
 
+function setViewerInteractionMode(mode) {
+  const nextMode = mode === "pan" ? "pan" : "rotate";
+  state.viewerInteractionMode = nextMode;
+  if (nextMode === "pan") {
+    controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
+  } else {
+    controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+  }
+  controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
+  rotateToolButton.classList.toggle("is-active", nextMode === "rotate");
+  panToolButton.classList.toggle("is-active", nextMode === "pan");
+  rotateToolButton.setAttribute("aria-pressed", nextMode === "rotate" ? "true" : "false");
+  panToolButton.setAttribute("aria-pressed", nextMode === "pan" ? "true" : "false");
+  renderer.domElement.style.cursor = nextMode === "pan" ? "grab" : "default";
+  if (primaryInteractionHint) {
+    primaryInteractionHint.textContent = nextMode === "pan" ? "Left drag - Pan" : "Left drag - Rotate";
+  }
+}
+
+rotateToolButton.addEventListener("click", () => setViewerInteractionMode("rotate"));
+panToolButton.addEventListener("click", () => setViewerInteractionMode("pan"));
 fitViewButton.addEventListener("click", fitSavedView);
 zoomInButton.addEventListener("click", () => zoomBy(0.82));
 zoomOutButton.addEventListener("click", () => zoomBy(1.22));
@@ -934,6 +1367,7 @@ fullscreenButton.addEventListener("click", async () => {
 document.addEventListener("fullscreenchange", () => {
   const active = document.fullscreenElement === viewerStage;
   fullscreenButton.setAttribute("aria-pressed", active ? "true" : "false");
+  fullscreenButton.classList.toggle("is-active", active);
   fullscreenButton.setAttribute("title", active ? "Exit fullscreen" : "Fullscreen");
   resize();
 });
@@ -957,6 +1391,12 @@ function resize() {
   renderer.setSize(width, height, false);
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
+  if (state.mpr.descriptor) {
+    for (const [plane, entry] of mprRegistry.entries()) {
+      const planeDescriptor = state.mpr.descriptor.planes[plane];
+      configureMprSurface(entry, planeDescriptor);
+    }
+  }
 }
 
 window.addEventListener("resize", resize, { passive: true });
@@ -969,6 +1409,7 @@ applyTheme(preferredTheme());
 setLayerAvailability("volume", false);
 setLayerAvailability("brain", false);
 applyOpacity();
+setViewerInteractionMode("rotate");
 updateLayerUI();
 resize();
 loadSkull();

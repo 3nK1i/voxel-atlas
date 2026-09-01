@@ -26,7 +26,7 @@
     })();
   </script>
 
-  <link rel="stylesheet" href="/css/styles.css?v=phase3c-volume1">
+  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21">
 
   <script type="importmap">
   {
@@ -234,15 +234,29 @@
             </svg>
           </div>
 
-          <div class="viewer-toolbar" aria-label="3D viewer controls">
-            <button id="fitViewButton" type="button" title="Fit view" aria-label="Fit anatomy to view">⌖</button>
-            <button id="zoomInButton" type="button" title="Zoom in" aria-label="Zoom in">+</button>
-            <button id="zoomOutButton" type="button" title="Zoom out" aria-label="Zoom out">−</button>
-            <button id="fullscreenButton" type="button" title="Fullscreen" aria-label="Toggle fullscreen" aria-pressed="false">⛶</button>
+          <div class="viewer-toolbar" role="toolbar" aria-label="3D viewer controls">
+            <button id="rotateToolButton" class="viewer-tool-button is-active" data-viewer-tool="rotate" type="button" title="Rotate anatomy" aria-label="Rotate anatomy with left drag" aria-pressed="true">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3.8l12.6 7-6.2 1.7-2.7 5.9L5 3.8z"></path><path d="M12.3 12.4l4.3 4.3"></path></svg>
+            </button>
+            <button id="panToolButton" class="viewer-tool-button" data-viewer-tool="pan" type="button" title="Pan anatomy" aria-label="Pan anatomy with left drag" aria-pressed="false">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.2 11V6.2a1.4 1.4 0 012.8 0V10"></path><path d="M11 10V4.9a1.4 1.4 0 012.8 0V10"></path><path d="M13.8 10V6a1.4 1.4 0 012.8 0v5"></path><path d="M16.6 10.2V8a1.4 1.4 0 012.8 0v5.8c0 4-2.5 6.7-6.6 6.7h-1.6c-2.3 0-4.1-1-5.4-2.8l-2-2.8a1.55 1.55 0 012.4-1.95L8.2 15"></path></svg>
+            </button>
+            <button id="fitViewButton" class="viewer-tool-button" type="button" title="Reset view" aria-label="Reset anatomy view">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.2 8.1A7.8 7.8 0 106.1 18"></path><path d="M19.2 3.8v4.3h-4.3"></path><path d="M4.8 15.9A7.8 7.8 0 0017.9 6"></path><path d="M4.8 20.2v-4.3h4.3"></path></svg>
+            </button>
+            <button id="zoomOutButton" class="viewer-tool-button" type="button" title="Zoom out" aria-label="Zoom out">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.3"></circle><path d="M15.1 15.1L21 21"></path><path d="M7.5 10.5h6"></path></svg>
+            </button>
+            <button id="zoomInButton" class="viewer-tool-button" type="button" title="Zoom in" aria-label="Zoom in">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.3"></circle><path d="M15.1 15.1L21 21"></path><path d="M7.5 10.5h6M10.5 7.5v6"></path></svg>
+            </button>
+            <button id="fullscreenButton" class="viewer-tool-button" type="button" title="Fullscreen" aria-label="Toggle fullscreen" aria-pressed="false">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 4H4v4.5M15.5 4H20v4.5M20 15.5V20h-4.5M8.5 20H4v-4.5"></path></svg>
+            </button>
           </div>
 
           <div class="interaction-hint" aria-hidden="true">
-            <span>Left drag - Rotate</span>
+            <span id="primaryInteractionHint">Left drag - Rotate</span>
             <i>•</i>
             <span>Right drag - Pan</span>
             <i>•</i>
@@ -250,38 +264,80 @@
           </div>
         </section>
 
-        <section class="mpr-grid" aria-label="Multiplanar imaging preview">
-          <article id="mprAxial" class="mpr-panel panel" data-volume-state="empty">
-            <header class="mpr-header"><strong>Axial</strong><span>-- / --</span></header>
-            <div class="mpr-empty">
-              <div class="mpr-crosshair" aria-hidden="true"></div>
-              <span class="orientation-label orientation-left">R</span>
-              <span class="orientation-label orientation-right">L</span>
-              <p>DICOM volume not loaded</p>
+        <section class="mpr-grid" aria-label="Multiplanar imaging viewer">
+          <article id="mprAxial" class="mpr-panel panel" data-volume-state="empty" data-mpr-plane="axial">
+            <header class="mpr-header">
+              <div class="mpr-title-block"><strong>Axial</strong><span id="mprAxialPosition" class="mpr-position">Z: --</span></div>
+              <span id="mprAxialIndex" class="mpr-index">-- / --</span>
+            </header>
+            <div class="mpr-empty mpr-view" data-mpr-view="axial" title="Left drag: crosshair - Wheel: slice - Right drag: window/level">
+              <div class="mpr-image-surface" data-mpr-surface="axial">
+                <canvas id="mprAxialCanvas" aria-label="Axial patient volume slice"></canvas>
+                <div class="mpr-crosshair" aria-hidden="true"></div>
+                <span class="orientation-label orientation-left">R</span>
+                <span class="orientation-label orientation-right">L</span>
+                <span class="orientation-label orientation-top">A</span>
+                <span class="orientation-label orientation-bottom">P</span>
+              </div>
+              <p data-mpr-message="axial">DICOM volume not loaded</p>
             </div>
-            <footer class="mpr-footer"><span>Z: --</span><span>W/L: -- / --</span></footer>
+            <footer class="mpr-footer">
+              <span id="mprAxialWl" class="mpr-wl">W: -- &nbsp; L: --</span>
+              <div class="mpr-panel-tools">
+                <button type="button" data-mpr-center="axial" title="Center crosshair" aria-label="Center axial crosshair"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M12 4v16M4 12h16"></path></svg></button>
+                <button type="button" data-mpr-reset-window="axial" title="Reset window and level" aria-label="Reset axial window and level"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"></circle><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"></path></svg></button>
+              </div>
+            </footer>
           </article>
 
-          <article id="mprCoronal" class="mpr-panel panel" data-volume-state="empty">
-            <header class="mpr-header"><strong>Coronal</strong><span>-- / --</span></header>
-            <div class="mpr-empty">
-              <div class="mpr-crosshair" aria-hidden="true"></div>
-              <span class="orientation-label orientation-left">R</span>
-              <span class="orientation-label orientation-right">L</span>
-              <p>DICOM volume not loaded</p>
+          <article id="mprCoronal" class="mpr-panel panel" data-volume-state="empty" data-mpr-plane="coronal">
+            <header class="mpr-header">
+              <div class="mpr-title-block"><strong>Coronal</strong><span id="mprCoronalPosition" class="mpr-position">Y: --</span></div>
+              <span id="mprCoronalIndex" class="mpr-index">-- / --</span>
+            </header>
+            <div class="mpr-empty mpr-view" data-mpr-view="coronal" title="Left drag: crosshair - Wheel: slice - Right drag: window/level">
+              <div class="mpr-image-surface" data-mpr-surface="coronal">
+                <canvas id="mprCoronalCanvas" aria-label="Coronal patient volume slice"></canvas>
+                <div class="mpr-crosshair" aria-hidden="true"></div>
+                <span class="orientation-label orientation-left">R</span>
+                <span class="orientation-label orientation-right">L</span>
+                <span class="orientation-label orientation-top">S</span>
+                <span class="orientation-label orientation-bottom">I</span>
+              </div>
+              <p data-mpr-message="coronal">DICOM volume not loaded</p>
             </div>
-            <footer class="mpr-footer"><span>Y: --</span><span>W/L: -- / --</span></footer>
+            <footer class="mpr-footer">
+              <span id="mprCoronalWl" class="mpr-wl">W: -- &nbsp; L: --</span>
+              <div class="mpr-panel-tools">
+                <button type="button" data-mpr-center="coronal" title="Center crosshair" aria-label="Center coronal crosshair"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M12 4v16M4 12h16"></path></svg></button>
+                <button type="button" data-mpr-reset-window="coronal" title="Reset window and level" aria-label="Reset coronal window and level"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"></circle><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"></path></svg></button>
+              </div>
+            </footer>
           </article>
 
-          <article id="mprSagittal" class="mpr-panel panel" data-volume-state="empty">
-            <header class="mpr-header"><strong>Sagittal</strong><span>-- / --</span></header>
-            <div class="mpr-empty">
-              <div class="mpr-crosshair" aria-hidden="true"></div>
-              <span class="orientation-label orientation-left">A</span>
-              <span class="orientation-label orientation-right">P</span>
-              <p>DICOM volume not loaded</p>
+          <article id="mprSagittal" class="mpr-panel panel" data-volume-state="empty" data-mpr-plane="sagittal">
+            <header class="mpr-header">
+              <div class="mpr-title-block"><strong>Sagittal</strong><span id="mprSagittalPosition" class="mpr-position">X: --</span></div>
+              <span id="mprSagittalIndex" class="mpr-index">-- / --</span>
+            </header>
+            <div class="mpr-empty mpr-view" data-mpr-view="sagittal" title="Left drag: crosshair - Wheel: slice - Right drag: window/level">
+              <div class="mpr-image-surface" data-mpr-surface="sagittal">
+                <canvas id="mprSagittalCanvas" aria-label="Sagittal patient volume slice"></canvas>
+                <div class="mpr-crosshair" aria-hidden="true"></div>
+                <span class="orientation-label orientation-left">A</span>
+                <span class="orientation-label orientation-right">P</span>
+                <span class="orientation-label orientation-top">S</span>
+                <span class="orientation-label orientation-bottom">I</span>
+              </div>
+              <p data-mpr-message="sagittal">DICOM volume not loaded</p>
             </div>
-            <footer class="mpr-footer"><span>X: --</span><span>W/L: -- / --</span></footer>
+            <footer class="mpr-footer">
+              <span id="mprSagittalWl" class="mpr-wl">W: -- &nbsp; L: --</span>
+              <div class="mpr-panel-tools">
+                <button type="button" data-mpr-center="sagittal" title="Center crosshair" aria-label="Center sagittal crosshair"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M12 4v16M4 12h16"></path></svg></button>
+                <button type="button" data-mpr-reset-window="sagittal" title="Reset window and level" aria-label="Reset sagittal window and level"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"></circle><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"></path></svg></button>
+              </div>
+            </footer>
           </article>
         </section>
       </section>
@@ -329,10 +385,10 @@
           <section id="anatomicalLayersPanel" class="control-section">
             <div class="section-kicker">Anatomical Layers</div>
             <div class="layer-grid" role="group" aria-label="Anatomical layers">
-              <button type="button" class="layer-button" data-layer="volume" disabled>Full Volume</button>
-              <button type="button" class="layer-button is-active" data-layer="skull">Skull</button>
-              <button type="button" class="layer-button" data-layer="brain" disabled>Brain</button>
-              <button type="button" class="layer-button" data-layer="combined" disabled>Skull + Brain</button>
+              <button type="button" class="layer-button" data-layer="volume" disabled aria-pressed="false">Full Volume</button>
+              <button type="button" class="layer-button is-active" data-layer="skull" aria-pressed="true">Skull</button>
+              <button type="button" class="layer-button" data-layer="brain" disabled aria-pressed="false">Brain</button>
+              <button type="button" class="layer-button" data-layer="combined" disabled aria-pressed="false">Skull + Brain</button>
             </div>
 
             <div class="future-layer-grid" aria-label="Future anatomical layers">
@@ -385,6 +441,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/js/app.js?v=phase3c-volume1"></script>
+  <script type="module" src="/js/app.js?v=phase3d-r21"></script>
 </body>
 </html>

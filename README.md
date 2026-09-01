@@ -6,7 +6,7 @@ VoxelAtlas is currently an engineering/research application. It is not a certifi
 
 ## Current status
 
-The accepted foundation includes FastAPI authentication with Argon2id password verification, opaque server-side sessions, the responsive VoxelAtlas login UI, a deployed production service, the Phase 2B final V1 workspace shell, the Phase 3A DICOM study-ingestion foundation, the Phase 3A-R2 clinical viewer polish, Phase 3B DICOM geometry/reconstruction-readiness qualification, and Phase 3C canonical patient-volume construction.
+The accepted foundation includes FastAPI authentication with Argon2id password verification, opaque server-side sessions, the responsive VoxelAtlas login UI, a deployed production service, the Phase 2B final V1 workspace shell, the Phase 3A DICOM study-ingestion foundation, the Phase 3A-R2 clinical viewer polish, Phase 3B DICOM geometry/reconstruction-readiness qualification, Phase 3C canonical patient-volume construction, and Phase 3D-R2.1 real synchronized MPR integration with final professional presentation, image-registered crosshairs, and harmonized clinical action/selection states.
 
 ## Locked V1 workspace
 
@@ -19,7 +19,7 @@ The workspace is intentionally focused on medical imaging and anatomical inspect
 - canonical float32 patient-volume construction with explicit DICOM LPS coordinate provenance
 - study and reconstruction status panel
 - large Three.js anatomy viewer
-- Axial / Coronal / Sagittal MPR shell with truthful pending states until MPR rendering is implemented
+- real Axial / Coronal / Sagittal patient-space MPR with synchronized crosshair, slice navigation, and window/level
 - directional anatomical cut only: Axial, Coronal, Sagittal
 - Clinical rendering only
 - anatomy opacity with direct 0-100% semantics (100% fully opaque)
@@ -60,15 +60,15 @@ Phase 3A adds `pydicom` for DICOM parsing. Phase 3C promotes `numpy` into the ba
 Run the current compact regression from the repository root:
 
 ```bash
-bash scripts/run_phase3c_checks.sh
+bash scripts/run_phase3d_r21_checks.sh
 ```
 
 ## Locked V1 roadmap
 
 1. foundation, login, authentication, and deployment
 2. final V1 workspace target alignment
-3. DICOM upload and study ingestion - Phase 3A complete; Phase 3B geometry qualification complete; Phase 3C canonical volume construction implemented
-4. patient MPR and 3D volume visualization
+3. DICOM upload, study ingestion, geometry qualification, canonical patient volume, and real MPR - complete through Phase 3D
+4. patient-specific anatomical reconstruction and 3D patient visualization
 5. patient-specific anatomical reconstruction
 6. end-to-end Full Volume / Skull / Brain / Skull + Brain visualization
 7. UX, performance, and robustness
@@ -81,3 +81,15 @@ Post-V1 work includes atlas-region interaction, AR/XR, advanced planning workflo
 Development is performed on phase branches. `main` represents accepted validated states. Each implementation step is kept narrow and is closed only after automated checks, targeted manual validation, diff inspection, commit, and push.
 
 Raw medical datasets, generated outputs, `.env`, and local virtual environments are intentionally excluded from Git.
+
+### Phase 3D-R2 - Final Phase 3 presentation
+
+Real axial, coronal and sagittal views are fitted by patient-space physical extent inside full black diagnostic fields, with synchronized crosshairs, orientation markers, physical position, slice index, and compact W/L controls. The temporary scale bracket is retired. The 3D viewer uses the final segmented six-button clinical toolbar with real rotate/pan modes and target-style active states. CT data remains CT; no MRI appearance is fabricated.
+
+### Phase 3D-R2 final selection-state harmonization
+
+The active anatomical layer now uses the same illuminated blue clinical selected state as Directional Cut and the 3D interaction toolbar. Unavailable patient layers remain disabled and truthful, while `aria-pressed` stays synchronized with the active layer. This is a presentation-only closure correction; the patient-space MPR computation and Phase 3 medical-data pipeline are unchanged.
+
+### Phase 3D-R2.1 - Final crosshair and DICOM CTA polish
+
+MPR crosshairs are registered in pixels to the exact contained patient-image rectangle, so crosshair lines stop at the displayed anatomy bounds instead of drifting through black letterbox margins. Pointer mapping continues to use the displayed canvas rectangle. The Upload/Replace DICOM primary action now uses the same premium blue clinical language as the selected Directional Cut and anatomy controls while remaining an action rather than a persistent selected mode.
