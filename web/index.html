@@ -26,7 +26,7 @@
     })();
   </script>
 
-  <link rel="stylesheet" href="/css/styles.css?v=phase3a-1">
+  <link rel="stylesheet" href="/css/styles.css?v=phase3a-r2-final1">
 
   <script type="importmap">
   {
@@ -197,10 +197,41 @@
 
           <div id="modelChip" class="model-chip">Demo A0101 - Skull</div>
 
-          <div class="orientation-cube" aria-hidden="true">
-            <span class="cube-top">S</span>
-            <span class="cube-front">A</span>
-            <span class="cube-right">R</span>
+          <div id="orientationGizmo" class="orientation-cube" aria-hidden="true">
+            <svg viewBox="0 0 96 96" focusable="false">
+              <defs>
+                <marker id="gizmoArrowS" viewBox="0 0 6 6" refX="5.1" refY="3" markerWidth="5.5" markerHeight="5.5" orient="auto" markerUnits="strokeWidth">
+                  <path d="M0,0 L6,3 L0,6 Z" class="gizmo-arrow-s"></path>
+                </marker>
+                <marker id="gizmoArrowA" viewBox="0 0 6 6" refX="5.1" refY="3" markerWidth="5.5" markerHeight="5.5" orient="auto" markerUnits="strokeWidth">
+                  <path d="M0,0 L6,3 L0,6 Z" class="gizmo-arrow-a"></path>
+                </marker>
+                <marker id="gizmoArrowR" viewBox="0 0 6 6" refX="5.1" refY="3" markerWidth="5.5" markerHeight="5.5" orient="auto" markerUnits="strokeWidth">
+                  <path d="M0,0 L6,3 L0,6 Z" class="gizmo-arrow-r"></path>
+                </marker>
+                <marker id="gizmoArrowL" viewBox="0 0 6 6" refX="5.1" refY="3" markerWidth="5.5" markerHeight="5.5" orient="auto" markerUnits="strokeWidth">
+                  <path d="M0,0 L6,3 L0,6 Z" class="gizmo-arrow-l"></path>
+                </marker>
+              </defs>
+              <g id="gizmoEdges" class="gizmo-edges">
+                <line data-gizmo-edge></line><line data-gizmo-edge></line>
+                <line data-gizmo-edge></line><line data-gizmo-edge></line>
+                <line data-gizmo-edge></line><line data-gizmo-edge></line>
+                <line data-gizmo-edge></line><line data-gizmo-edge></line>
+                <line data-gizmo-edge></line><line data-gizmo-edge></line>
+                <line data-gizmo-edge></line><line data-gizmo-edge></line>
+              </g>
+              <g class="gizmo-axes">
+                <line id="gizmoAxisS" class="gizmo-axis gizmo-axis-s" marker-end="url(#gizmoArrowS)"></line>
+                <line id="gizmoAxisA" class="gizmo-axis gizmo-axis-a" marker-end="url(#gizmoArrowA)"></line>
+                <line id="gizmoAxisR" class="gizmo-axis gizmo-axis-r" marker-end="url(#gizmoArrowR)"></line>
+                <line id="gizmoAxisL" class="gizmo-axis gizmo-axis-l" marker-end="url(#gizmoArrowL)"></line>
+                <text id="gizmoLabelS" class="gizmo-label gizmo-label-s">S</text>
+                <text id="gizmoLabelA" class="gizmo-label gizmo-label-a">A</text>
+                <text id="gizmoLabelR" class="gizmo-label gizmo-label-r">R</text>
+                <text id="gizmoLabelL" class="gizmo-label gizmo-label-l">L</text>
+              </g>
+            </svg>
           </div>
 
           <div class="viewer-toolbar" aria-label="3D viewer controls">
@@ -317,19 +348,19 @@
           <section class="control-section">
             <div class="control-heading compact-heading">
               <div class="section-kicker">Opacity</div>
-              <strong id="opacityValue" class="control-value">94%</strong>
+              <strong id="opacityValue" class="control-value">100%</strong>
             </div>
             <input
               id="opacitySlider"
               class="slider"
               type="range"
-              min="30"
+              min="0"
               max="100"
               step="1"
-              value="94"
+              value="100"
               aria-label="Anatomy opacity"
             >
-            <div class="range-labels"><span>30%</span><span>100%</span></div>
+            <div class="range-labels"><span>0%</span><span>100%</span></div>
           </section>
         </div>
 
@@ -354,6 +385,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/js/app.js?v=phase3a-1"></script>
+  <script type="module" src="/js/app.js?v=phase3a-r2-final1"></script>
 </body>
 </html>

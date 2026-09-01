@@ -6,7 +6,7 @@ VoxelAtlas is currently an engineering/research application. It is not a certifi
 
 ## Current status
 
-The accepted foundation includes FastAPI authentication with Argon2id password verification, opaque server-side sessions, the responsive VoxelAtlas login UI, a deployed production service, the Phase 2B final V1 workspace shell, and the Phase 3A DICOM study-ingestion foundation.
+The accepted foundation includes FastAPI authentication with Argon2id password verification, opaque server-side sessions, the responsive VoxelAtlas login UI, a deployed production service, the Phase 2B final V1 workspace shell, the Phase 3A DICOM study-ingestion foundation, and the Phase 3A-R2 final viewer micro-polish and its final correction.
 
 ## Locked V1 workspace
 
@@ -20,7 +20,8 @@ The workspace is intentionally focused on medical imaging and anatomical inspect
 - Axial / Coronal / Sagittal MPR shell with truthful empty states until a DICOM volume exists
 - directional anatomical cut only: Axial, Coronal, Sagittal
 - Clinical rendering only
-- anatomy opacity
+- anatomy opacity with direct 0-100% semantics (100% fully opaque)
+- synchronized anatomical orientation gizmo with transparent styling and axis arrows
 - reset and auto-rotate actions
 - layer architecture for **Full Volume**, **Skull**, **Brain**, and **Skull + Brain**
 
@@ -57,7 +58,7 @@ Phase 3A adds `pydicom` to the backend profile for metadata-only DICOM header pa
 Run the current compact regression from the repository root:
 
 ```bash
-bash scripts/run_phase3a_checks.sh
+bash scripts/run_phase3a_r2_final_checks.sh
 ```
 
 ## Locked V1 roadmap

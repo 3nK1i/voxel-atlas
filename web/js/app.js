@@ -4,7 +4,8 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 const SKULL_URL = "/assets/models/skull_full.glb";
 const THEME_KEY = "voxelatlas-theme";
-const DEFAULT_OPACITY = 0.94;
+const DEFAULT_OPACITY = 1.0;
+const INITIAL_VIEW_DISTANCE_SCALE = 1.18;
 
 const viewport = document.getElementById("viewport");
 const viewerStage = document.getElementById("viewerStage");
@@ -55,6 +56,16 @@ const workflowReconstruction = document.getElementById("workflowReconstruction")
 const workflowVisualization = document.getElementById("workflowVisualization");
 const volumeStatusRow = document.getElementById("volumeStatusRow");
 const volumeStatusText = document.getElementById("volumeStatusText");
+const orientationGizmo = document.getElementById("orientationGizmo");
+const gizmoEdges = Array.from(document.querySelectorAll("[data-gizmo-edge]"));
+const gizmoAxisS = document.getElementById("gizmoAxisS");
+const gizmoAxisA = document.getElementById("gizmoAxisA");
+const gizmoAxisR = document.getElementById("gizmoAxisR");
+const gizmoAxisL = document.getElementById("gizmoAxisL");
+const gizmoLabelS = document.getElementById("gizmoLabelS");
+const gizmoLabelA = document.getElementById("gizmoLabelA");
+const gizmoLabelR = document.getElementById("gizmoLabelR");
+const gizmoLabelL = document.getElementById("gizmoLabelL");
 
 const layerRegistry = new Map([
   ["volume", { available: false, root: null, meshes: [] }],
@@ -133,14 +144,17 @@ function setStatus(kind, message) {
 function createClinicalMaterial() {
   return new THREE.MeshPhysicalMaterial({
     color: 0xe8e1d6,
-    roughness: 0.64,
-    metalness: 0.01,
-    clearcoat: 0.01,
-    clearcoatRoughness: 0.78,
-    transparent: true,
-    opacity: state.opacity,
+    roughness: 0.72,
+    metalness: 0.0,
+    clearcoat: 0.0,
+    clearcoatRoughness: 1.0,
+    transparent: false,
+    opacity: 1.0,
     depthWrite: true,
-    side: THREE.FrontSide,
+    depthTest: true,
+    side: THREE.DoubleSide,
+    forceSinglePass: true,
+    dithering: true,
     clippingPlanes: [],
   });
 }
@@ -256,11 +270,13 @@ function updateBoundsFromSkull() {
 function fitCamera(box) {
   const sphere = box.getBoundingSphere(new THREE.Sphere());
   const radius = Math.max(sphere.radius, 0.01);
-  const position = new THREE.Vector3(
-    sphere.center.x + radius * 1.30,
-    sphere.center.y + radius * 0.42,
-    sphere.center.z + radius * 2.55,
+  const offset = new THREE.Vector3(
+    radius * 1.30,
+    radius * 0.42,
+    radius * 2.55,
   );
+  offset.multiplyScalar(INITIAL_VIEW_DISTANCE_SCALE);
+  const position = sphere.center.clone().add(offset);
   const target = sphere.center.clone();
   target.y += state.size.y * 0.015;
 
@@ -294,6 +310,80 @@ function zoomBy(factor) {
   offset.setLength(nextDistance);
   camera.position.copy(controls.target).add(offset);
   controls.update();
+}
+
+const GIZMO_CENTER = 48;
+const GIZMO_CUBE_SCALE = 15.5;
+const GIZMO_AXIS_SCALE = 27;
+const GIZMO_LABEL_SCALE = 34;
+const GIZMO_CORNERS = [
+  new THREE.Vector3(-1, -1, -1),
+  new THREE.Vector3(1, -1, -1),
+  new THREE.Vector3(1, 1, -1),
+  new THREE.Vector3(-1, 1, -1),
+  new THREE.Vector3(-1, -1, 1),
+  new THREE.Vector3(1, -1, 1),
+  new THREE.Vector3(1, 1, 1),
+  new THREE.Vector3(-1, 1, 1),
+];
+const GIZMO_EDGE_PAIRS = [
+  [0, 1], [1, 2], [2, 3], [3, 0],
+  [4, 5], [5, 6], [6, 7], [7, 4],
+  [0, 4], [1, 5], [2, 6], [3, 7],
+];
+const gizmoInverseCameraQuaternion = new THREE.Quaternion();
+
+function anatomyDirectionInView(localDirection) {
+  gizmoInverseCameraQuaternion.copy(camera.quaternion).invert();
+  return localDirection
+    .clone()
+    .applyQuaternion(anatomyGroup.quaternion)
+    .applyQuaternion(gizmoInverseCameraQuaternion);
+}
+
+function gizmoPoint(localPoint, scale) {
+  const view = anatomyDirectionInView(localPoint);
+  return {
+    x: GIZMO_CENTER + view.x * scale,
+    y: GIZMO_CENTER - view.y * scale,
+    z: view.z,
+  };
+}
+
+function setGizmoLine(line, start, end) {
+  if (!line) return;
+  line.setAttribute("x1", start.x.toFixed(2));
+  line.setAttribute("y1", start.y.toFixed(2));
+  line.setAttribute("x2", end.x.toFixed(2));
+  line.setAttribute("y2", end.y.toFixed(2));
+}
+
+function setGizmoLabel(label, point) {
+  if (!label) return;
+  label.setAttribute("x", point.x.toFixed(2));
+  label.setAttribute("y", point.y.toFixed(2));
+}
+
+function updateOrientationGizmo() {
+  if (!orientationGizmo) return;
+
+  const projectedCorners = GIZMO_CORNERS.map((corner) => gizmoPoint(corner, GIZMO_CUBE_SCALE));
+  GIZMO_EDGE_PAIRS.forEach(([from, to], index) => {
+    setGizmoLine(gizmoEdges[index], projectedCorners[from], projectedCorners[to]);
+  });
+
+  const center = { x: GIZMO_CENTER, y: GIZMO_CENTER };
+  const directions = [
+    [gizmoAxisS, gizmoLabelS, new THREE.Vector3(0, 1, 0)],
+    [gizmoAxisA, gizmoLabelA, new THREE.Vector3(0, 0, 1)],
+    [gizmoAxisR, gizmoLabelR, new THREE.Vector3(1, 0, 0)],
+    [gizmoAxisL, gizmoLabelL, new THREE.Vector3(-1, 0, 0)],
+  ];
+
+  for (const [line, label, direction] of directions) {
+    setGizmoLine(line, center, gizmoPoint(direction, GIZMO_AXIS_SCALE));
+    setGizmoLabel(label, gizmoPoint(direction, GIZMO_LABEL_SCALE));
+  }
 }
 
 function updateSectionPlane() {
@@ -344,14 +434,33 @@ function applySection() {
   sectionValue.textContent = `${Math.round(state.sectionDepth * 100)}%`;
 }
 
+function clinicalVisualOpacity(opacity) {
+  const clamped = THREE.MathUtils.clamp(opacity, 0, 1);
+  if (clamped <= 0.001 || clamped >= 0.999) return clamped;
+  return Math.pow(clamped, 0.55);
+}
+
 function applyOpacity() {
+  const visualOpacity = clinicalVisualOpacity(state.opacity);
   const skull = layerRegistry.get("skull");
   if (skull) {
     for (const mesh of skull.meshes) {
-      mesh.material.opacity = state.opacity;
-      mesh.material.transparent = state.opacity < 0.995;
+      const nextTransparent = state.opacity < 0.999;
+      const nextSide = nextTransparent ? THREE.FrontSide : THREE.DoubleSide;
+      const transparencyModeChanged = mesh.material.transparent !== nextTransparent;
+      const sideModeChanged = mesh.material.side !== nextSide;
+
+      mesh.visible = state.opacity > 0.001;
+      mesh.material.opacity = visualOpacity;
+      mesh.material.transparent = nextTransparent;
+      mesh.material.side = nextTransparent ? THREE.FrontSide : THREE.DoubleSide;
       mesh.material.depthWrite = true;
-      mesh.material.needsUpdate = true;
+      mesh.material.depthTest = true;
+      mesh.material.forceSinglePass = true;
+
+      if (transparencyModeChanged || sideModeChanged) {
+        mesh.material.needsUpdate = true;
+      }
     }
   }
   opacityValue.textContent = `${Math.round(state.opacity * 100)}%`;
@@ -770,6 +879,7 @@ function animate() {
   }
 
   controls.update();
+  updateOrientationGizmo();
   renderer.render(scene, camera);
 }
 animate();

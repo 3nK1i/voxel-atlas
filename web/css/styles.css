@@ -144,7 +144,19 @@ button:disabled {
   height: 37px;
   flex: 0 0 auto;
   object-fit: contain;
-  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--accent) 24%, transparent));
+  border-radius: 50%;
+  clip-path: circle(49% at 50% 50%);
+  background: transparent;
+  mix-blend-mode: normal;
+  filter: saturate(1.06) contrast(1.03) drop-shadow(0 0 10px color-mix(in srgb, var(--accent) 24%, transparent));
+}
+
+[data-theme="dark"] .brand-logo {
+  mix-blend-mode: lighten;
+}
+
+[data-theme="light"] .brand-logo {
+  background: #071424;
 }
 
 .brand-copy {
@@ -716,25 +728,62 @@ button:disabled {
   position: absolute;
   z-index: 2;
   left: 14px;
-  bottom: 36px;
-  width: 34px;
-  height: 34px;
-  border: 1px solid var(--line-strong);
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--panel-solid) 72%, transparent);
-  color: var(--text-soft);
-  font-size: 7px;
-  font-weight: 850;
-  box-shadow: 0 7px 18px rgba(0, 0, 0, 0.12);
+  bottom: 8px;
+  width: 84px;
+  height: 84px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  pointer-events: none;
+  opacity: 1;
 }
 
-.orientation-cube span {
-  position: absolute;
+.orientation-cube svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
 }
 
-.cube-top { top: 3px; left: 50%; transform: translateX(-50%); color: var(--accent); }
-.cube-front { bottom: 3px; left: 50%; transform: translateX(-50%); }
-.cube-right { right: 4px; top: 50%; transform: translateY(-50%); color: #ef7878; }
+.gizmo-edges line {
+  stroke: color-mix(in srgb, var(--text-soft) 72%, transparent);
+  stroke-width: 1.45;
+  vector-effect: non-scaling-stroke;
+}
+
+.gizmo-axis {
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.gizmo-axis-s { stroke: #69b8ff; }
+.gizmo-axis-a { stroke: color-mix(in srgb, var(--text) 90%, transparent); }
+.gizmo-axis-r { stroke: #ff4558; }
+.gizmo-axis-l { stroke: #73d66b; }
+
+.gizmo-arrow-s { fill: #69b8ff; }
+.gizmo-arrow-a { fill: color-mix(in srgb, var(--text) 90%, transparent); }
+.gizmo-arrow-r { fill: #ff4558; }
+.gizmo-arrow-l { fill: #73d66b; }
+
+.gizmo-label {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
+  font-weight: 760;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  paint-order: stroke;
+  stroke: color-mix(in srgb, var(--viewer-b) 82%, transparent);
+  stroke-width: 2.6px;
+  stroke-linejoin: round;
+}
+
+.gizmo-label-s { fill: #dcecff; }
+.gizmo-label-a { fill: var(--text); }
+.gizmo-label-r { fill: #ff4558; }
+.gizmo-label-l { fill: #73d66b; }
 
 .interaction-hint {
   position: absolute;
@@ -1118,7 +1167,7 @@ button:disabled {
   .model-chip { top: 51px; min-height: 28px; padding: 0 10px; font-size: 8.5px; }
   .viewer-toolbar { right: 13px; gap: 7px; }
   .viewer-toolbar button { width: 40px; height: 40px; font-size: 17px; }
-  .orientation-cube { left: 16px; bottom: 42px; width: 42px; height: 42px; font-size: 9px; }
+  .orientation-cube { left: 18px; bottom: -4px; width: 98px; height: 98px; }
   .interaction-hint { bottom: 10px; gap: 8px; padding: 6px 11px; font-size: 8px; }
 
   .mpr-panel { grid-template-rows: 34px minmax(0, 1fr) 30px; }

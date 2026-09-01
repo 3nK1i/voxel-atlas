@@ -229,7 +229,8 @@ class Phase2BFinalWorkspaceTargetTests(unittest.TestCase):
         js = (ROOT / "web/js/app.js").read_text(encoding="utf-8")
         self.assertIn("renderer.toneMappingExposure = 0.86;", js)
         self.assertIn("depthWrite: true", js)
-        self.assertIn("side: THREE.FrontSide", js)
+        self.assertIn("side: THREE.DoubleSide", js)
+        self.assertIn("forceSinglePass: true", js)
         self.assertNotIn("mesh.material.depthWrite = state.opacity >= 0.995", js)
 
     def test_phase2b_runner_is_compact_on_success_and_verbose_on_failure(self) -> None:
