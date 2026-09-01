@@ -1,37 +1,22 @@
-# Phase 0C1 — Baseline preservation contract
+# Phase 0C1 - Baseline preservation contract
 
-## Scope
+## Original scope
 
-Phase 0C1 adds repeatable baseline validation and project documentation without modifying the accepted viewer, prototypes, models, or medical-processing scripts.
+Phase 0C1 added repeatable baseline validation and project documentation without changing the accepted handoff implementation.
 
-## Added
+## Contract evolution
 
-- root project README
-- verified handoff record
-- immutable fingerprint check for both preserved prototype directories
-- standard-library unit contract for baseline preservation
-- single terminal validation runner
+The initial contract fingerprinted both packaged prototype lines. Later product decisions intentionally retired those prototypes from the live tree. Phase 2B completes that retirement and removes specialized demo-only utilities/assets that are outside the locked V1 workspace.
 
-## Explicitly unchanged
+Historical evidence is not lost: the original verified handoff archive and Git history remain authoritative for retired source.
 
-- `web/`
-- `prototypes/v2b3a/`
-- `prototypes/v2b3b/`
-- existing GLB assets
-- existing DICOM/CT/mesh-processing utilities
+The active Phase 0 regression now verifies:
 
-## Exit criteria
+- retained skull GLB fingerprints from the original handoff
+- original supplied visual-reference fingerprints
+- intentional absence of retired prototype paths
+- current JavaScript syntax
+- Python AST validity
+- raw-medical-data Git hygiene
 
-Phase 0C1 is accepted only when:
-
-- preserved prototype fingerprints match the verified handoff
-- both legacy prototype smoke checks pass
-- all packaged Python scripts parse successfully
-- existing JavaScript files pass `node --check`
-- the Phase 0C1 unit contract passes
-- `git diff --check` is clean
-- a minimal browser sanity check confirms the accepted baseline still loads
-
-## Contract evolution in Phase 2A
-
-Phase 0C1 originally froze both prototype directories. Phase 2A later made an explicit product decision to retain the VA cranial-opening reference (`prototypes/v2b3a/`) and mark VB (`prototypes/v2b3b/`) as retired from the live tree. Phase 0 regression therefore continues to fingerprint VA while VB remains preserved in Git history and the original verified handoff archive.
+This evolution prevents an obsolete prototype contract from blocking intentional product simplification while preserving reproducible evidence of the accepted baseline.

@@ -3,18 +3,17 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 const SKULL_URL = "/assets/models/skull_full.glb";
-const BRAIN_URL = "/assets/models/brain.glb";
+const THEME_KEY = "voxelatlas-theme";
+const DEFAULT_OPACITY = 0.94;
 
 const viewport = document.getElementById("viewport");
+const viewerStage = document.getElementById("viewerStage");
 const modelStatus = document.getElementById("modelStatus");
 const statusText = document.getElementById("statusText");
 const modelChip = document.getElementById("modelChip");
 const sectionSlider = document.getElementById("sectionSlider");
 const sectionValue = document.getElementById("sectionValue");
 const sectionButtons = Array.from(document.querySelectorAll("[data-section-axis]"));
-const openingSlider = document.getElementById("openingSlider");
-const openingValue = document.getElementById("openingValue");
-const openingDescription = document.getElementById("openingDescription");
 const layerButtons = Array.from(document.querySelectorAll("[data-layer]"));
 const anatomyNote = document.getElementById("anatomyNote");
 const opacitySlider = document.getElementById("opacitySlider");
@@ -22,9 +21,19 @@ const opacityValue = document.getElementById("opacityValue");
 const resetButton = document.getElementById("resetButton");
 const autoRotateButton = document.getElementById("autoRotateButton");
 const logoutButton = document.getElementById("logoutButton");
+const accountName = document.getElementById("accountName");
+const themeToggle = document.getElementById("themeToggle");
+const fitViewButton = document.getElementById("fitViewButton");
+const zoomInButton = document.getElementById("zoomInButton");
+const zoomOutButton = document.getElementById("zoomOutButton");
+const fullscreenButton = document.getElementById("fullscreenButton");
+const themeColorMeta = document.querySelector('meta[name="theme-color"]');
 
-const DEFAULT_OPENING = 0.58;
-const DEFAULT_OPACITY = 0.94;
+const layerRegistry = new Map([
+  ["volume", { available: false, root: null, meshes: [] }],
+  ["skull", { available: false, root: null, meshes: [] }],
+  ["brain", { available: false, root: null, meshes: [] }],
+]);
 
 const state = {
   sectionAxis: "y",
@@ -32,37 +41,12 @@ const state = {
   opacity: DEFAULT_OPACITY,
   layer: "skull",
   autoRotate: false,
-  skullRoot: null,
-  brainRoot: null,
-  skullMeshes: [],
-  brainMeshes: [],
-  brainAvailable: false,
   size: new THREE.Vector3(1, 1, 1),
   min: new THREE.Vector3(),
   max: new THREE.Vector3(),
   cameraPosition: new THREE.Vector3(),
   cameraTarget: new THREE.Vector3(),
   sectionPlane: new THREE.Plane(new THREE.Vector3(0, -1, 0), 0),
-};
-
-const apertureUniforms = {
-  opening: { value: DEFAULT_OPENING },
-  center: { value: new THREE.Vector3() },
-  maxRadii: { value: new THREE.Vector3() },
-  minSuperiorRadius: { value: 0.01 },
-};
-
-let targetOpening = DEFAULT_OPENING;
-let currentOpening = DEFAULT_OPENING;
-
-const APERTURE = {
-  centerXFraction: -0.019,
-  centerZFraction: -0.040,
-  centerAboveFraction: 0.109,
-  maxRadiusXFraction: 0.455,
-  maxRadiusYFraction: 0.380,
-  maxRadiusZFraction: 0.430,
-  minRadiusYFraction: 0.120,
 };
 
 const scene = new THREE.Scene();
@@ -79,7 +63,7 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.setClearColor(0x000000, 0);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.02;
+renderer.toneMappingExposure = 0.86;
 renderer.localClippingEnabled = true;
 viewport.appendChild(renderer.domElement);
 
@@ -98,17 +82,17 @@ controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
 controls.touches.ONE = THREE.TOUCH.ROTATE;
 controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
 
-scene.add(new THREE.HemisphereLight(0xd6edff, 0x07111d, 2.2));
+scene.add(new THREE.HemisphereLight(0xe6eef2, 0x07111d, 1.35));
 
-const key = new THREE.DirectionalLight(0xf2f8ff, 3.2);
+const key = new THREE.DirectionalLight(0xfff7e8, 2.05);
 key.position.set(0.7, 1.1, 0.9);
 scene.add(key);
 
-const fill = new THREE.DirectionalLight(0x8bc8f3, 1.4);
+const fill = new THREE.DirectionalLight(0x9ac8e7, 0.78);
 fill.position.set(-0.8, 0.25, 0.55);
 scene.add(fill);
 
-const rim = new THREE.DirectionalLight(0xa7dcff, 1.7);
+const rim = new THREE.DirectionalLight(0xb8dcf3, 1.05);
 rim.position.set(0.2, 0.45, -1.1);
 scene.add(rim);
 
@@ -117,129 +101,130 @@ function setStatus(kind, message) {
   statusText.textContent = message;
 }
 
-function createClinicalSkullMaterial() {
-  const material = new THREE.MeshPhysicalMaterial({
-    color: 0xeff5fa,
-    roughness: 0.72,
+function createClinicalMaterial() {
+  return new THREE.MeshPhysicalMaterial({
+    color: 0xe8e1d6,
+    roughness: 0.64,
     metalness: 0.01,
-    clearcoat: 0.02,
-    clearcoatRoughness: 0.62,
+    clearcoat: 0.01,
+    clearcoatRoughness: 0.78,
     transparent: true,
     opacity: state.opacity,
-    depthWrite: state.opacity >= 0.995,
-    side: THREE.DoubleSide,
-    clippingPlanes: [],
-  });
-
-  material.onBeforeCompile = (shader) => {
-    shader.uniforms.uOpening = apertureUniforms.opening;
-    shader.uniforms.uApertureCenter = apertureUniforms.center;
-    shader.uniforms.uApertureMaxRadii = apertureUniforms.maxRadii;
-    shader.uniforms.uMinSuperiorRadius = apertureUniforms.minSuperiorRadius;
-
-    shader.vertexShader = shader.vertexShader.replace(
-      "#include <common>",
-      `
-      #include <common>
-      varying vec3 vApertureWorldPosition;
-      `,
-    );
-
-    shader.vertexShader = shader.vertexShader.replace(
-      "#include <begin_vertex>",
-      `
-      #include <begin_vertex>
-      vApertureWorldPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;
-      `,
-    );
-
-    shader.fragmentShader = shader.fragmentShader.replace(
-      "#include <common>",
-      `
-      #include <common>
-      uniform float uOpening;
-      uniform vec3 uApertureCenter;
-      uniform vec3 uApertureMaxRadii;
-      uniform float uMinSuperiorRadius;
-      varying vec3 vApertureWorldPosition;
-      `,
-    );
-
-    shader.fragmentShader = shader.fragmentShader.replace(
-      "#include <clipping_planes_fragment>",
-      `
-      #include <clipping_planes_fragment>
-      if (uOpening > 0.0001) {
-        float s = sqrt(clamp(uOpening, 0.0, 1.0));
-        float radiusX = max(uApertureMaxRadii.x * s, 0.00015);
-        float radiusZ = max(uApertureMaxRadii.z * s, 0.00015);
-        float radiusY = mix(uMinSuperiorRadius, uApertureMaxRadii.y, s);
-        vec3 local = vApertureWorldPosition - uApertureCenter;
-        vec3 normalizedPosition = vec3(
-          local.x / radiusX,
-          local.y / radiusY,
-          local.z / radiusZ
-        );
-        if (dot(normalizedPosition, normalizedPosition) < 1.0) {
-          discard;
-        }
-      }
-      `,
-    );
-  };
-
-  material.customProgramCacheKey = () => "voxelatlas-va-aperture-1";
-  return material;
-}
-
-function createClinicalBrainMaterial() {
-  return new THREE.MeshPhysicalMaterial({
-    color: 0xc9a4a7,
-    roughness: 0.82,
-    metalness: 0.0,
-    clearcoat: 0.0,
-    transparent: false,
-    opacity: 1.0,
-    side: THREE.DoubleSide,
+    depthWrite: true,
+    side: THREE.FrontSide,
     clippingPlanes: [],
   });
 }
 
-function configureApertureFromBounds(box) {
-  const size = new THREE.Vector3();
-  const center = new THREE.Vector3();
-  box.getSize(size);
-  box.getCenter(center);
+function registerLayer(name, root, materialFactory = createClinicalMaterial) {
+  const entry = layerRegistry.get(name);
+  if (!entry) {
+    throw new Error(`Unknown anatomy layer: ${name}`);
+  }
 
-  apertureUniforms.center.value.set(
-    center.x + size.x * APERTURE.centerXFraction,
-    box.max.y + size.y * APERTURE.centerAboveFraction,
-    center.z + size.z * APERTURE.centerZFraction,
-  );
+  if (entry.root && entry.root.parent) {
+    entry.root.parent.remove(entry.root);
+  }
 
-  apertureUniforms.maxRadii.value.set(
-    size.x * APERTURE.maxRadiusXFraction,
-    size.y * APERTURE.maxRadiusYFraction,
-    size.z * APERTURE.maxRadiusZFraction,
-  );
+  entry.root = root;
+  entry.meshes = [];
 
-  apertureUniforms.minSuperiorRadius.value = size.y * APERTURE.minRadiusYFraction;
+  root.traverse((child) => {
+    if (!child.isMesh) return;
+    child.material = materialFactory();
+    child.castShadow = false;
+    child.receiveShadow = false;
+    entry.meshes.push(child);
+  });
+
+  anatomyGroup.add(root);
+  root.updateMatrixWorld(true);
+  setLayerAvailability(name, true);
+  applyLayerVisibility();
+  applySection();
+  applyOpacity();
+}
+
+function setLayerAvailability(name, available) {
+  const entry = layerRegistry.get(name);
+  if (entry) {
+    entry.available = Boolean(available);
+  }
+
+  const skullReady = Boolean(layerRegistry.get("skull")?.available);
+  const brainReady = Boolean(layerRegistry.get("brain")?.available);
+  const volumeReady = Boolean(layerRegistry.get("volume")?.available);
+
+  for (const button of layerButtons) {
+    const layer = button.dataset.layer;
+    let enabled = false;
+    if (layer === "skull") enabled = skullReady;
+    if (layer === "brain") enabled = brainReady;
+    if (layer === "volume") enabled = volumeReady;
+    if (layer === "combined") enabled = skullReady && brainReady;
+    button.disabled = !enabled;
+  }
+
+  if (!brainReady && !volumeReady) {
+    anatomyNote.textContent = "Patient volume and brain layers activate when the reconstruction pipeline provides them.";
+  }
+}
+
+function allRegisteredMeshes() {
+  const meshes = [];
+  for (const entry of layerRegistry.values()) {
+    meshes.push(...entry.meshes);
+  }
+  return meshes;
+}
+
+function updateLayerUI() {
+  for (const button of layerButtons) {
+    button.classList.toggle("is-active", button.dataset.layer === state.layer);
+  }
+
+  if (state.layer === "brain") {
+    modelChip.textContent = "Patient anatomy - Brain";
+  } else if (state.layer === "combined") {
+    modelChip.textContent = "Patient anatomy - Skull + Brain";
+  } else if (state.layer === "volume") {
+    modelChip.textContent = "Patient anatomy - Full Volume";
+  } else {
+    modelChip.textContent = "Demo A0101 - Skull";
+  }
+}
+
+function applyLayerVisibility() {
+  const skull = layerRegistry.get("skull");
+  const brain = layerRegistry.get("brain");
+  const volume = layerRegistry.get("volume");
+
+  if (skull?.root) skull.root.visible = state.layer === "skull" || state.layer === "combined";
+  if (brain?.root) brain.root.visible = state.layer === "brain" || state.layer === "combined";
+  if (volume?.root) volume.root.visible = state.layer === "volume";
+  updateLayerUI();
+}
+
+function setLayer(layer) {
+  const button = layerButtons.find((candidate) => candidate.dataset.layer === layer);
+  if (!button || button.disabled) return;
+  state.layer = layer;
+  applyLayerVisibility();
 }
 
 function updateBoundsFromSkull() {
-  const box = new THREE.Box3().setFromObject(state.skullRoot);
+  const skullRoot = layerRegistry.get("skull")?.root;
+  if (!skullRoot) return null;
+  const box = new THREE.Box3().setFromObject(skullRoot);
   box.getSize(state.size);
   state.min.copy(box.min);
   state.max.copy(box.max);
-  configureApertureFromBounds(box);
   return box;
 }
 
 function fitCamera(box) {
   const sphere = box.getBoundingSphere(new THREE.Sphere());
   const radius = Math.max(sphere.radius, 0.01);
-  // Preserve the proven VA framing so the whole skull is readable on first load.
-  // The previous migration camera sat too close and cropped the anatomy.
   const position = new THREE.Vector3(
     sphere.center.x + radius * 1.30,
     sphere.center.y + radius * 0.42,
@@ -258,6 +243,25 @@ function fitCamera(box) {
   camera.near = Math.max(radius / 150, 0.001);
   camera.far = radius * 30;
   camera.updateProjectionMatrix();
+  controls.update();
+}
+
+function fitSavedView() {
+  camera.position.copy(state.cameraPosition);
+  controls.target.copy(state.cameraTarget);
+  controls.update();
+}
+
+function zoomBy(factor) {
+  const offset = camera.position.clone().sub(controls.target);
+  const currentDistance = Math.max(offset.length(), 0.0001);
+  const nextDistance = THREE.MathUtils.clamp(
+    currentDistance * factor,
+    controls.minDistance || currentDistance * 0.25,
+    controls.maxDistance || currentDistance * 4,
+  );
+  offset.setLength(nextDistance);
+  camera.position.copy(controls.target).add(offset);
   controls.update();
 }
 
@@ -289,22 +293,18 @@ function updateSectionPlane() {
   );
 }
 
-function allMeshes() {
-  return [...state.skullMeshes, ...state.brainMeshes];
-}
-
 function applySection() {
   updateSectionPlane();
   const enabled = state.sectionDepth > 0.001;
 
-  for (const mesh of allMeshes()) {
+  for (const mesh of allRegisteredMeshes()) {
     const material = mesh.material;
-    const currentlyEnabled = Array.isArray(material.clippingPlanes) && material.clippingPlanes.length > 0;
+    const hasPlane = Array.isArray(material.clippingPlanes) && material.clippingPlanes.length > 0;
 
-    if (enabled && !currentlyEnabled) {
+    if (enabled && !hasPlane) {
       material.clippingPlanes = [state.sectionPlane];
       material.needsUpdate = true;
-    } else if (!enabled && currentlyEnabled) {
+    } else if (!enabled && hasPlane) {
       material.clippingPlanes = [];
       material.needsUpdate = true;
     }
@@ -313,178 +313,42 @@ function applySection() {
   sectionValue.textContent = `${Math.round(state.sectionDepth * 100)}%`;
 }
 
-function applySkullOpacity() {
-  for (const mesh of state.skullMeshes) {
-    mesh.material.opacity = state.opacity;
-    mesh.material.transparent = state.opacity < 0.995;
-    mesh.material.depthWrite = state.opacity >= 0.995;
-    mesh.material.needsUpdate = true;
+function applyOpacity() {
+  const skull = layerRegistry.get("skull");
+  if (skull) {
+    for (const mesh of skull.meshes) {
+      mesh.material.opacity = state.opacity;
+      mesh.material.transparent = state.opacity < 0.995;
+      mesh.material.depthWrite = true;
+      mesh.material.needsUpdate = true;
+    }
   }
   opacityValue.textContent = `${Math.round(state.opacity * 100)}%`;
 }
 
-function descriptionForOpening(value) {
-  if (value === 0) return "Closed skull";
-  if (value < 20) return "Minimal access";
-  if (value < 45) return "Small opening";
-  if (value < 68) return "Standard opening";
-  if (value < 88) return "Large opening";
-  return "Wide exploratory opening";
-}
-
-function setOpening(value) {
-  const normalized = THREE.MathUtils.clamp(Number(value), 0, 100);
-  openingSlider.value = String(normalized);
-  openingValue.textContent = `${Math.round(normalized)}%`;
-  openingDescription.textContent = descriptionForOpening(Math.round(normalized));
-  targetOpening = normalized / 100;
-}
-
-function updateLayerUI() {
-  for (const button of layerButtons) {
-    button.classList.toggle("is-active", button.dataset.layer === state.layer);
-  }
-
-  if (state.layer === "brain") {
-    modelChip.textContent = "A0101 · Brain";
-  } else if (state.layer === "combined") {
-    modelChip.textContent = "A0101 · Skull + Brain";
-  } else {
-    modelChip.textContent = "A0101 · Skull";
-  }
-}
-
-function applyLayerVisibility() {
-  if (state.skullRoot) {
-    state.skullRoot.visible = state.layer !== "brain";
-  }
-  if (state.brainRoot) {
-    state.brainRoot.visible = state.layer !== "skull";
-  }
-  updateLayerUI();
-}
-
-function prepareBrain(root) {
-  root.traverse((child) => {
-    if (!child.isMesh) return;
-    child.material = createClinicalBrainMaterial();
-    child.castShadow = false;
-    child.receiveShadow = false;
-    state.brainMeshes.push(child);
-  });
-  state.brainRoot = root;
-  anatomyGroup.add(root);
-  applySection();
-  applyLayerVisibility();
-}
-
-function loadBrain() {
-  if (state.brainRoot) {
-    return Promise.resolve(state.brainRoot);
-  }
-
-  return new Promise((resolve, reject) => {
-    const loader = new GLTFLoader();
-    loader.load(
-      BRAIN_URL,
-      (gltf) => {
-        prepareBrain(gltf.scene);
-        resolve(gltf.scene);
-      },
-      undefined,
-      reject,
-    );
-  });
-}
-
-async function setLayer(layer) {
-  if ((layer === "brain" || layer === "combined") && !state.brainAvailable) {
-    return;
-  }
-
-  if ((layer === "brain" || layer === "combined") && !state.brainRoot) {
-    setStatus("loading", "Loading brain layer…");
-    try {
-      await loadBrain();
-      setStatus("ready", "Anatomy ready");
-    } catch (error) {
-      console.error(error);
-      state.brainAvailable = false;
-      for (const button of layerButtons) {
-        if (button.dataset.layer !== "skull") button.disabled = true;
-      }
-      anatomyNote.textContent = "Brain layer could not be loaded. Verify web/assets/models/brain.glb.";
-      setStatus("error", "Brain layer unavailable");
-      return;
-    }
-  }
-
-  state.layer = layer;
-  applyLayerVisibility();
-}
-
-async function probeBrainAsset() {
-  try {
-    const response = await fetch(BRAIN_URL, {
-      method: "HEAD",
-      cache: "no-store",
-      credentials: "same-origin",
-    });
-    state.brainAvailable = response.ok;
-  } catch {
-    state.brainAvailable = false;
-  }
-
-  for (const button of layerButtons) {
-    if (button.dataset.layer !== "skull") {
-      button.disabled = !state.brainAvailable;
-    }
-  }
-
-  anatomyNote.textContent = state.brainAvailable
-    ? "Co-registered brain layer available."
-    : "Brain layer activates when a co-registered brain.glb is available.";
-}
-
 function prepareSkull(root) {
-  state.skullRoot = root;
-  state.skullMeshes = [];
-
-  root.traverse((child) => {
-    if (!child.isMesh) return;
-    child.material = createClinicalSkullMaterial();
-    child.castShadow = false;
-    child.receiveShadow = false;
-    state.skullMeshes.push(child);
-  });
-
-  anatomyGroup.add(root);
-  root.updateMatrixWorld(true);
+  registerLayer("skull", root, createClinicalMaterial);
   const box = updateBoundsFromSkull();
-  fitCamera(box);
-  applySkullOpacity();
-  applySection();
+  if (box) fitCamera(box);
+  state.layer = "skull";
   applyLayerVisibility();
+  setStatus("ready", "Demo anatomy ready");
 }
 
 function loadSkull() {
-  setStatus("loading", "Loading skull…");
+  setStatus("loading", "Loading demo anatomy...");
   const loader = new GLTFLoader();
   loader.load(
     SKULL_URL,
-    (gltf) => {
-      prepareSkull(gltf.scene);
-      setStatus("ready", "Anatomy ready");
-      void probeBrainAsset();
-    },
+    (gltf) => prepareSkull(gltf.scene),
     (progress) => {
       if (!progress.total) return;
       const percent = Math.round((progress.loaded / progress.total) * 100);
-      setStatus("loading", `Loading skull… ${percent}%`);
+      setStatus("loading", `Loading demo anatomy... ${percent}%`);
     },
     (error) => {
       console.error(error);
-      setStatus("error", "Skull failed to load");
+      setStatus("error", "Demo anatomy failed to load");
     },
   );
 }
@@ -496,16 +360,66 @@ function resetWorkspace() {
   for (const button of sectionButtons) {
     button.classList.toggle("is-active", button.dataset.sectionAxis === "y");
   }
-  setOpening(58);
+
   state.opacity = DEFAULT_OPACITY;
   opacitySlider.value = String(Math.round(DEFAULT_OPACITY * 100));
-  applySkullOpacity();
-  applySection();
+  state.layer = "skull";
+  state.autoRotate = false;
+  autoRotateButton.classList.remove("is-active");
+  autoRotateButton.setAttribute("aria-pressed", "false");
+  autoRotateButton.textContent = "Auto rotate";
 
   anatomyGroup.rotation.set(0, 0, 0);
-  camera.position.copy(state.cameraPosition);
-  controls.target.copy(state.cameraTarget);
-  controls.update();
+  applyOpacity();
+  applySection();
+  applyLayerVisibility();
+  fitSavedView();
+}
+
+function preferredTheme() {
+  try {
+    const saved = localStorage.getItem(THEME_KEY);
+    if (saved === "light" || saved === "dark") return saved;
+  } catch {
+    // Storage can be blocked without affecting viewer operation.
+  }
+  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+}
+
+function applyTheme(theme, persist = false) {
+  const normalized = theme === "light" ? "light" : "dark";
+  document.documentElement.dataset.theme = normalized;
+  themeToggle.setAttribute("aria-pressed", normalized === "light" ? "true" : "false");
+  themeToggle.setAttribute(
+    "aria-label",
+    normalized === "light" ? "Switch to dark mode" : "Switch to light mode",
+  );
+  if (themeColorMeta) {
+    themeColorMeta.setAttribute("content", normalized === "light" ? "#eef5fb" : "#020915");
+  }
+  if (persist) {
+    try {
+      localStorage.setItem(THEME_KEY, normalized);
+    } catch {
+      // Theme persistence is optional.
+    }
+  }
+}
+
+async function refreshAccountName() {
+  try {
+    const response = await fetch("/api/auth/session", {
+      credentials: "same-origin",
+      headers: { "Accept": "application/json" },
+    });
+    if (!response.ok) return;
+    const payload = await response.json();
+    if (payload.authenticated && typeof payload.username === "string" && payload.username.trim()) {
+      accountName.textContent = payload.username.trim();
+    }
+  } catch {
+    // The workspace remains usable if account decoration cannot refresh.
+  }
 }
 
 sectionButtons.forEach((button) => {
@@ -527,19 +441,13 @@ sectionSlider.addEventListener("input", () => {
   applySection();
 });
 
-openingSlider.addEventListener("input", () => {
-  setOpening(openingSlider.value);
-});
-
 opacitySlider.addEventListener("input", () => {
   state.opacity = Number(opacitySlider.value) / 100;
-  applySkullOpacity();
+  applyOpacity();
 });
 
 layerButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    void setLayer(button.dataset.layer);
-  });
+  button.addEventListener("click", () => setLayer(button.dataset.layer));
 });
 
 resetButton.addEventListener("click", resetWorkspace);
@@ -547,7 +455,35 @@ resetButton.addEventListener("click", resetWorkspace);
 autoRotateButton.addEventListener("click", () => {
   state.autoRotate = !state.autoRotate;
   autoRotateButton.classList.toggle("is-active", state.autoRotate);
+  autoRotateButton.setAttribute("aria-pressed", state.autoRotate ? "true" : "false");
   autoRotateButton.textContent = state.autoRotate ? "Stop rotate" : "Auto rotate";
+});
+
+themeToggle.addEventListener("click", () => {
+  const next = document.documentElement.dataset.theme === "light" ? "dark" : "light";
+  applyTheme(next, true);
+});
+
+fitViewButton.addEventListener("click", fitSavedView);
+zoomInButton.addEventListener("click", () => zoomBy(0.82));
+zoomOutButton.addEventListener("click", () => zoomBy(1.22));
+fullscreenButton.addEventListener("click", async () => {
+  try {
+    if (document.fullscreenElement === viewerStage) {
+      await document.exitFullscreen();
+    } else if (viewerStage.requestFullscreen) {
+      await viewerStage.requestFullscreen();
+    }
+  } catch (error) {
+    console.error(error);
+  }
+});
+
+document.addEventListener("fullscreenchange", () => {
+  const active = document.fullscreenElement === viewerStage;
+  fullscreenButton.setAttribute("aria-pressed", active ? "true" : "false");
+  fullscreenButton.setAttribute("title", active ? "Exit fullscreen" : "Fullscreen");
+  resize();
 });
 
 logoutButton.addEventListener("click", async () => {
@@ -577,22 +513,19 @@ if (window.ResizeObserver) {
   resizeObserver.observe(viewport);
 }
 
-setOpening(58);
-applySkullOpacity();
+applyTheme(preferredTheme());
+setLayerAvailability("volume", false);
+setLayerAvailability("brain", false);
+applyOpacity();
 updateLayerUI();
 resize();
 loadSkull();
+void refreshAccountName();
 
 const clock = new THREE.Clock();
 function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  const response = 1 - Math.exp(-18 * dt);
-  currentOpening = THREE.MathUtils.lerp(currentOpening, targetOpening, response);
-  if (Math.abs(currentOpening - targetOpening) < 0.0001) {
-    currentOpening = targetOpening;
-  }
-  apertureUniforms.opening.value = currentOpening;
 
   if (state.autoRotate) {
     anatomyGroup.rotation.y += dt * 0.32;

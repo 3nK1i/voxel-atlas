@@ -20,14 +20,8 @@ run_check() {
     fi
 }
 
-run_check "PHASE0C1_INTEGRITY" \
-    python3 scripts/check_phase0c1_baseline_integrity.py
-
-run_check "V2B3A_SMOKE" \
-    python3 scripts/check_v2b3a_prototype.py
-
-run_check "PHASE0C1_UNIT" \
-    python3 -m unittest discover -s tests -p 'test_phase0c1_baseline_contract.py' -v
+run_check "PHASE0C1_INTEGRITY" python3 scripts/check_phase0c1_baseline_integrity.py
+run_check "PHASE0C1_UNIT" python3 -m unittest discover -s tests -p 'test_phase0c1_baseline_contract.py' -v
 
 echo
 echo "===== PYTHON AST ====="
@@ -52,17 +46,12 @@ echo
 echo "===== JAVASCRIPT SYNTAX ====="
 if command -v node >/dev/null 2>&1; then
     echo "NODE=$(node --version)"
-    for js in \
-        web/js/app.js \
-        prototypes/v2b3a/app.js
-    do
-        if node --check "$js"; then
-            echo "PASS $js"
-        else
-            echo "FAIL $js"
-            FAIL=1
-        fi
-    done
+    if node --check web/js/app.js; then
+        echo "PASS web/js/app.js"
+    else
+        echo "FAIL web/js/app.js"
+        FAIL=1
+    fi
 else
     echo "NODE_AVAILABLE=NO"
     FAIL=1

@@ -1,13 +1,14 @@
 # Runtime anatomy models
 
-`skull_full.glb` is the currently qualified VoxelAtlas skull model used by the production workspace.
+`skull_full.glb` is the currently qualified demo skull used by the Phase 2B workspace while the patient-data reconstruction pipeline is being built.
 
-The V1 anatomy-layer contract reserves this exact runtime path for the brain layer:
+The final V1 anatomy layers do **not** rely on manually copied static brain or volume files. Later reconstruction phases will register patient-derived layers in one shared coordinate system and make them available to the viewer as real runtime outputs.
 
-```text
-web/assets/models/brain.glb
-```
+The locked V1 layer architecture is:
 
-The brain model must be a real, co-registered anatomical mesh in the same coordinate frame and scale as the skull. It is **not generated or substituted** by the browser when missing. Until a qualified `brain.glb` is provided, the Brain and Skull + Brain controls stay disabled instead of presenting fake anatomy.
+- Full Volume
+- Skull
+- Brain
+- Skull + Brain
 
-Once a valid `brain.glb` is placed at that path, the workspace probes it at runtime and enables the Brain and Skull + Brain controls automatically.
+Only Skull is available in the current demo shell. Full Volume, Brain, and Skull + Brain remain disabled until the DICOM and reconstruction pipeline provides qualified patient-specific data. The browser must never fabricate missing anatomy.

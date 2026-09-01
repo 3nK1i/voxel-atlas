@@ -118,7 +118,7 @@ class Phase1CLoginUIContractTests(unittest.TestCase):
 
         self.assertEqual(login.status_code, 200)
         self.assertEqual(workspace.status_code, 200)
-        self.assertIn('data-workspace="voxelatlas-va"', workspace.text)
+        self.assertIn('data-workspace="voxelatlas-v1"', workspace.text)
         self.assertEqual(login_page.status_code, 302)
         self.assertEqual(login_page.headers["location"], "/workspace")
 

@@ -6,23 +6,14 @@ The repository baseline was imported from the inspected handoff package:
 - SHA256: `9233614c70239d331ed9317c2482e5a0a698ddb6d836bab025d0d42277489214`
 - Authoritative baseline Git commit: `4764b641e38b812d994ffa644dfdbbaa9f0227aa`
 
-Before the first Git commit, the extracted handoff passed:
-
-- `scripts/check_v2b3a_prototype.py`
-- `scripts/check_v2b3b_prototype.py`
-- Python AST parsing for all 23 packaged Python scripts
-- Node.js syntax checking for the existing web viewer and both JavaScript prototypes
-- raw-medical-data staging sanity
-- Git diff whitespace sanity
+Before the first Git commit, the extracted handoff passed its packaged prototype, Python AST, JavaScript syntax, raw-medical-data, and diff-sanity checks.
 
 ## Preservation policy
 
-`prototypes/v2b3a/` and `prototypes/v2b3b/` are historical engineering references. Phase 0C1 records their exact file fingerprints so later production work can reuse their proven behavior without silently rewriting the accepted prototype evidence.
+The original handoff remains the immutable evidence source for historical prototypes and retired experimental utilities. The current tree is intentionally allowed to evolve as product direction becomes locked.
 
-`web/` is the current product baseline and is expected to evolve in later phases. It is therefore validated structurally rather than frozen by content hash.
+Phase 2B retires both historical prototype directories and the specialized demo-only utilities/assets that no longer belong to the V1 product. Their removal is intentional; they remain recoverable from Git history and the verified handoff archive.
 
-The empty baseline `src/` and `tests/` directories were present in the handoff but were not part of the initial Git commit because Git does not track empty directories. Phase 0C1 begins tracking `tests/` with the baseline contract test.
+The baseline regression now fingerprints the retained qualified skull assets and the original supplied design references while also asserting that retired prototype paths do not silently return.
 
-## Phase 2A prototype retirement note
-
-The original handoff did include both prototype lines and Phase 0C1 preserved them byte-for-byte. In Phase 2A, product direction explicitly retained `prototypes/v2b3a/` as the VA cranial-opening reference and **retired** `prototypes/v2b3b/` from the current tree. The retired VB source remains recoverable from Git history and the verified handoff archive; its removal is intentional, not evidence loss.
+`web/` is the current product implementation and is validated structurally rather than frozen by content hash.

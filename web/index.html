@@ -1,16 +1,32 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta
     name="viewport"
     content="width=device-width, initial-scale=1.0, viewport-fit=cover"
   >
-  <meta name="theme-color" content="#020a13">
+  <meta name="theme-color" content="#020915">
   <link rel="icon" href="data:,">
   <title>VoxelAtlas - Anatomy Workspace</title>
 
-  <link rel="stylesheet" href="/css/styles.css?v=phase2a-1">
+  <script>
+    (() => {
+      try {
+        const saved = localStorage.getItem("voxelatlas-theme");
+        const preferred = window.matchMedia("(prefers-color-scheme: light)").matches
+          ? "light"
+          : "dark";
+        document.documentElement.dataset.theme = saved === "light" || saved === "dark"
+          ? saved
+          : preferred;
+      } catch {
+        document.documentElement.dataset.theme = "dark";
+      }
+    })();
+  </script>
+
+  <link rel="stylesheet" href="/css/styles.css?v=phase2b-visual1">
 
   <script type="importmap">
   {
@@ -21,91 +37,243 @@
   }
   </script>
 </head>
-<body data-workspace="voxelatlas-va">
-  <div class="app">
+<body data-workspace="voxelatlas-v1">
+  <div class="app-shell">
     <header class="topbar">
-      <a class="brand" href="/workspace" aria-label="VoxelAtlas workspace">
-        <img
-          class="brand-logo"
-          src="/assets/logo.png"
-          alt=""
-          aria-hidden="true"
-        >
-        <span class="brand-copy">
-          <strong class="brand-name">VoxelAtlas</strong>
-          <span class="brand-subtitle">Interactive anatomy explorer</span>
-        </span>
-      </a>
+      <div class="brand-zone">
+        <a class="brand" href="/workspace" aria-label="VoxelAtlas workspace">
+          <img
+            class="brand-logo"
+            src="/assets/logo.png"
+            alt=""
+            aria-hidden="true"
+          >
+          <span class="brand-copy">
+            <strong class="brand-name">VoxelAtlas</strong>
+            <span class="brand-subtitle">Interactive anatomy explorer</span>
+          </span>
+        </a>
 
-      <div class="topbar-actions">
-        <div id="modelStatus" class="model-status" data-state="loading">
-          <span class="status-dot" aria-hidden="true"></span>
-          <span id="statusText">Loading model…</span>
-        </div>
-        <button id="logoutButton" class="logout-button" type="button">
-          Logout
+        <button
+          id="themeToggle"
+          class="theme-toggle"
+          type="button"
+          aria-label="Switch to light mode"
+          aria-pressed="false"
+        >
+          <span class="theme-icon theme-icon-sun" aria-hidden="true">☀</span>
+          <span class="theme-track" aria-hidden="true"><span class="theme-thumb"></span></span>
+          <span class="theme-icon theme-icon-moon" aria-hidden="true">☾</span>
         </button>
+      </div>
+
+      <nav class="workflow" aria-label="VoxelAtlas workflow">
+        <div id="workflowData" class="workflow-step" data-state="pending">
+          <span class="workflow-number">1</span>
+          <span class="workflow-copy">
+            <strong>Data</strong>
+            <small>Get MRI/CT</small>
+          </span>
+        </div>
+        <span class="workflow-line" aria-hidden="true"></span>
+        <div id="workflowReconstruction" class="workflow-step" data-state="pending">
+          <span class="workflow-number">2</span>
+          <span class="workflow-copy">
+            <strong>Reconstruction</strong>
+            <small>3D Volume</small>
+          </span>
+        </div>
+        <span class="workflow-line" aria-hidden="true"></span>
+        <div
+          id="workflowVisualization"
+          class="workflow-step is-active"
+          data-state="active"
+          aria-current="step"
+        >
+          <span class="workflow-number">3</span>
+          <span class="workflow-copy">
+            <strong>3D Visualization</strong>
+            <small>Interactive 3D model</small>
+          </span>
+        </div>
+      </nav>
+
+      <div class="account-zone">
+        <div class="account" aria-label="Authenticated account">
+          <span class="account-avatar" aria-hidden="true">VA</span>
+          <span id="accountName" class="account-name">Authenticated user</span>
+        </div>
+        <button id="logoutButton" class="logout-button" type="button">Logout</button>
       </div>
     </header>
 
-    <main class="workspace">
-      <section class="viewer" aria-label="VoxelAtlas 3D anatomy workspace">
-        <div
-          id="viewport"
-          class="viewport"
-          aria-label="Interactive 3D anatomy viewer"
-        ></div>
+    <main class="workspace-grid">
+      <aside class="left-panel panel" aria-label="Study and reconstruction information">
+        <div class="panel-scroll">
+          <div class="upload-wrap">
+            <button
+              id="uploadDicomButton"
+              class="upload-button"
+              type="button"
+              disabled
+              data-feature-state="planned"
+              title="Available in Phase 3 - DICOM ingestion"
+            >
+              <span class="upload-icon" aria-hidden="true">⇧</span>
+              <span>Upload DICOM</span>
+              <span class="phase-chip">Phase 3</span>
+            </button>
+          </div>
 
-        <div id="modelChip" class="model-chip">A0101 · Skull</div>
+          <section id="studyPanel" class="info-section">
+            <div class="section-kicker">Study</div>
+            <div class="study-card">
+              <div class="study-identity">
+                <div>
+                  <span class="field-label">Demo study</span>
+                  <strong class="study-id">A0101</strong>
+                </div>
+                <span class="modality-chip">CT</span>
+              </div>
+              <dl class="metadata-list">
+                <div><dt>Source</dt><dd>MUG500+</dd></div>
+                <div><dt>Modality</dt><dd>CT</dd></div>
+                <div><dt>Slices</dt><dd>Not loaded</dd></div>
+                <div><dt>Resolution</dt><dd>Not loaded</dd></div>
+              </dl>
+            </div>
+          </section>
 
-        <div class="interaction-hint">
-          <span>Left drag · Rotate</span>
-          <i>•</i>
-          <span>Right drag · Pan</span>
-          <i>•</i>
-          <span>Wheel · Zoom</span>
+          <section id="reconstructionPanel" class="info-section">
+            <div class="section-kicker">Reconstruction</div>
+            <div class="status-list">
+              <div class="status-row" data-state="pending">
+                <span class="status-icon" aria-hidden="true">▦</span>
+                <span class="status-copy"><strong>Volume</strong><small>Awaiting DICOM</small></span>
+                <span class="status-mark" aria-hidden="true">○</span>
+              </div>
+              <div class="status-row" data-state="ready">
+                <span class="status-icon" aria-hidden="true">◇</span>
+                <span class="status-copy"><strong>Surface mesh</strong><small>Skull ready</small></span>
+                <span class="status-mark" aria-hidden="true">✓</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="info-section">
+            <div class="section-kicker">Data</div>
+            <dl class="metadata-list data-list">
+              <div><dt>Series description</dt><dd>Not loaded</dd></div>
+              <div><dt>Manufacturer</dt><dd>-</dd></div>
+              <div><dt>FOV</dt><dd>-</dd></div>
+              <div><dt>Matrix</dt><dd>-</dd></div>
+              <div><dt>Window / Level</dt><dd>-</dd></div>
+            </dl>
+          </section>
         </div>
 
-        <aside class="sidebar" aria-label="3D anatomy controls">
-          <section class="control-group">
-            <div class="group-heading">
+        <button class="series-button" type="button" disabled>
+          <span aria-hidden="true">▤</span>
+          <span>DICOM series unavailable</span>
+        </button>
+      </aside>
+
+      <section class="center-workspace" aria-label="Anatomy visualization">
+        <section id="viewerStage" class="viewer-stage panel" aria-label="Interactive 3D anatomy viewer">
+          <div id="viewport" class="viewport"></div>
+
+          <div id="modelStatus" class="model-status" data-state="loading" role="status">
+            <span class="status-dot" aria-hidden="true"></span>
+            <span id="statusText">Loading demo anatomy...</span>
+          </div>
+
+          <div id="modelChip" class="model-chip">Demo A0101 - Skull</div>
+
+          <div class="orientation-cube" aria-hidden="true">
+            <span class="cube-top">S</span>
+            <span class="cube-front">A</span>
+            <span class="cube-right">R</span>
+          </div>
+
+          <div class="viewer-toolbar" aria-label="3D viewer controls">
+            <button id="fitViewButton" type="button" title="Fit view" aria-label="Fit anatomy to view">⌖</button>
+            <button id="zoomInButton" type="button" title="Zoom in" aria-label="Zoom in">+</button>
+            <button id="zoomOutButton" type="button" title="Zoom out" aria-label="Zoom out">−</button>
+            <button id="fullscreenButton" type="button" title="Fullscreen" aria-label="Toggle fullscreen" aria-pressed="false">⛶</button>
+          </div>
+
+          <div class="interaction-hint" aria-hidden="true">
+            <span>Left drag - Rotate</span>
+            <i>•</i>
+            <span>Right drag - Pan</span>
+            <i>•</i>
+            <span>Wheel - Zoom</span>
+          </div>
+        </section>
+
+        <section class="mpr-grid" aria-label="Multiplanar imaging preview">
+          <article id="mprAxial" class="mpr-panel panel" data-volume-state="empty">
+            <header class="mpr-header"><strong>Axial</strong><span>-- / --</span></header>
+            <div class="mpr-empty">
+              <div class="mpr-crosshair" aria-hidden="true"></div>
+              <span class="orientation-label orientation-left">R</span>
+              <span class="orientation-label orientation-right">L</span>
+              <p>DICOM volume not loaded</p>
+            </div>
+            <footer class="mpr-footer"><span>Z: --</span><span>W/L: -- / --</span></footer>
+          </article>
+
+          <article id="mprCoronal" class="mpr-panel panel" data-volume-state="empty">
+            <header class="mpr-header"><strong>Coronal</strong><span>-- / --</span></header>
+            <div class="mpr-empty">
+              <div class="mpr-crosshair" aria-hidden="true"></div>
+              <span class="orientation-label orientation-left">R</span>
+              <span class="orientation-label orientation-right">L</span>
+              <p>DICOM volume not loaded</p>
+            </div>
+            <footer class="mpr-footer"><span>Y: --</span><span>W/L: -- / --</span></footer>
+          </article>
+
+          <article id="mprSagittal" class="mpr-panel panel" data-volume-state="empty">
+            <header class="mpr-header"><strong>Sagittal</strong><span>-- / --</span></header>
+            <div class="mpr-empty">
+              <div class="mpr-crosshair" aria-hidden="true"></div>
+              <span class="orientation-label orientation-left">A</span>
+              <span class="orientation-label orientation-right">P</span>
+              <p>DICOM volume not loaded</p>
+            </div>
+            <footer class="mpr-footer"><span>X: --</span><span>W/L: -- / --</span></footer>
+          </article>
+        </section>
+      </section>
+
+      <aside class="right-panel panel" aria-label="3D anatomy controls">
+        <div class="panel-scroll">
+          <section id="directionalCutPanel" class="control-section">
+            <div class="control-heading">
               <div>
-                <div class="group-title">Section</div>
-                <div class="group-description">Directional anatomical cut</div>
+                <div class="section-kicker">Directional Cut</div>
+                <p>Section the active anatomy along one anatomical axis.</p>
               </div>
-              <strong id="sectionValue" class="value">0%</strong>
+              <strong id="sectionValue" class="control-value">0%</strong>
             </div>
 
-            <div class="direction-row" role="group" aria-label="Section direction">
-              <button
-                type="button"
-                class="direction-button is-active"
-                data-section-axis="y"
-                aria-label="Section from top to bottom"
-              >
-                <span class="direction-icon">↕</span>
-                <span>Up / Down</span>
+            <div class="direction-row" role="group" aria-label="Directional cut axis">
+              <button type="button" class="direction-button is-active" data-section-axis="y">
+                <span class="direction-symbol" aria-hidden="true">↕</span>
+                <span>Axial</span>
               </button>
-              <button
-                type="button"
-                class="direction-button"
-                data-section-axis="z"
-                aria-label="Section from front to back"
-              >
-                <span class="direction-icon">↔</span>
-                <span>Front / Back</span>
+              <button type="button" class="direction-button" data-section-axis="z">
+                <span class="direction-symbol" aria-hidden="true">⇅</span>
+                <span>Coronal</span>
               </button>
-              <button
-                type="button"
-                class="direction-button"
-                data-section-axis="x"
-                aria-label="Section from left to right"
-              >
-                <span class="direction-icon">⇆</span>
-                <span>Left / Right</span>
+              <button type="button" class="direction-button" data-section-axis="x">
+                <span class="direction-symbol" aria-hidden="true">↔</span>
+                <span>Sagittal</span>
               </button>
             </div>
 
+            <label class="slider-label" for="sectionSlider">Section depth</label>
             <input
               id="sectionSlider"
               class="slider"
@@ -116,59 +284,32 @@
               value="0"
               aria-label="Section depth"
             >
-            <div class="range-labels">
-              <span>Full model</span>
-              <span>Deep section</span>
-            </div>
+            <div class="range-labels"><span>Full model</span><span>Deep section</span></div>
           </section>
 
-          <section class="control-group">
-            <div class="group-heading compact-heading">
-              <div>
-                <div class="group-title">Cranial opening</div>
-                <div id="openingDescription" class="group-description">Standard opening</div>
-              </div>
-              <strong id="openingValue" class="value">58%</strong>
+          <section id="anatomicalLayersPanel" class="control-section">
+            <div class="section-kicker">Anatomical Layers</div>
+            <div class="layer-grid" role="group" aria-label="Anatomical layers">
+              <button type="button" class="layer-button" data-layer="volume" disabled>Full Volume</button>
+              <button type="button" class="layer-button is-active" data-layer="skull">Skull</button>
+              <button type="button" class="layer-button" data-layer="brain" disabled>Brain</button>
+              <button type="button" class="layer-button" data-layer="combined" disabled>Skull + Brain</button>
             </div>
 
-            <input
-              id="openingSlider"
-              class="slider"
-              type="range"
-              min="0"
-              max="100"
-              step="1"
-              value="58"
-              aria-label="Cranial opening percentage"
-            >
-            <div class="range-labels">
-              <span>Closed</span>
-              <span>Wide</span>
-            </div>
-          </section>
-
-          <section class="control-group anatomy-group">
-            <div class="group-title">Anatomical layers</div>
-            <div class="layer-row" role="group" aria-label="Anatomical layers">
-              <button type="button" class="layer-button is-active" data-layer="skull">
-                Skull
-              </button>
-              <button type="button" class="layer-button" data-layer="brain" disabled>
-                Brain
-              </button>
-              <button type="button" class="layer-button" data-layer="combined" disabled>
-                Skull + Brain
-              </button>
+            <div class="future-layer-grid" aria-label="Future anatomical layers">
+              <button type="button" disabled data-future-layer="skin">Skin <span>⌁</span></button>
+              <button type="button" disabled data-future-layer="sinuses">Sinuses <span>⌁</span></button>
+              <button type="button" disabled data-future-layer="vessels">Vessels <span>⌁</span></button>
             </div>
             <p id="anatomyNote" class="anatomy-note">
-              Brain layer activates when a co-registered brain.glb is available.
+              Patient volume and brain layers activate when the reconstruction pipeline provides them.
             </p>
           </section>
 
-          <section class="control-group">
-            <div class="group-heading compact-heading">
-              <div class="group-title">Skull opacity</div>
-              <strong id="opacityValue" class="value">94%</strong>
+          <section class="control-section">
+            <div class="control-heading compact-heading">
+              <div class="section-kicker">Opacity</div>
+              <strong id="opacityValue" class="control-value">94%</strong>
             </div>
             <input
               id="opacitySlider"
@@ -178,31 +319,20 @@
               max="100"
               step="1"
               value="94"
-              aria-label="Skull opacity"
+              aria-label="Anatomy opacity"
             >
-            <div class="range-labels">
-              <span>30%</span>
-              <span>100%</span>
-            </div>
+            <div class="range-labels"><span>30%</span><span>100%</span></div>
           </section>
+        </div>
 
-          <section class="control-group action-group">
-            <div class="action-row">
-              <button id="resetButton" type="button">Reset</button>
-              <button id="autoRotateButton" type="button">Auto rotate</button>
-            </div>
-          </section>
-
-          <div class="sidebar-footer" aria-label="Model metadata">
-            <div><span>Model</span><strong>A0101</strong></div>
-            <div><span>Source</span><strong>MUG500+</strong></div>
-            <div><span>Rendering</span><strong>Clinical</strong></div>
-          </div>
-        </aside>
-      </section>
+        <div class="action-row">
+          <button id="resetButton" type="button">Reset</button>
+          <button id="autoRotateButton" type="button" aria-pressed="false">Auto rotate</button>
+        </div>
+      </aside>
     </main>
   </div>
 
-  <script type="module" src="/js/app.js?v=phase2a-ergonomic1"></script>
+  <script type="module" src="/js/app.js?v=phase2b-visual1"></script>
 </body>
 </html>

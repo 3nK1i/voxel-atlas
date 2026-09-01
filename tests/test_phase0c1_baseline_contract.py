@@ -4,7 +4,6 @@ import importlib.util
 import unittest
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 CHECK_PATH = ROOT / "scripts/check_phase0c1_baseline_integrity.py"
 
@@ -19,9 +18,13 @@ def load_integrity_module():
 
 
 class Phase0C1BaselineContractTests(unittest.TestCase):
-    def test_preserved_prototype_fingerprints_match_handoff(self) -> None:
+    def test_preserved_runtime_and_reference_fingerprints_match_handoff(self) -> None:
         module = load_integrity_module()
         self.assertEqual(module.verify_preserved_files(), [])
+
+    def test_retired_prototype_paths_remain_absent(self) -> None:
+        module = load_integrity_module()
+        self.assertEqual(module.verify_retired_paths(), [])
 
     def test_current_web_baseline_has_required_assets(self) -> None:
         required = (
@@ -30,7 +33,6 @@ class Phase0C1BaselineContractTests(unittest.TestCase):
             ROOT / "web/js/app.js",
             ROOT / "web/assets/models/skull.glb",
             ROOT / "web/assets/models/skull_full.glb",
-            ROOT / "web/assets/models/skull_open.glb",
         )
         for path in required:
             with self.subTest(path=path):
@@ -38,13 +40,8 @@ class Phase0C1BaselineContractTests(unittest.TestCase):
                 self.assertGreater(path.stat().st_size, 0)
 
     def test_current_glb_assets_have_glb_magic(self) -> None:
-        glbs = (
-            ROOT / "web/assets/models/skull.glb",
-            ROOT / "web/assets/models/skull_full.glb",
-            ROOT / "web/assets/models/skull_open.glb",
-            ROOT / "prototypes/v2b3a/assets/skull_full.glb",
-        )
-        for path in glbs:
+        for relative in ("web/assets/models/skull.glb", "web/assets/models/skull_full.glb"):
+            path = ROOT / relative
             with self.subTest(path=path):
                 with path.open("rb") as handle:
                     self.assertEqual(handle.read(4), b"glTF")
@@ -54,13 +51,6 @@ class Phase0C1BaselineContractTests(unittest.TestCase):
         for entry in ("data/", "*.dcm", "*.nii", "*.nii.gz", "*.nrrd", ".env"):
             with self.subTest(entry=entry):
                 self.assertIn(entry, gitignore)
-
-    def test_legacy_prototype_smoke_scripts_remain_present(self) -> None:
-        for relative in (
-            "scripts/check_v2b3a_prototype.py",
-        ):
-            with self.subTest(relative=relative):
-                self.assertTrue((ROOT / relative).is_file())
 
 
 if __name__ == "__main__":
