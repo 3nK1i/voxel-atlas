@@ -6,7 +6,7 @@ VoxelAtlas is currently an engineering/research application. It is not a certifi
 
 ## Current status
 
-The accepted foundation includes FastAPI authentication with Argon2id password verification, opaque server-side sessions, the responsive VoxelAtlas login UI, a deployed production service, the Phase 2B final V1 workspace shell, the Phase 3A DICOM study-ingestion foundation, the Phase 3A-R2 clinical viewer polish, Phase 3B DICOM geometry/reconstruction-readiness qualification, Phase 3C canonical patient-volume construction, and Phase 3D-R2.1 real synchronized MPR integration with final professional presentation, image-registered crosshairs, and harmonized clinical action/selection states.
+The accepted foundation includes FastAPI authentication with Argon2id password verification, opaque server-side sessions, the responsive VoxelAtlas login UI, a deployed production service, the Phase 2B final V1 workspace shell, the Phase 3A DICOM study-ingestion foundation, the Phase 3A-R2 clinical viewer polish, Phase 3B DICOM geometry/reconstruction-readiness qualification, Phase 3C canonical patient-volume construction, and Phase 3D-R2.1 real synchronized MPR integration with final professional presentation, image-registered crosshairs, and harmonized clinical action/selection states. Phase 4A now defines the patient-specific anatomical reconstruction boundary, canonical patient-LPS mesh contract, provenance, stale-artifact protection, and authenticated reconstruction-status API. It does not yet claim a reconstructed patient skull or brain.
 
 ## Locked V1 workspace
 
@@ -60,7 +60,7 @@ Phase 3A adds `pydicom` for DICOM parsing. Phase 3C promotes `numpy` into the ba
 Run the current compact regression from the repository root:
 
 ```bash
-bash scripts/run_phase3d_r21_checks.sh
+bash scripts/run_phase4a_checks.sh
 ```
 
 ## Locked V1 roadmap
@@ -68,11 +68,10 @@ bash scripts/run_phase3d_r21_checks.sh
 1. foundation, login, authentication, and deployment
 2. final V1 workspace target alignment
 3. DICOM upload, study ingestion, geometry qualification, canonical patient volume, and real MPR - complete through Phase 3D
-4. patient-specific anatomical reconstruction and 3D patient visualization
-5. patient-specific anatomical reconstruction
-6. end-to-end Full Volume / Skull / Brain / Skull + Brain visualization
-7. UX, performance, and robustness
-8. production security and V1 qualification
+4. patient-specific anatomical reconstruction foundation and qualified Skull / Brain reconstruction
+5. end-to-end patient-specific Full Volume / Skull / Brain / Skull + Brain visualization
+6. UX, performance, and robustness
+7. production security and V1 qualification
 
 Post-V1 work includes atlas-region interaction, AR/XR, advanced planning workflows, PACS/DICOMweb, and additional anatomical atlases.
 
@@ -93,3 +92,8 @@ The active anatomical layer now uses the same illuminated blue clinical selected
 ### Phase 3D-R2.1 - Final crosshair and DICOM CTA polish
 
 MPR crosshairs are registered in pixels to the exact contained patient-image rectangle, so crosshair lines stop at the displayed anatomy bounds instead of drifting through black letterbox margins. Pointer mapping continues to use the displayed canvas rectangle. The Upload/Replace DICOM primary action now uses the same premium blue clinical language as the selected Directional Cut and anatomy controls while remaining an action rather than a persistent selected mode.
+
+
+### Phase 4A - Anatomical reconstruction foundation
+
+Phase 4A introduces the reconstruction service boundary without generating anatomy yet. Future providers consume only the qualified canonical patient volume and must publish triangle meshes directly in DICOM patient LPS millimetres. CT HU is qualified as the first skull source, while MR is the first V1-qualified brain source. Published anatomy is tied to the exact source-volume descriptor and becomes stale automatically if that source changes. Private mesh paths and provider parameters are not exposed by the reconstruction-status API.

@@ -10,6 +10,12 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .auth import AuthenticationService, InMemorySessionStore
+from .anatomy_reconstruction import (
+    AnatomyReconstructionDependencyUnavailable,
+    AnatomyReconstructionError,
+    AnatomyReconstructionService,
+    AnatomyReconstructionValidationError,
+)
 from .config import AppSettings, ConfigurationError, load_settings
 from .dicom_ingestion import (
     DicomDependencyUnavailable,
@@ -73,6 +79,7 @@ def create_app(
     dicom_service: DicomIngestionService | None = None,
     volume_service: CanonicalVolumeService | None = None,
     mpr_service: CanonicalMprService | None = None,
+    anatomy_service: AnatomyReconstructionService | None = None,
 ) -> FastAPI:
     runtime_settings = load_settings() if settings is None else settings
     if (
@@ -104,6 +111,11 @@ def create_app(
         if mpr_service is not None
         else CanonicalMprService(data_dir=runtime_settings.data_dir)
     )
+    patient_anatomy_service = (
+        anatomy_service
+        if anatomy_service is not None
+        else AnatomyReconstructionService(data_dir=runtime_settings.data_dir)
+    )
 
     app = FastAPI(title="VoxelAtlas", docs_url=None, redoc_url=None)
     app.add_middleware(
@@ -115,6 +127,7 @@ def create_app(
     app.state.dicom_service = study_service
     app.state.volume_service = patient_volume_service
     app.state.mpr_service = patient_mpr_service
+    app.state.anatomy_service = patient_anatomy_service
 
     app.mount("/assets", StaticFiles(directory=WEB_ROOT / "assets"), name="assets")
     app.mount("/css", StaticFiles(directory=WEB_ROOT / "css"), name="css")
@@ -352,6 +365,33 @@ def create_app(
                 "X-VoxelAtlas-Height": str(image.height),
             },
         )
+
+    @app.get("/api/studies/latest/reconstruction")
+    def latest_reconstruction_status(
+        response: Response,
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        current_service: AnatomyReconstructionService = app.state.anatomy_service
+        try:
+            reconstruction = current_service.inspect_latest()
+        except AnatomyReconstructionDependencyUnavailable as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=str(exc),
+            ) from exc
+        except AnatomyReconstructionValidationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=str(exc),
+            ) from exc
+        except AnatomyReconstructionError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+            ) from exc
+        response.headers["Cache-Control"] = "no-store"
+        return {"reconstruction": reconstruction}
 
     @app.get("/api/protected/ping")
     def protected_ping(username: str = Depends(require_username)) -> dict[str, object]:
