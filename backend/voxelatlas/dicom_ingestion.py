@@ -152,6 +152,8 @@ class DicomStudyDescriptor:
             "primary_series_uid": self.primary_series_uid,
             "reconstruction_ready": self.reconstruction_ready,
             "reconstruction_series_uid": self.reconstruction_series_uid,
+            "volume_ready": False,
+            "volume": None,
             "series": [item.public_dict() for item in self.series],
         }
 
@@ -382,6 +384,38 @@ def _geometry_from_manifest_series(raw: dict[str, object]) -> SeriesGeometryQual
     return qualify_series_geometry(instances)
 
 
+def _volume_from_manifest(payload: dict[str, object]) -> dict[str, object] | None:
+    raw = payload.get("volume")
+    if not isinstance(raw, dict) or raw.get("ready") is not True:
+        return None
+
+    def list_value(key: str) -> list[object] | None:
+        value = raw.get(key)
+        return list(value) if isinstance(value, (list, tuple)) else None
+
+    affine_raw = raw.get("array_index_to_patient_lps")
+    affine = None
+    if isinstance(affine_raw, (list, tuple)):
+        affine = [list(row) for row in affine_raw if isinstance(row, (list, tuple))]
+
+    return {
+        "schema_version": raw.get("schema_version"),
+        "ready": True,
+        "created_at_utc": raw.get("created_at_utc"),
+        "source_series_uid": raw.get("source_series_uid"),
+        "source_instance_count": raw.get("source_instance_count"),
+        "modality": raw.get("modality"),
+        "dtype": raw.get("dtype"),
+        "shape": list_value("shape"),
+        "axis_order": list_value("axis_order"),
+        "spacing_mm": list_value("spacing_mm"),
+        "origin_patient_lps_mm": list_value("origin_patient_lps_mm"),
+        "array_index_to_patient_lps": affine,
+        "intensity_units": raw.get("intensity_units"),
+        "value_range": list_value("value_range"),
+    }
+
+
 def _manifest_to_public(payload: dict[str, object]) -> dict[str, object]:
     public_series: list[dict[str, object]] = []
     ready_series: list[tuple[int, str]] = []
@@ -419,6 +453,7 @@ def _manifest_to_public(payload: dict[str, object]) -> dict[str, object]:
         else None
     )
     reconstruction_uid = _clean_text(payload.get("reconstruction_series_uid")) or derived_reconstruction_uid
+    public_volume = _volume_from_manifest(payload)
     return {
         key: payload.get(key)
         for key in (
@@ -437,6 +472,8 @@ def _manifest_to_public(payload: dict[str, object]) -> dict[str, object]:
     } | {
         "reconstruction_ready": reconstruction_uid is not None,
         "reconstruction_series_uid": reconstruction_uid,
+        "volume_ready": public_volume is not None,
+        "volume": public_volume,
         "series": public_series,
     }
 

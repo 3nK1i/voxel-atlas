@@ -325,7 +325,7 @@ class Phase3BDicomGeometryReadinessTests(unittest.TestCase):
             self.assertEqual(public["reconstruction_series_uid"], "series")
             self.assertEqual(public["series"][0]["geometry"]["slice_spacing_mm"], 1.0)
 
-    def test_workspace_reports_geometry_readiness_without_claiming_volume_exists(self) -> None:
+    def test_workspace_preserves_geometry_readiness_as_volume_precondition(self) -> None:
         js = (ROOT / "web/js/app.js").read_text(encoding="utf-8")
         html = (ROOT / "web/index.html").read_text(encoding="utf-8")
         self.assertIn("Geometry ready - volume reconstruction pending", js)
@@ -333,7 +333,7 @@ class Phase3BDicomGeometryReadinessTests(unittest.TestCase):
         self.assertIn("geometry.orientation_label", js)
         self.assertIn("geometry.slice_spacing_mm", js)
         self.assertIn("DICOM volume not loaded", html)
-        self.assertNotIn("Patient volume ready", js)
+        self.assertIn("study.volume_ready", js)
 
 
 if __name__ == "__main__":

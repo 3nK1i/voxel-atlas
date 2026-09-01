@@ -58,3 +58,7 @@ python3 scripts/check_phase1b_backend_environment.py
 ```
 
 If dependencies are absent, use a controlled project Python environment before installation rather than modifying unrelated system/project environments.
+
+## Phase 3C patient-volume runtime
+
+Phase 3C makes DICOM pixel decoding and canonical voxel-array construction part of the executable backend. `requirements/backend.txt` therefore includes both `pydicom` and `numpy`. Other packages in `requirements/medical-processing.txt` remain deferred until later reconstruction/MPR steps explicitly use them.

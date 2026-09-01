@@ -56,6 +56,8 @@ const workflowReconstruction = document.getElementById("workflowReconstruction")
 const workflowVisualization = document.getElementById("workflowVisualization");
 const volumeStatusRow = document.getElementById("volumeStatusRow");
 const volumeStatusText = document.getElementById("volumeStatusText");
+const mprPanels = Array.from(document.querySelectorAll(".mpr-panel"));
+const mprVolumeMessages = Array.from(document.querySelectorAll(".mpr-empty p"));
 const orientationGizmo = document.getElementById("orientationGizmo");
 const gizmoEdges = Array.from(document.querySelectorAll("[data-gizmo-edge]"));
 const gizmoAxisS = document.getElementById("gizmoAxisS");
@@ -88,6 +90,8 @@ const state = {
   cameraTarget: new THREE.Vector3(),
   sectionPlane: new THREE.Plane(new THREE.Vector3(0, -1, 0), 0),
 };
+
+let volumeBuildPromise = null;
 
 const scene = new THREE.Scene();
 const anatomyGroup = new THREE.Group();
@@ -575,12 +579,19 @@ function setWorkflowStep(element, stateName) {
 function setWorkflowForStudy(study) {
   if (study) {
     setWorkflowStep(workflowData, "complete");
-    setWorkflowStep(workflowReconstruction, "active");
-    setWorkflowStep(workflowVisualization, "pending");
-    volumeStatusRow.dataset.state = study.reconstruction_ready ? "ready" : "pending";
-    volumeStatusText.textContent = study.reconstruction_ready
-      ? "Geometry ready - volume reconstruction pending"
-      : "Geometry needs review before reconstruction";
+    if (study.volume_ready) {
+      setWorkflowStep(workflowReconstruction, "complete");
+      setWorkflowStep(workflowVisualization, "pending");
+      volumeStatusRow.dataset.state = "ready";
+      volumeStatusText.textContent = "Patient volume ready";
+    } else {
+      setWorkflowStep(workflowReconstruction, "active");
+      setWorkflowStep(workflowVisualization, "pending");
+      volumeStatusRow.dataset.state = study.reconstruction_ready ? "ready" : "pending";
+      volumeStatusText.textContent = study.reconstruction_ready
+        ? "Geometry ready - volume reconstruction pending"
+        : "Geometry needs review before reconstruction";
+    }
   } else {
     setWorkflowStep(workflowData, "active");
     setWorkflowStep(workflowReconstruction, "pending");
@@ -589,6 +600,19 @@ function setWorkflowForStudy(study) {
     volumeStatusText.textContent = "Awaiting DICOM";
   }
 }
+
+function setMprVolumeState(study) {
+  const ready = Boolean(study?.volume_ready);
+  for (const panel of mprPanels) {
+    panel.dataset.volumeState = ready ? "ready" : "empty";
+  }
+  for (const message of mprVolumeMessages) {
+    message.textContent = ready
+      ? "Volume ready - MPR rendering pending"
+      : "DICOM volume not loaded";
+  }
+}
+
 
 function formatStudyDate(raw) {
   if (typeof raw !== "string" || !/^\d{8}$/.test(raw)) return raw || "-";
@@ -666,6 +690,7 @@ function applyStudy(study) {
   state.study = study;
   state.studyLoaded = Boolean(study);
   setWorkflowForStudy(study);
+  setMprVolumeState(study);
 
   if (!study) {
     studyCard.dataset.studyState = "empty";
@@ -684,6 +709,7 @@ function applyStudy(study) {
     seriesButton.disabled = true;
     seriesButtonLabel.textContent = "DICOM series unavailable";
     uploadDicomLabel.textContent = "Upload DICOM";
+    anatomyNote.textContent = "Patient volume and brain layers activate when the reconstruction pipeline provides them.";
     updateLayerUI();
     return;
   }
@@ -710,8 +736,52 @@ function applyStudy(study) {
   seriesButton.disabled = false;
   seriesButtonLabel.textContent = `${study.series_count} DICOM series discovered`;
   uploadDicomLabel.textContent = "Replace DICOM Study";
+  anatomyNote.textContent = study.volume_ready
+    ? "Patient volume is built. 3D volume rendering and anatomical extraction continue in the next reconstruction steps."
+    : "Patient volume and brain layers activate when the reconstruction pipeline provides them.";
   renderSeriesDialog(study);
   updateLayerUI();
+}
+
+async function ensureCanonicalVolume(study) {
+  if (!study?.reconstruction_ready || study.volume_ready) return study;
+  if (volumeBuildPromise) return volumeBuildPromise;
+
+  volumeStatusRow.dataset.state = "pending";
+  volumeStatusText.textContent = "Building patient volume...";
+  setUploadStatus("uploading", "Geometry qualified. Building canonical patient volume...");
+
+  volumeBuildPromise = (async () => {
+    const response = await fetch("/api/studies/latest/volume", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Accept": "application/json" },
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.detail || `Patient volume construction failed (${response.status})`);
+    }
+    applyStudy(payload.study || null);
+    setUploadStatus(
+      "ready",
+      "Canonical patient volume built. MPR rendering and patient anatomy reconstruction are next.",
+    );
+    return payload.study || null;
+  })();
+
+  try {
+    return await volumeBuildPromise;
+  } catch (error) {
+    setUploadStatus(
+      "error",
+      error instanceof Error ? error.message : "Patient volume construction failed",
+    );
+    volumeStatusRow.dataset.state = "pending";
+    volumeStatusText.textContent = "Geometry ready - volume construction failed";
+    return study;
+  } finally {
+    volumeBuildPromise = null;
+  }
 }
 
 async function refreshLatestStudy() {
@@ -724,17 +794,20 @@ async function refreshLatestStudy() {
     const payload = await response.json();
     applyStudy(payload.study || null);
     if (payload.study) {
-      setUploadStatus(
-        payload.study.reconstruction_ready ? "ready" : "warning",
-        payload.study.reconstruction_ready
-          ? "Stored DICOM geometry restored. Volume reconstruction has not started yet."
-          : "Stored DICOM study restored. Geometry needs review before reconstruction.",
-      );
+      if (payload.study.volume_ready) {
+        setUploadStatus("ready", "Stored canonical patient volume restored.");
+      } else if (payload.study.reconstruction_ready) {
+        setUploadStatus("uploading", "Stored DICOM geometry restored. Building patient volume...");
+        await ensureCanonicalVolume(payload.study);
+      } else {
+        setUploadStatus("warning", "Stored DICOM study restored. Geometry needs review before reconstruction.");
+      }
     }
   } catch {
     // Study restoration is best effort; upload remains available.
   }
 }
+
 
 async function uploadDicomFiles(files) {
   if (!files || files.length === 0) return;
@@ -768,6 +841,7 @@ async function uploadDicomFiles(files) {
           ? `Geometry ready. ${payload.study.file_count} DICOM instances accepted; ${skipped} file${skipped === 1 ? "" : "s"} skipped.`
           : `Geometry ready. ${payload.study.file_count} DICOM instances validated across ${payload.study.series_count} series.`,
       );
+      await ensureCanonicalVolume(payload.study);
     } else {
       setUploadStatus("warning", "Study accepted. Geometry needs review before reconstruction.");
     }

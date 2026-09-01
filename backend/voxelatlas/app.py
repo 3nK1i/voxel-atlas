@@ -18,6 +18,13 @@ from .dicom_ingestion import (
     DicomStudyValidationError,
     DicomUploadLimitExceeded,
 )
+from .dicom_volume import (
+    CanonicalVolumeService,
+    DicomPixelDecodeError,
+    DicomVolumeDependencyUnavailable,
+    DicomVolumeError,
+    DicomVolumeValidationError,
+)
 from .passwords import verify_password
 
 
@@ -58,6 +65,7 @@ def create_app(
     settings: AppSettings | None = None,
     auth_service: AuthenticationService | None = None,
     dicom_service: DicomIngestionService | None = None,
+    volume_service: CanonicalVolumeService | None = None,
 ) -> FastAPI:
     runtime_settings = load_settings() if settings is None else settings
     if (
@@ -79,6 +87,11 @@ def create_app(
             max_upload_mib=runtime_settings.max_upload_mib,
         )
     )
+    patient_volume_service = (
+        volume_service
+        if volume_service is not None
+        else CanonicalVolumeService(data_dir=runtime_settings.data_dir)
+    )
 
     app = FastAPI(title="VoxelAtlas", docs_url=None, redoc_url=None)
     app.add_middleware(
@@ -88,6 +101,7 @@ def create_app(
     app.state.settings = runtime_settings
     app.state.auth_service = service
     app.state.dicom_service = study_service
+    app.state.volume_service = patient_volume_service
 
     app.mount("/assets", StaticFiles(directory=WEB_ROOT / "assets"), name="assets")
     app.mount("/css", StaticFiles(directory=WEB_ROOT / "css"), name="css")
@@ -228,6 +242,31 @@ def create_app(
             ) from exc
 
         return {"study": descriptor.public_dict()}
+
+    @app.post("/api/studies/latest/volume")
+    def build_latest_volume(
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        current_service: CanonicalVolumeService = app.state.volume_service
+        try:
+            study = current_service.build_latest()
+        except DicomVolumeDependencyUnavailable as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=str(exc),
+            ) from exc
+        except (DicomVolumeValidationError, DicomPixelDecodeError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(exc),
+            ) from exc
+        except DicomVolumeError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+            ) from exc
+        return {"study": study}
 
     @app.get("/api/protected/ping")
     def protected_ping(username: str = Depends(require_username)) -> dict[str, object]:

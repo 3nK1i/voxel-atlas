@@ -26,6 +26,7 @@ EXPECTED_BACKEND_REQUIREMENTS = {
     "argon2-cffi",
     "python-multipart",
     "pydicom",
+    "numpy",
 }
 
 

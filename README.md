@@ -6,7 +6,7 @@ VoxelAtlas is currently an engineering/research application. It is not a certifi
 
 ## Current status
 
-The accepted foundation includes FastAPI authentication with Argon2id password verification, opaque server-side sessions, the responsive VoxelAtlas login UI, a deployed production service, the Phase 2B final V1 workspace shell, the Phase 3A DICOM study-ingestion foundation, the Phase 3A-R2 clinical viewer polish, and Phase 3B DICOM geometry/reconstruction-readiness qualification.
+The accepted foundation includes FastAPI authentication with Argon2id password verification, opaque server-side sessions, the responsive VoxelAtlas login UI, a deployed production service, the Phase 2B final V1 workspace shell, the Phase 3A DICOM study-ingestion foundation, the Phase 3A-R2 clinical viewer polish, Phase 3B DICOM geometry/reconstruction-readiness qualification, and Phase 3C canonical patient-volume construction.
 
 ## Locked V1 workspace
 
@@ -16,9 +16,10 @@ The workspace is intentionally focused on medical imaging and anatomical inspect
 - 3-stage workflow: Data -> Reconstruction -> 3D Visualization
 - real CT/MR DICOM folder upload and Study/Series metadata discovery
 - geometric slice ordering, orientation/spacing validation, and reconstruction-readiness qualification
+- canonical float32 patient-volume construction with explicit DICOM LPS coordinate provenance
 - study and reconstruction status panel
 - large Three.js anatomy viewer
-- Axial / Coronal / Sagittal MPR shell with truthful empty states until a DICOM volume exists
+- Axial / Coronal / Sagittal MPR shell with truthful pending states until MPR rendering is implemented
 - directional anatomical cut only: Axial, Coronal, Sagittal
 - Clinical rendering only
 - anatomy opacity with direct 0-100% semantics (100% fully opaque)
@@ -52,22 +53,22 @@ source .venv/bin/activate
 python -m pip install -r requirements/backend.txt -r requirements/test.txt
 ```
 
-Phase 3A adds `pydicom` to the backend profile for metadata-only DICOM header parsing. The heavier medical-processing dependency inventory remains in `requirements/medical-processing.txt` for volume/reconstruction phases.
+Phase 3A adds `pydicom` for DICOM parsing. Phase 3C promotes `numpy` into the backend runtime profile because patient volumes are now decoded and persisted as float32 arrays. The remaining heavier reconstruction dependency inventory stays in `requirements/medical-processing.txt` until those later phases make it runtime-critical.
 
 ## Validation
 
 Run the current compact regression from the repository root:
 
 ```bash
-bash scripts/run_phase3b_checks.sh
+bash scripts/run_phase3c_checks.sh
 ```
 
 ## Locked V1 roadmap
 
 1. foundation, login, authentication, and deployment
 2. final V1 workspace target alignment
-3. DICOM upload and study ingestion - Phase 3A complete; Phase 3B geometry qualification implemented
-4. patient 3D volume construction and MPR
+3. DICOM upload and study ingestion - Phase 3A complete; Phase 3B geometry qualification complete; Phase 3C canonical volume construction implemented
+4. patient MPR and 3D volume visualization
 5. patient-specific anatomical reconstruction
 6. end-to-end Full Volume / Skull / Brain / Skull + Brain visualization
 7. UX, performance, and robustness

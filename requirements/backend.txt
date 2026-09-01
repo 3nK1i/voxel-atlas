@@ -5,3 +5,4 @@ uvicorn[standard]
 argon2-cffi
 python-multipart
 pydicom
+numpy

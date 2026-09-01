@@ -76,8 +76,8 @@ class Phase3AR1ViewerPolishTests(unittest.TestCase):
 
     def test_polish_keeps_phase3a_runtime_cache_version_explicit(self) -> None:
         html = (ROOT / "web/index.html").read_text(encoding="utf-8")
-        self.assertRegex(html, r'/css/styles\.css\?v=(?:phase3a-r(?:1|2(?:-final1)?)|phase3b-geometry1)')
-        self.assertRegex(html, r'/js/app\.js\?v=(?:phase3a-r(?:1|2(?:-final1)?)|phase3b-geometry1)')
+        self.assertRegex(html, r'/css/styles\.css\?v=(?:phase3a-r(?:1|2(?:-final1)?)|phase3b-geometry1|phase3c-volume1)')
+        self.assertRegex(html, r'/js/app\.js\?v=(?:phase3a-r(?:1|2(?:-final1)?)|phase3b-geometry1|phase3c-volume1)')
 
 
 if __name__ == "__main__":
