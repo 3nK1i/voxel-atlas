@@ -139,11 +139,9 @@ class Phase2BFinalWorkspaceTargetTests(unittest.TestCase):
         self.assertIn("matchMedia", js)
         self.assertIn("themeToggle", js)
 
-    def test_demo_shell_does_not_fake_dicom_or_mpr_data(self) -> None:
+    def test_workspace_does_not_fake_mpr_data_before_volume_reconstruction(self) -> None:
         html = (ROOT / "web/index.html").read_text(encoding="utf-8")
         self.assertIn('id="uploadDicomButton"', html)
-        self.assertIn("disabled", html[html.index('id="uploadDicomButton"'):html.index('id="uploadDicomButton"') + 400])
-        self.assertIn("Phase 3", html)
         self.assertEqual(html.count('data-volume-state="empty"'), 3)
         self.assertIn("DICOM volume not loaded", html)
         self.assertNotIn("slice-placeholder.jpg", html)

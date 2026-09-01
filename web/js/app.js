@@ -28,6 +28,33 @@ const zoomInButton = document.getElementById("zoomInButton");
 const zoomOutButton = document.getElementById("zoomOutButton");
 const fullscreenButton = document.getElementById("fullscreenButton");
 const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+const uploadDicomButton = document.getElementById("uploadDicomButton");
+const uploadDicomLabel = document.getElementById("uploadDicomLabel");
+const dicomFileInput = document.getElementById("dicomFileInput");
+const uploadStatus = document.getElementById("uploadStatus");
+const studyCard = document.querySelector(".study-card");
+const studyLabel = document.getElementById("studyLabel");
+const studyId = document.getElementById("studyId");
+const studyModality = document.getElementById("studyModality");
+const studyDate = document.getElementById("studyDate");
+const studyModalityValue = document.getElementById("studyModalityValue");
+const studyInstanceCount = document.getElementById("studyInstanceCount");
+const studySeriesCount = document.getElementById("studySeriesCount");
+const seriesDescription = document.getElementById("seriesDescription");
+const seriesManufacturer = document.getElementById("seriesManufacturer");
+const seriesPixelSpacing = document.getElementById("seriesPixelSpacing");
+const seriesMatrix = document.getElementById("seriesMatrix");
+const seriesSliceThickness = document.getElementById("seriesSliceThickness");
+const seriesButton = document.getElementById("seriesButton");
+const seriesButtonLabel = document.getElementById("seriesButtonLabel");
+const seriesDialog = document.getElementById("seriesDialog");
+const seriesDialogClose = document.getElementById("seriesDialogClose");
+const seriesDialogList = document.getElementById("seriesDialogList");
+const workflowData = document.getElementById("workflowData");
+const workflowReconstruction = document.getElementById("workflowReconstruction");
+const workflowVisualization = document.getElementById("workflowVisualization");
+const volumeStatusRow = document.getElementById("volumeStatusRow");
+const volumeStatusText = document.getElementById("volumeStatusText");
 
 const layerRegistry = new Map([
   ["volume", { available: false, root: null, meshes: [] }],
@@ -41,6 +68,8 @@ const state = {
   opacity: DEFAULT_OPACITY,
   layer: "skull",
   autoRotate: false,
+  studyLoaded: false,
+  study: null,
   size: new THREE.Vector3(1, 1, 1),
   min: new THREE.Vector3(),
   max: new THREE.Vector3(),
@@ -190,7 +219,9 @@ function updateLayerUI() {
   } else if (state.layer === "volume") {
     modelChip.textContent = "Patient anatomy - Full Volume";
   } else {
-    modelChip.textContent = "Demo A0101 - Skull";
+    modelChip.textContent = state.studyLoaded
+      ? "Demo skull - patient reconstruction pending"
+      : "Demo A0101 - Skull";
   }
 }
 
@@ -422,6 +453,212 @@ async function refreshAccountName() {
   }
 }
 
+function setWorkflowStep(element, stateName) {
+  element.dataset.state = stateName;
+  element.classList.toggle("is-active", stateName === "active");
+  if (stateName === "active") {
+    element.setAttribute("aria-current", "step");
+  } else {
+    element.removeAttribute("aria-current");
+  }
+}
+
+function setWorkflowForStudy(hasStudy) {
+  if (hasStudy) {
+    setWorkflowStep(workflowData, "complete");
+    setWorkflowStep(workflowReconstruction, "active");
+    setWorkflowStep(workflowVisualization, "pending");
+    volumeStatusRow.dataset.state = "pending";
+    volumeStatusText.textContent = "DICOM ready - reconstruction pending";
+  } else {
+    setWorkflowStep(workflowData, "active");
+    setWorkflowStep(workflowReconstruction, "pending");
+    setWorkflowStep(workflowVisualization, "pending");
+    volumeStatusRow.dataset.state = "pending";
+    volumeStatusText.textContent = "Awaiting DICOM";
+  }
+}
+
+function formatStudyDate(raw) {
+  if (typeof raw !== "string" || !/^\d{8}$/.test(raw)) return raw || "-";
+  return `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
+}
+
+function formatSpacing(value) {
+  if (!Array.isArray(value) || value.length < 2) return "-";
+  return `${value.slice(0, 2).map((item) => Number(item).toFixed(3)).join(" × ")} mm`;
+}
+
+function primarySeries(study) {
+  if (!study || !Array.isArray(study.series)) return null;
+  return study.series.find((item) => item.series_instance_uid === study.primary_series_uid)
+    || study.series[0]
+    || null;
+}
+
+function setUploadStatus(kind, message) {
+  uploadStatus.dataset.state = kind;
+  uploadStatus.textContent = message;
+}
+
+function renderSeriesDialog(study) {
+  seriesDialogList.replaceChildren();
+  if (!study || !Array.isArray(study.series) || study.series.length === 0) {
+    const empty = document.createElement("p");
+    empty.textContent = "No DICOM series are available.";
+    seriesDialogList.appendChild(empty);
+    return;
+  }
+
+  for (const series of study.series) {
+    const item = document.createElement("article");
+    item.className = "series-dialog-item";
+    const copy = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = series.series_description || `Series ${series.series_number ?? "-"}`;
+    const metadata = document.createElement("span");
+    metadata.textContent = `${series.modality || "-"} • ${series.rows || "-"} × ${series.columns || "-"}`;
+    const uid = document.createElement("small");
+    uid.textContent = series.series_instance_uid || "Series UID unavailable";
+    copy.append(title, metadata, uid);
+
+    const count = document.createElement("span");
+    count.className = "series-dialog-count";
+    count.textContent = `${series.instance_count || 0} instance${series.instance_count === 1 ? "" : "s"}`;
+    item.append(copy, count);
+    seriesDialogList.appendChild(item);
+  }
+}
+
+function applyStudy(study) {
+  state.study = study;
+  state.studyLoaded = Boolean(study);
+  setWorkflowForStudy(state.studyLoaded);
+
+  if (!study) {
+    studyCard.dataset.studyState = "empty";
+    studyLabel.textContent = "No DICOM study loaded";
+    studyId.textContent = "-";
+    studyModality.textContent = "-";
+    studyDate.textContent = "-";
+    studyModalityValue.textContent = "-";
+    studyInstanceCount.textContent = "-";
+    studySeriesCount.textContent = "-";
+    seriesDescription.textContent = "Not loaded";
+    seriesManufacturer.textContent = "-";
+    seriesPixelSpacing.textContent = "-";
+    seriesMatrix.textContent = "-";
+    seriesSliceThickness.textContent = "-";
+    seriesButton.disabled = true;
+    seriesButtonLabel.textContent = "DICOM series unavailable";
+    uploadDicomLabel.textContent = "Upload DICOM";
+    updateLayerUI();
+    return;
+  }
+
+  const series = primarySeries(study);
+  const modalities = Array.isArray(study.modalities) ? study.modalities.join(" / ") : "-";
+  studyCard.dataset.studyState = "ready";
+  studyLabel.textContent = study.study_description || "DICOM study";
+  studyId.textContent = String(study.study_id || "-").slice(0, 12).toUpperCase();
+  studyModality.textContent = modalities || "-";
+  studyDate.textContent = formatStudyDate(study.study_date);
+  studyModalityValue.textContent = modalities || "-";
+  studyInstanceCount.textContent = String(study.file_count ?? "-");
+  studySeriesCount.textContent = String(study.series_count ?? "-");
+  seriesDescription.textContent = series?.series_description || "-";
+  seriesManufacturer.textContent = series?.manufacturer || "-";
+  seriesPixelSpacing.textContent = formatSpacing(series?.pixel_spacing);
+  seriesMatrix.textContent = series?.rows && series?.columns
+    ? `${series.rows} × ${series.columns}`
+    : "-";
+  seriesSliceThickness.textContent = Number.isFinite(Number(series?.slice_thickness))
+    ? `${Number(series.slice_thickness).toFixed(3)} mm`
+    : "-";
+  seriesButton.disabled = false;
+  seriesButtonLabel.textContent = `${study.series_count} DICOM series discovered`;
+  uploadDicomLabel.textContent = "Replace DICOM Study";
+  renderSeriesDialog(study);
+  updateLayerUI();
+}
+
+async function refreshLatestStudy() {
+  try {
+    const response = await fetch("/api/studies/latest", {
+      credentials: "same-origin",
+      headers: { "Accept": "application/json" },
+    });
+    if (!response.ok) return;
+    const payload = await response.json();
+    applyStudy(payload.study || null);
+    if (payload.study) {
+      setUploadStatus("ready", "Stored DICOM study restored. Reconstruction has not started yet.");
+    }
+  } catch {
+    // Study restoration is best effort; upload remains available.
+  }
+}
+
+async function uploadDicomFiles(files) {
+  if (!files || files.length === 0) return;
+  const formData = new FormData();
+  for (const file of files) {
+    formData.append("files", file, file.name || "dicom-instance");
+  }
+
+  uploadDicomButton.disabled = true;
+  uploadDicomButton.dataset.state = "uploading";
+  uploadDicomLabel.textContent = `Uploading ${files.length} file${files.length === 1 ? "" : "s"}...`;
+  setUploadStatus("uploading", "Validating DICOM headers and grouping Study/Series metadata...");
+
+  try {
+    const response = await fetch("/api/studies/dicom", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Accept": "application/json" },
+      body: formData,
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.detail || `DICOM upload failed (${response.status})`);
+    }
+    applyStudy(payload.study);
+    const skipped = Number(payload.study?.skipped_file_count || 0);
+    setUploadStatus(
+      "ready",
+      skipped > 0
+        ? `Study ready. ${payload.study.file_count} DICOM instances accepted; ${skipped} file${skipped === 1 ? "" : "s"} skipped.`
+        : `Study ready. ${payload.study.file_count} DICOM instances accepted across ${payload.study.series_count} series.`,
+    );
+  } catch (error) {
+    setUploadStatus("error", error instanceof Error ? error.message : "DICOM upload failed");
+    uploadDicomLabel.textContent = state.studyLoaded ? "Replace DICOM Study" : "Upload DICOM";
+  } finally {
+    uploadDicomButton.disabled = false;
+    uploadDicomButton.dataset.state = "idle";
+    dicomFileInput.value = "";
+  }
+}
+
+uploadDicomButton.addEventListener("click", () => dicomFileInput.click());
+
+dicomFileInput.addEventListener("change", () => {
+  void uploadDicomFiles(Array.from(dicomFileInput.files || []));
+});
+
+seriesButton.addEventListener("click", () => {
+  if (seriesButton.disabled || !state.study) return;
+  renderSeriesDialog(state.study);
+  if (typeof seriesDialog.showModal === "function") {
+    seriesDialog.showModal();
+  }
+});
+
+seriesDialogClose.addEventListener("click", () => seriesDialog.close());
+seriesDialog.addEventListener("click", (event) => {
+  if (event.target === seriesDialog) seriesDialog.close();
+});
+
 sectionButtons.forEach((button) => {
   button.addEventListener("click", () => {
     const nextAxis = button.dataset.sectionAxis;
@@ -521,6 +758,7 @@ updateLayerUI();
 resize();
 loadSkull();
 void refreshAccountName();
+void refreshLatestStudy();
 
 const clock = new THREE.Clock();
 function animate() {

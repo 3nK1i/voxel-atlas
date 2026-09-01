@@ -6,7 +6,7 @@ VoxelAtlas is currently an engineering/research application. It is not a certifi
 
 ## Current status
 
-The accepted foundation includes FastAPI authentication with Argon2id password verification, opaque server-side sessions, the responsive VoxelAtlas login UI, a deployed production service, and the Phase 2B final V1 workspace shell.
+The accepted foundation includes FastAPI authentication with Argon2id password verification, opaque server-side sessions, the responsive VoxelAtlas login UI, a deployed production service, the Phase 2B final V1 workspace shell, and the Phase 3A DICOM study-ingestion foundation.
 
 ## Locked V1 workspace
 
@@ -14,6 +14,7 @@ The workspace is intentionally focused on medical imaging and anatomical inspect
 
 - final VoxelAtlas header with ergonomic light/dark mode
 - 3-stage workflow: Data -> Reconstruction -> 3D Visualization
+- real CT/MR DICOM folder upload and Study/Series metadata discovery
 - study and reconstruction status panel
 - large Three.js anatomy viewer
 - Axial / Coronal / Sagittal MPR shell with truthful empty states until a DICOM volume exists
@@ -49,21 +50,21 @@ source .venv/bin/activate
 python -m pip install -r requirements/backend.txt -r requirements/test.txt
 ```
 
-The medical-processing dependency inventory is in `requirements/medical-processing.txt` and is qualified only when DICOM/processing work requires it.
+Phase 3A adds `pydicom` to the backend profile for metadata-only DICOM header parsing. The heavier medical-processing dependency inventory remains in `requirements/medical-processing.txt` for volume/reconstruction phases.
 
 ## Validation
 
-Run the current workspace regression from the repository root:
+Run the current compact regression from the repository root:
 
 ```bash
-bash scripts/run_phase2b_checks.sh
+bash scripts/run_phase3a_checks.sh
 ```
 
 ## Locked V1 roadmap
 
 1. foundation, login, authentication, and deployment
 2. final V1 workspace target alignment
-3. DICOM upload and study ingestion
+3. DICOM upload and study ingestion - Phase 3A foundation implemented
 4. patient 3D volume reconstruction and MPR
 5. patient-specific anatomical reconstruction
 6. end-to-end Full Volume / Skull / Brain / Skull + Brain visualization

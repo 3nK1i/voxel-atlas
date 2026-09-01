@@ -1,6 +1,7 @@
-# Phase 0C3 backend/authentication dependency inventory.
-# Versions remain unpinned until the backend environment is qualified in Phase 1.
+# Current VoxelAtlas web/backend dependency inventory.
+# Versions remain intentionally unpinned until the full V1 environment is qualified.
 fastapi
 uvicorn[standard]
 argon2-cffi
 python-multipart
+pydicom

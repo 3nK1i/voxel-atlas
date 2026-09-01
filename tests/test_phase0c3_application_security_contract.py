@@ -25,6 +25,7 @@ EXPECTED_BACKEND_REQUIREMENTS = {
     "uvicorn",
     "argon2-cffi",
     "python-multipart",
+    "pydicom",
 }
 
 
@@ -70,7 +71,7 @@ class Phase0C3ApplicationSecurityContractTests(unittest.TestCase):
         self.assertIn("product logo", lowered)
         self.assertIn("visual reference", lowered)
 
-    def test_backend_manifest_declares_authentication_foundation_without_pins(self) -> None:
+    def test_backend_manifest_declares_current_backend_foundation_without_pins(self) -> None:
         text = BACKEND_REQUIREMENTS.read_text(encoding="utf-8")
         self.assertEqual(requirement_names(text), EXPECTED_BACKEND_REQUIREMENTS)
         dependency_lines = [

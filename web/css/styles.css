@@ -1316,3 +1316,164 @@ button:disabled {
     min-height: 44px;
   }
 }
+
+/* Phase 3A - real DICOM ingestion states */
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.upload-button:not(:disabled) {
+  cursor: pointer;
+}
+
+.upload-button[data-state="uploading"] {
+  opacity: 0.78;
+  cursor: progress;
+}
+
+.upload-status {
+  margin: 7px 2px 0;
+  color: var(--muted-2);
+  font-size: 7px;
+  line-height: 1.45;
+}
+
+.upload-status[data-state="ready"] {
+  color: var(--success);
+}
+
+.upload-status[data-state="error"] {
+  color: var(--danger);
+}
+
+.study-card[data-study-state="ready"] {
+  border-color: color-mix(in srgb, var(--success) 28%, var(--line-soft));
+}
+
+.series-button:not(:disabled) {
+  color: var(--text-soft);
+  cursor: pointer;
+}
+
+.series-button:not(:disabled):hover {
+  border-color: var(--line-strong);
+  background: var(--panel-hover);
+}
+
+.workflow-step[data-state="complete"] .workflow-number {
+  border-color: color-mix(in srgb, var(--success) 58%, var(--line));
+  background: color-mix(in srgb, var(--success) 14%, var(--panel-soft));
+  color: var(--success);
+}
+
+.workflow-step[data-state="complete"] strong {
+  color: var(--text-soft);
+}
+
+.series-dialog {
+  width: min(760px, calc(100vw - 32px));
+  max-height: min(78vh, 720px);
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background: var(--panel-solid);
+  color: var(--text);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
+}
+
+.series-dialog::backdrop {
+  background: rgba(1, 8, 18, 0.72);
+  backdrop-filter: blur(5px);
+}
+
+.series-dialog-card {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  max-height: min(78vh, 720px);
+}
+
+.series-dialog-card > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.series-dialog-card h2 {
+  margin: 4px 0 0;
+  font-size: 18px;
+}
+
+#seriesDialogClose {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel-soft);
+  color: var(--text-soft);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.series-dialog-list {
+  min-height: 0;
+  overflow: auto;
+  padding: 14px 20px 20px;
+  display: grid;
+  gap: 10px;
+}
+
+.series-dialog-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 12px 13px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: var(--panel-soft);
+}
+
+.series-dialog-item strong,
+.series-dialog-item span,
+.series-dialog-item small {
+  display: block;
+}
+
+.series-dialog-item strong {
+  color: var(--text-soft);
+  font-size: 11px;
+}
+
+.series-dialog-item span,
+.series-dialog-item small {
+  margin-top: 3px;
+  color: var(--muted-2);
+  font-size: 8px;
+}
+
+.series-dialog-count {
+  align-self: start;
+  padding: 4px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 8px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.series-dialog-item small {
+  overflow-wrap: anywhere;
+}

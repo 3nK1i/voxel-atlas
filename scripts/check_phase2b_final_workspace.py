@@ -82,9 +82,9 @@ def main() -> int:
         return fail("mpr=empty_state_contract_missing")
     if "DICOM volume not loaded" not in html:
         return fail("mpr=truthful_placeholder_missing")
-    if 'id="uploadDicomButton"' not in html or "Phase 3" not in html:
-        return fail("dicom=planned_state_missing")
-    print("PASS medical_data=truthful_pre_ingestion_states")
+    if 'id="uploadDicomButton"' not in html:
+        return fail("dicom=upload_region_missing")
+    print("PASS medical_data=truthful_mpr_until_reconstruction")
 
     for marker in (
         'data-layer="volume"',
