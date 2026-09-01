@@ -9,10 +9,16 @@ import shutil
 from typing import BinaryIO, Callable, Iterable, Protocol
 from uuid import uuid4
 
+from .dicom_geometry import (
+    GeometryInstance,
+    SeriesGeometryQualification,
+    qualify_series_geometry,
+)
+
 
 CHUNK_SIZE = 1024 * 1024
 MAX_UPLOAD_FILES = 10000
-MANIFEST_SCHEMA_VERSION = 1
+MANIFEST_SCHEMA_VERSION = 2
 SUPPORTED_MODALITIES = {"CT", "MR"}
 
 
@@ -70,6 +76,10 @@ class DicomInstanceDescriptor:
     instance_number: int | None
     image_position_patient: tuple[float, ...] | None
     image_orientation_patient: tuple[float, ...] | None
+    rows: int | None = None
+    columns: int | None = None
+    pixel_spacing: tuple[float, ...] | None = None
+    number_of_frames: int | None = None
 
 
 @dataclass(frozen=True)
@@ -87,6 +97,7 @@ class DicomSeriesDescriptor:
     spacing_between_slices: float | None
     instance_count: int
     instances: tuple[DicomInstanceDescriptor, ...]
+    geometry: SeriesGeometryQualification | None = None
 
     def public_dict(self) -> dict[str, object]:
         return {
@@ -102,6 +113,7 @@ class DicomSeriesDescriptor:
             "slice_thickness": self.slice_thickness,
             "spacing_between_slices": self.spacing_between_slices,
             "instance_count": self.instance_count,
+            "geometry": self.geometry.public_dict() if self.geometry else None,
         }
 
 
@@ -119,6 +131,8 @@ class DicomStudyDescriptor:
     series_count: int
     primary_series_uid: str
     series: tuple[DicomSeriesDescriptor, ...]
+    reconstruction_ready: bool = False
+    reconstruction_series_uid: str | None = None
 
     def manifest_dict(self) -> dict[str, object]:
         return asdict(self)
@@ -136,6 +150,8 @@ class DicomStudyDescriptor:
             "skipped_file_count": self.skipped_file_count,
             "series_count": self.series_count,
             "primary_series_uid": self.primary_series_uid,
+            "reconstruction_ready": self.reconstruction_ready,
+            "reconstruction_series_uid": self.reconstruction_series_uid,
             "series": [item.public_dict() for item in self.series],
         }
 
@@ -285,11 +301,98 @@ class DicomStudyRepository:
         return _manifest_to_public(payload)
 
 
+def _tuple_floats(value: object) -> tuple[float, ...] | None:
+    if not isinstance(value, (list, tuple)):
+        return None
+    try:
+        return tuple(float(item) for item in value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _int_or_none(value: object) -> int | None:
+    try:
+        return int(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _geometry_from_manifest_series(raw: dict[str, object]) -> SeriesGeometryQualification:
+    stored_geometry = raw.get("geometry")
+    if isinstance(stored_geometry, dict):
+        issues_raw = stored_geometry.get("issues", [])
+        from .dicom_geometry import GeometryIssue
+
+        issues = tuple(
+            GeometryIssue(str(item.get("code", "geometry_issue")), str(item.get("message", "Geometry issue")))
+            for item in issues_raw
+            if isinstance(item, dict)
+        )
+        def tuple3(key: str):
+            value = _tuple_floats(stored_geometry.get(key))
+            return tuple(value[:3]) if value and len(value) >= 3 else None
+        dimensions_raw = stored_geometry.get("dimensions")
+        dimensions = None
+        if isinstance(dimensions_raw, (list, tuple)) and len(dimensions_raw) == 3:
+            try:
+                dimensions = tuple(int(item) for item in dimensions_raw)
+            except (TypeError, ValueError):
+                dimensions = None
+        spacing_raw = _tuple_floats(stored_geometry.get("spacing_mm"))
+        position_range_raw = _tuple_floats(stored_geometry.get("slice_position_range_mm"))
+        ordered = stored_geometry.get("ordered_instance_filenames", [])
+        return SeriesGeometryQualification(
+            reconstruction_ready=bool(stored_geometry.get("reconstruction_ready")),
+            orientation_label=_clean_text(stored_geometry.get("orientation_label")),
+            dimensions=dimensions,
+            spacing_mm=tuple(spacing_raw[:3]) if spacing_raw and len(spacing_raw) >= 3 else None,
+            slice_spacing_mm=_clean_float(stored_geometry.get("slice_spacing_mm")),
+            origin_patient_mm=tuple3("origin_patient_mm"),
+            row_direction=tuple3("row_direction"),
+            column_direction=tuple3("column_direction"),
+            slice_normal=tuple3("slice_normal"),
+            slice_position_range_mm=(
+                tuple(position_range_raw[:2]) if position_range_raw and len(position_range_raw) >= 2 else None
+            ),
+            ordered_instance_filenames=(
+                tuple(str(item) for item in ordered) if isinstance(ordered, list) else ()
+            ),
+            issues=issues,
+        )
+
+    rows = _int_or_none(raw.get("rows"))
+    columns = _int_or_none(raw.get("columns"))
+    series_spacing = _tuple_floats(raw.get("pixel_spacing"))
+    instances: list[GeometryInstance] = []
+    for instance in raw.get("instances", []):
+        if not isinstance(instance, dict):
+            continue
+        instances.append(
+            GeometryInstance(
+                stored_filename=str(instance.get("stored_filename") or "unknown.dcm"),
+                rows=_int_or_none(instance.get("rows")) or rows,
+                columns=_int_or_none(instance.get("columns")) or columns,
+                pixel_spacing=_tuple_floats(instance.get("pixel_spacing")) or series_spacing,
+                image_position_patient=_tuple_floats(instance.get("image_position_patient")),
+                image_orientation_patient=_tuple_floats(instance.get("image_orientation_patient")),
+                instance_number=_int_or_none(instance.get("instance_number")),
+                number_of_frames=_int_or_none(instance.get("number_of_frames")) or 1,
+            )
+        )
+    return qualify_series_geometry(instances)
+
+
 def _manifest_to_public(payload: dict[str, object]) -> dict[str, object]:
     public_series: list[dict[str, object]] = []
+    ready_series: list[tuple[int, str]] = []
     for raw in payload.get("series", []):
         if not isinstance(raw, dict):
             continue
+        geometry = _geometry_from_manifest_series(raw)
+        series_uid = str(raw.get("series_instance_uid") or "")
+        instance_count = _int_or_none(raw.get("instance_count")) or 0
+        if geometry.reconstruction_ready and series_uid:
+            ready_series.append((instance_count, series_uid))
         public_series.append(
             {
                 key: raw.get(key)
@@ -308,7 +411,14 @@ def _manifest_to_public(payload: dict[str, object]) -> dict[str, object]:
                     "instance_count",
                 )
             }
+            | {"geometry": geometry.public_dict()}
         )
+    derived_reconstruction_uid = (
+        max(ready_series, key=lambda item: (item[0], item[1]))[1]
+        if ready_series
+        else None
+    )
+    reconstruction_uid = _clean_text(payload.get("reconstruction_series_uid")) or derived_reconstruction_uid
     return {
         key: payload.get(key)
         for key in (
@@ -324,7 +434,11 @@ def _manifest_to_public(payload: dict[str, object]) -> dict[str, object]:
             "series_count",
             "primary_series_uid",
         )
-    } | {"series": public_series}
+    } | {
+        "reconstruction_ready": reconstruction_uid is not None,
+        "reconstruction_series_uid": reconstruction_uid,
+        "series": public_series,
+    }
 
 
 class DicomIngestionService:
@@ -433,6 +547,10 @@ class DicomIngestionService:
                         instance_number=header.instance_number,
                         image_position_patient=header.image_position_patient,
                         image_orientation_patient=header.image_orientation_patient,
+                        rows=header.rows,
+                        columns=header.columns,
+                        pixel_spacing=header.pixel_spacing,
+                        number_of_frames=header.number_of_frames,
                     ),
                 )
             )
@@ -456,17 +574,37 @@ class DicomIngestionService:
         series_descriptors: list[DicomSeriesDescriptor] = []
         for series_uid, group in by_series.items():
             first = group[0][0]
-            instances = tuple(
-                item[1]
-                for item in sorted(
-                    group,
-                    key=lambda item: (
-                        item[0].instance_number is None,
-                        item[0].instance_number or 0,
-                        item[0].sop_instance_uid,
-                    ),
+            geometry = qualify_series_geometry(
+                GeometryInstance(
+                    stored_filename=descriptor.stored_filename,
+                    rows=header.rows,
+                    columns=header.columns,
+                    pixel_spacing=header.pixel_spacing,
+                    image_position_patient=header.image_position_patient,
+                    image_orientation_patient=header.image_orientation_patient,
+                    instance_number=header.instance_number,
+                    number_of_frames=header.number_of_frames or 1,
                 )
+                for header, descriptor in group
             )
+            descriptors_by_name = {descriptor.stored_filename: descriptor for _, descriptor in group}
+            if geometry.reconstruction_ready:
+                instances = tuple(
+                    descriptors_by_name[name]
+                    for name in geometry.ordered_instance_filenames
+                )
+            else:
+                instances = tuple(
+                    item[1]
+                    for item in sorted(
+                        group,
+                        key=lambda item: (
+                            item[0].instance_number is None,
+                            item[0].instance_number or 0,
+                            item[0].sop_instance_uid,
+                        ),
+                    )
+                )
             series_descriptors.append(
                 DicomSeriesDescriptor(
                     series_instance_uid=series_uid,
@@ -482,6 +620,7 @@ class DicomIngestionService:
                     spacing_between_slices=first.spacing_between_slices,
                     instance_count=len(instances),
                     instances=instances,
+                    geometry=geometry,
                 )
             )
 
@@ -492,9 +631,16 @@ class DicomIngestionService:
                 item.series_instance_uid,
             )
         )
+        reconstruction_candidates = [
+            item for item in series_descriptors
+            if item.geometry is not None and item.geometry.reconstruction_ready
+        ]
         primary = max(
-            series_descriptors,
+            reconstruction_candidates or series_descriptors,
             key=lambda item: (item.instance_count, item.series_instance_uid),
+        )
+        reconstruction_series_uid = (
+            primary.series_instance_uid if reconstruction_candidates else None
         )
         first_header = records[0][0]
         modalities = tuple(sorted({item.modality for item in series_descriptors}))
@@ -512,4 +658,6 @@ class DicomIngestionService:
             series_count=len(series_descriptors),
             primary_series_uid=primary.series_instance_uid,
             series=tuple(series_descriptors),
+            reconstruction_ready=reconstruction_series_uid is not None,
+            reconstruction_series_uid=reconstruction_series_uid,
         )

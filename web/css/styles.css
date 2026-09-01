@@ -1526,3 +1526,19 @@ button:disabled {
 .series-dialog-item small {
   overflow-wrap: anywhere;
 }
+
+/* Phase 3B geometry qualification status inside the discovered-series dialog. */
+.series-dialog-geometry {
+  display: block;
+  margin-top: 0.18rem;
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+.series-dialog-geometry[data-state="ready"] {
+  color: #64d9bd;
+}
+
+.series-dialog-geometry[data-state="review"] {
+  color: #e8b96d;
+}

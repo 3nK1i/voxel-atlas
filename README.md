@@ -6,7 +6,7 @@ VoxelAtlas is currently an engineering/research application. It is not a certifi
 
 ## Current status
 
-The accepted foundation includes FastAPI authentication with Argon2id password verification, opaque server-side sessions, the responsive VoxelAtlas login UI, a deployed production service, the Phase 2B final V1 workspace shell, the Phase 3A DICOM study-ingestion foundation, and the Phase 3A-R2 final viewer micro-polish and its final correction.
+The accepted foundation includes FastAPI authentication with Argon2id password verification, opaque server-side sessions, the responsive VoxelAtlas login UI, a deployed production service, the Phase 2B final V1 workspace shell, the Phase 3A DICOM study-ingestion foundation, the Phase 3A-R2 clinical viewer polish, and Phase 3B DICOM geometry/reconstruction-readiness qualification.
 
 ## Locked V1 workspace
 
@@ -15,6 +15,7 @@ The workspace is intentionally focused on medical imaging and anatomical inspect
 - final VoxelAtlas header with ergonomic light/dark mode
 - 3-stage workflow: Data -> Reconstruction -> 3D Visualization
 - real CT/MR DICOM folder upload and Study/Series metadata discovery
+- geometric slice ordering, orientation/spacing validation, and reconstruction-readiness qualification
 - study and reconstruction status panel
 - large Three.js anatomy viewer
 - Axial / Coronal / Sagittal MPR shell with truthful empty states until a DICOM volume exists
@@ -58,15 +59,15 @@ Phase 3A adds `pydicom` to the backend profile for metadata-only DICOM header pa
 Run the current compact regression from the repository root:
 
 ```bash
-bash scripts/run_phase3a_r2_final_checks.sh
+bash scripts/run_phase3b_checks.sh
 ```
 
 ## Locked V1 roadmap
 
 1. foundation, login, authentication, and deployment
 2. final V1 workspace target alignment
-3. DICOM upload and study ingestion - Phase 3A foundation implemented
-4. patient 3D volume reconstruction and MPR
+3. DICOM upload and study ingestion - Phase 3A complete; Phase 3B geometry qualification implemented
+4. patient 3D volume construction and MPR
 5. patient-specific anatomical reconstruction
 6. end-to-end Full Volume / Skull / Brain / Skull + Brain visualization
 7. UX, performance, and robustness

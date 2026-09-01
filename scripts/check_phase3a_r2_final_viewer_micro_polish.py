@@ -44,9 +44,9 @@ if not any(marker in CSS for marker in (
     "bottom: -4px; width: 98px; height: 98px;",
 )):
     raise SystemExit("FAIL gizmo_desktop_alignment: missing supported R2 alignment")
-if not any(marker in HTML for marker in ('/css/styles.css?v=phase3a-r2', '/css/styles.css?v=phase3a-r2-final1')):
+if not any(marker in HTML for marker in ('/css/styles.css?v=phase3a-r2', '/css/styles.css?v=phase3a-r2-final1', '/css/styles.css?v=phase3b-geometry1')):
     raise SystemExit('FAIL css_cache_version: missing supported R2 cache version')
-if not any(marker in HTML for marker in ('/js/app.js?v=phase3a-r2', '/js/app.js?v=phase3a-r2-final1')):
+if not any(marker in HTML for marker in ('/js/app.js?v=phase3a-r2', '/js/app.js?v=phase3a-r2-final1', '/js/app.js?v=phase3b-geometry1')):
     raise SystemExit('FAIL js_cache_version: missing supported R2 cache version')
 
 print("PASS opacity=direct_zero_to_one_hundred")

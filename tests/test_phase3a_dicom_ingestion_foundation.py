@@ -118,7 +118,7 @@ class Phase3ADicomIngestionFoundationTests(unittest.TestCase):
 
             study_dir = Path(tmp) / "studies" / descriptor.study_id
             manifest = json.loads((study_dir / "manifest.json").read_text(encoding="utf-8"))
-            self.assertEqual(manifest["schema_version"], 1)
+            self.assertEqual(manifest["schema_version"], 2)
             self.assertEqual(len(list(study_dir.glob("instance-*.dcm"))), 3)
             self.assertNotIn("patient-name", json.dumps(manifest))
             self.assertNotIn("PatientName", json.dumps(manifest))
@@ -272,7 +272,7 @@ class Phase3ADicomIngestionFoundationTests(unittest.TestCase):
         html = (ROOT / "web/index.html").read_text(encoding="utf-8")
         js = (ROOT / "web/js/app.js").read_text(encoding="utf-8")
         self.assertIn("DICOM volume not loaded", html)
-        self.assertIn("DICOM ready - reconstruction pending", js)
+        self.assertIn("Geometry ready - volume reconstruction pending", js)
         self.assertIn("Demo skull - patient reconstruction pending", js)
         self.assertNotIn("registerLayer(\"brain\"", js)
         self.assertNotIn("registerLayer(\"volume\"", js)

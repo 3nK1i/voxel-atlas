@@ -572,13 +572,15 @@ function setWorkflowStep(element, stateName) {
   }
 }
 
-function setWorkflowForStudy(hasStudy) {
-  if (hasStudy) {
+function setWorkflowForStudy(study) {
+  if (study) {
     setWorkflowStep(workflowData, "complete");
     setWorkflowStep(workflowReconstruction, "active");
     setWorkflowStep(workflowVisualization, "pending");
-    volumeStatusRow.dataset.state = "pending";
-    volumeStatusText.textContent = "DICOM ready - reconstruction pending";
+    volumeStatusRow.dataset.state = study.reconstruction_ready ? "ready" : "pending";
+    volumeStatusText.textContent = study.reconstruction_ready
+      ? "Geometry ready - volume reconstruction pending"
+      : "Geometry needs review before reconstruction";
   } else {
     setWorkflowStep(workflowData, "active");
     setWorkflowStep(workflowReconstruction, "pending");
@@ -600,9 +602,26 @@ function formatSpacing(value) {
 
 function primarySeries(study) {
   if (!study || !Array.isArray(study.series)) return null;
-  return study.series.find((item) => item.series_instance_uid === study.primary_series_uid)
+  const preferredUid = study.reconstruction_series_uid || study.primary_series_uid;
+  return study.series.find((item) => item.series_instance_uid === preferredUid)
     || study.series[0]
     || null;
+}
+
+function geometrySummary(series) {
+  const geometry = series?.geometry;
+  if (!geometry) return "Geometry unavailable";
+  if (!geometry.reconstruction_ready) {
+    const count = Array.isArray(geometry.issues) ? geometry.issues.length : 0;
+    return count > 0 ? `Geometry review - ${count} issue${count === 1 ? "" : "s"}` : "Geometry needs review";
+  }
+  const orientation = typeof geometry.orientation_label === "string"
+    ? geometry.orientation_label.charAt(0).toUpperCase() + geometry.orientation_label.slice(1)
+    : "Geometry";
+  const spacing = Number(geometry.slice_spacing_mm);
+  return Number.isFinite(spacing)
+    ? `${orientation} • ${spacing.toFixed(3)} mm slice spacing`
+    : `${orientation} • geometry ready`;
 }
 
 function setUploadStatus(kind, message) {
@@ -627,9 +646,13 @@ function renderSeriesDialog(study) {
     title.textContent = series.series_description || `Series ${series.series_number ?? "-"}`;
     const metadata = document.createElement("span");
     metadata.textContent = `${series.modality || "-"} • ${series.rows || "-"} × ${series.columns || "-"}`;
+    const geometry = document.createElement("span");
+    geometry.className = "series-dialog-geometry";
+    geometry.dataset.state = series.geometry?.reconstruction_ready ? "ready" : "review";
+    geometry.textContent = geometrySummary(series);
     const uid = document.createElement("small");
     uid.textContent = series.series_instance_uid || "Series UID unavailable";
-    copy.append(title, metadata, uid);
+    copy.append(title, metadata, geometry, uid);
 
     const count = document.createElement("span");
     count.className = "series-dialog-count";
@@ -642,7 +665,7 @@ function renderSeriesDialog(study) {
 function applyStudy(study) {
   state.study = study;
   state.studyLoaded = Boolean(study);
-  setWorkflowForStudy(state.studyLoaded);
+  setWorkflowForStudy(study);
 
   if (!study) {
     studyCard.dataset.studyState = "empty";
@@ -701,7 +724,12 @@ async function refreshLatestStudy() {
     const payload = await response.json();
     applyStudy(payload.study || null);
     if (payload.study) {
-      setUploadStatus("ready", "Stored DICOM study restored. Reconstruction has not started yet.");
+      setUploadStatus(
+        payload.study.reconstruction_ready ? "ready" : "warning",
+        payload.study.reconstruction_ready
+          ? "Stored DICOM geometry restored. Volume reconstruction has not started yet."
+          : "Stored DICOM study restored. Geometry needs review before reconstruction.",
+      );
     }
   } catch {
     // Study restoration is best effort; upload remains available.
@@ -733,12 +761,16 @@ async function uploadDicomFiles(files) {
     }
     applyStudy(payload.study);
     const skipped = Number(payload.study?.skipped_file_count || 0);
-    setUploadStatus(
-      "ready",
-      skipped > 0
-        ? `Study ready. ${payload.study.file_count} DICOM instances accepted; ${skipped} file${skipped === 1 ? "" : "s"} skipped.`
-        : `Study ready. ${payload.study.file_count} DICOM instances accepted across ${payload.study.series_count} series.`,
-    );
+    if (payload.study?.reconstruction_ready) {
+      setUploadStatus(
+        "ready",
+        skipped > 0
+          ? `Geometry ready. ${payload.study.file_count} DICOM instances accepted; ${skipped} file${skipped === 1 ? "" : "s"} skipped.`
+          : `Geometry ready. ${payload.study.file_count} DICOM instances validated across ${payload.study.series_count} series.`,
+      );
+    } else {
+      setUploadStatus("warning", "Study accepted. Geometry needs review before reconstruction.");
+    }
   } catch (error) {
     setUploadStatus("error", error instanceof Error ? error.message : "DICOM upload failed");
     uploadDicomLabel.textContent = state.studyLoaded ? "Replace DICOM Study" : "Upload DICOM";

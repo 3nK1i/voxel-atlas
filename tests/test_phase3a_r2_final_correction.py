@@ -37,8 +37,8 @@ class Phase3AR2FinalCorrectionTests(unittest.TestCase):
 
     def test_final_correction_has_fresh_cache_version(self) -> None:
         html = (ROOT / "web/index.html").read_text(encoding="utf-8")
-        self.assertIn('/css/styles.css?v=phase3a-r2-final1', html)
-        self.assertIn('/js/app.js?v=phase3a-r2-final1', html)
+        self.assertRegex(html, r'/css/styles\.css\?v=(?:phase3a-r2-final1|phase3b-geometry1)')
+        self.assertRegex(html, r'/js/app\.js\?v=(?:phase3a-r2-final1|phase3b-geometry1)')
 
 
 if __name__ == "__main__":
