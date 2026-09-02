@@ -7,6 +7,7 @@ import {
   validateVolumeRenderingDescriptor,
 } from "./volume-rendering-capabilities.js";
 import { PatientVolumeTextureManager } from "./volume-texture-manager.js?v=phase4c1-r1";
+import { PatientVolumeRayMarcher } from "./patient-volume-ray-marcher.js?v=phase4c2";
 
 const SKULL_URL = "/assets/models/skull_full.glb";
 const THEME_KEY = "voxelatlas-theme";
@@ -23,6 +24,7 @@ const sectionValue = document.getElementById("sectionValue");
 const sectionButtons = Array.from(document.querySelectorAll("[data-section-axis]"));
 const layerButtons = Array.from(document.querySelectorAll("[data-layer]"));
 const anatomyNote = document.getElementById("anatomyNote");
+const directionalCutPanel = document.getElementById("directionalCutPanel");
 const opacitySlider = document.getElementById("opacitySlider");
 const opacityValue = document.getElementById("opacityValue");
 const resetButton = document.getElementById("resetButton");
@@ -174,6 +176,7 @@ const volumeTextureManager = new PatientVolumeTextureManager({
   three: THREE,
   initializeTexture: (texture) => renderer.initTexture(texture),
 });
+const volumeRayMarcher = new PatientVolumeRayMarcher({ three: THREE });
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
@@ -307,6 +310,11 @@ function updateLayerUI() {
       ? "Demo skull - patient reconstruction pending"
       : "Demo A0101 - Skull";
   }
+
+  const volumeActive = state.layer === "volume";
+  directionalCutPanel.dataset.volumeDeferred = volumeActive ? "true" : "false";
+  sectionSlider.disabled = volumeActive;
+  for (const button of sectionButtons) button.disabled = volumeActive;
 }
 
 function applyLayerVisibility() {
@@ -316,21 +324,35 @@ function applyLayerVisibility() {
 
   if (skull?.root) skull.root.visible = state.layer === "skull" || state.layer === "combined";
   if (brain?.root) brain.root.visible = state.layer === "brain" || state.layer === "combined";
-  if (volume?.root) volume.root.visible = state.layer === "volume";
+  if (volume?.root) {
+    volume.root.visible = state.layer === "volume" && state.opacity > 0.001;
+  }
   updateLayerUI();
 }
 
 function setLayer(layer) {
   const button = layerButtons.find((candidate) => candidate.dataset.layer === layer);
   if (!button || button.disabled) return;
+  if (layer === "volume" && state.sectionDepth > 0.001) {
+    state.sectionDepth = 0;
+    sectionSlider.value = "0";
+    applySection();
+  }
   state.layer = layer;
   applyLayerVisibility();
+  if (layer === "volume") {
+    setStatus("ready", "Patient volume rendering ready");
+    anatomyNote.textContent = "True patient volume rendering active. Medical transfer functions and synchronized clipping follow in Phase 4D and Phase 4E.";
+  } else if (layer === "skull" && state.studyLoaded) {
+    setStatus("ready", "Demo anatomy fallback");
+    anatomyNote.textContent = "Demo skull fallback. Select Full Volume to view the actual patient voxel data.";
+  }
 }
 
-function updateBoundsFromSkull() {
-  const skullRoot = layerRegistry.get("skull")?.root;
-  if (!skullRoot) return null;
-  const box = new THREE.Box3().setFromObject(skullRoot);
+function updateBoundsFromLayer(name) {
+  const root = layerRegistry.get(name)?.root;
+  if (!root) return null;
+  const box = new THREE.Box3().setFromObject(root);
   box.getSize(state.size);
   state.min.copy(box.min);
   state.max.copy(box.max);
@@ -533,16 +555,24 @@ function applyOpacity() {
       }
     }
   }
+  volumeRayMarcher.setOpacity(state.opacity);
+  const volume = layerRegistry.get("volume");
+  if (volume?.root) {
+    volume.root.visible = state.layer === "volume" && state.opacity > 0.001;
+  }
   opacityValue.textContent = `${Math.round(state.opacity * 100)}%`;
 }
 
 function prepareSkull(root) {
   registerLayer("skull", root, createClinicalMaterial);
-  const box = updateBoundsFromSkull();
-  if (box) fitCamera(box);
-  state.layer = "skull";
+  const volumeReady = Boolean(layerRegistry.get("volume")?.available);
+  if (!volumeReady) {
+    const box = updateBoundsFromLayer("skull");
+    if (box) fitCamera(box);
+  }
+  state.layer = volumeReady ? "volume" : "skull";
   applyLayerVisibility();
-  setStatus("ready", "Demo anatomy ready");
+  setStatus("ready", volumeReady ? "Patient volume rendering ready" : "Demo anatomy ready");
 }
 
 function loadSkull() {
@@ -563,6 +593,48 @@ function loadSkull() {
   );
 }
 
+function clearPatientVolumeRendering() {
+  const entry = layerRegistry.get("volume");
+  volumeRayMarcher.dispose();
+  if (entry) {
+    entry.root = null;
+    entry.meshes = [];
+  }
+  if (state.layer === "volume") state.layer = "skull";
+  setLayerAvailability("volume", false);
+  applyLayerVisibility();
+}
+
+async function activatePatientVolumeRendering(textureResource, task) {
+  const volumeResource = volumeRayMarcher.create(textureResource);
+  const compileScene = new THREE.Scene();
+  compileScene.add(volumeResource.root);
+  try {
+    await renderer.compileAsync(compileScene, camera);
+  } finally {
+    compileScene.remove(volumeResource.root);
+  }
+  if (volumeRenderingTask !== task || volumeRayMarcher.current !== volumeResource) {
+    throw new DOMException("Patient volume rendering was superseded", "AbortError");
+  }
+
+  const entry = layerRegistry.get("volume");
+  entry.root = volumeResource.root;
+  entry.meshes = [volumeResource.mesh];
+  anatomyGroup.add(volumeResource.root);
+  volumeResource.root.updateMatrixWorld(true);
+  setLayerAvailability("volume", true);
+  applyOpacity();
+
+  const box = updateBoundsFromLayer("volume");
+  if (box) fitCamera(box);
+  setLayer("volume");
+  setWorkflowStep(workflowVisualization, "complete");
+  volumeStatusRow.dataset.state = "ready";
+  volumeStatusText.textContent = "Patient volume rendered";
+  return volumeResource;
+}
+
 function resetWorkspace() {
   state.sectionDepth = 0;
   sectionSlider.value = "0";
@@ -573,7 +645,7 @@ function resetWorkspace() {
 
   state.opacity = DEFAULT_OPACITY;
   opacitySlider.value = String(Math.round(DEFAULT_OPACITY * 100));
-  state.layer = "skull";
+  state.layer = layerRegistry.get("volume")?.available ? "volume" : "skull";
   state.autoRotate = false;
   autoRotateButton.classList.remove("is-active");
   autoRotateButton.setAttribute("aria-pressed", "false");
@@ -670,6 +742,7 @@ function setWorkflowForStudy(study) {
 
 function setMprVolumeState(study) {
   const ready = Boolean(study?.volume_ready);
+  clearPatientVolumeRendering();
   volumeTextureManager.dispose();
   volumeRenderingTask = null;
   state.volumeRendering.descriptor = null;
@@ -732,9 +805,14 @@ async function ensureVolumeRenderingFoundation() {
     if (volumeRenderingTask !== task) {
       throw new DOMException("Patient volume texture load was superseded", "AbortError");
     }
+    anatomyNote.textContent = "Compiling the true patient-volume ray marcher...";
+    await activatePatientVolumeRendering(textureResource, task);
+    if (volumeRenderingTask !== task) {
+      throw new DOMException("Patient volume rendering was superseded", "AbortError");
+    }
     state.volumeRendering.descriptor = descriptor;
     state.volumeRendering.textureResource = textureResource;
-    anatomyNote.textContent = "Patient volume texture verified and GPU-initialized. Interactive Full Volume rendering activates next.";
+    anatomyNote.textContent = "True patient volume rendering active. Medical transfer functions and synchronized clipping follow in Phase 4D and Phase 4E.";
     return descriptor;
   })();
   volumeRenderingTask = task;
@@ -743,6 +821,10 @@ async function ensureVolumeRenderingFoundation() {
     return await task.promise;
   } catch (error) {
     if (volumeRenderingTask === task) {
+      clearPatientVolumeRendering();
+      volumeTextureManager.dispose();
+      state.volumeRendering.descriptor = null;
+      state.volumeRendering.textureResource = null;
       anatomyNote.textContent = error instanceof Error
         ? `${error.message}. Synchronized MPR remains available.`
         : "3D volume preparation failed. Synchronized MPR remains available.";
@@ -1466,6 +1548,7 @@ document.addEventListener("fullscreenchange", () => {
 
 logoutButton.addEventListener("click", async () => {
   logoutButton.disabled = true;
+  clearPatientVolumeRendering();
   volumeTextureManager.dispose();
   state.volumeRendering.textureResource = null;
   try {
@@ -1513,6 +1596,7 @@ void refreshLatestStudy();
 const timer = new THREE.Timer();
 timer.connect(document);
 window.addEventListener("pagehide", () => {
+  volumeRayMarcher.dispose();
   volumeTextureManager.dispose();
   timer.dispose();
 }, { once: true });

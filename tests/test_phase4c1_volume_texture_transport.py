@@ -31,19 +31,19 @@ class Phase4C1VolumeTextureTransportTests(unittest.TestCase):
         self.assertGreaterEqual(app_js.count("volumeTextureManager.dispose();"), 2)
         self.assertGreaterEqual(app_js.count("volumeRenderingTask !== task"), 2)
 
-    def test_c1_does_not_enable_or_claim_the_unimplemented_ray_marcher(self) -> None:
+    def test_c1_transport_remains_separate_from_the_c2_ray_marcher(self) -> None:
         app_js = (ROOT / "web/js/app.js").read_text(encoding="utf-8")
         html = (ROOT / "web/index.html").read_text(encoding="utf-8")
+        manager = (ROOT / "web/js/volume-texture-manager.js").read_text(encoding="utf-8")
 
         self.assertIn('data-layer="volume" disabled', html)
-        self.assertIn('/js/app.js?v=phase3d-r21-phase4c1-r1', html)
+        self.assertIn('/js/app.js?v=phase3d-r21-phase4c2', html)
         self.assertIn(
             'from "./volume-texture-manager.js?v=phase4c1-r1"',
             app_js,
         )
-        self.assertNotIn("sampler3D", app_js)
-        self.assertNotIn('setLayerAvailability("volume", true)', app_js)
-        self.assertIn("Interactive Full Volume rendering activates next.", app_js)
+        self.assertNotIn("sampler3D", manager)
+        self.assertIn("await activatePatientVolumeRendering(textureResource, task)", app_js)
 
     def test_compact_c1_validation_entrypoint_is_present(self) -> None:
         runner = ROOT / "scripts/run_phase4c1_checks.sh"
