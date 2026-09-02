@@ -19,25 +19,21 @@ class Phase3AR1ViewerPolishTests(unittest.TestCase):
             r'id="opacitySlider"[\s\S]*?value="100"',
         )
         self.assertIn("state.opacity = Number(opacitySlider.value) / 100;", js)
-        self.assertTrue(
-            "mesh.material.opacity = state.opacity;" in js
-            or "mesh.material.opacity = visualOpacity;" in js
-        )
+        self.assertIn("volumeRayMarcher.setOpacity(state.opacity);", js)
         self.assertNotIn("1 - state.opacity", js)
         self.assertNotIn("100 - Number(opacitySlider.value)", js)
 
-    def test_default_clinical_material_is_truly_opaque_and_robust_to_mesh_winding(self) -> None:
+    def test_volume_shader_uses_front_to_back_premultiplied_compositing(self) -> None:
         js = (ROOT / "web/js/app.js").read_text(encoding="utf-8")
+        renderer = (ROOT / "web/js/patient-volume-ray-marcher.js").read_text(encoding="utf-8")
 
-        self.assertIn("transparent: false", js)
-        self.assertIn("opacity: 1.0", js)
-        self.assertIn("depthWrite: true", js)
-        self.assertIn("depthTest: true", js)
-        self.assertIn("side: THREE.DoubleSide", js)
-        self.assertIn("forceSinglePass: true", js)
-        self.assertIn("dithering: true", js)
-        self.assertIn("const nextTransparent = state.opacity < 0.999;", js)
-        self.assertIn("mesh.material.transparent = nextTransparent;", js)
+        self.assertIn("accumulated.rgb += remaining * sampleAlpha * sampleColor", renderer)
+        self.assertIn("premultipliedAlpha: true", renderer)
+        self.assertIn("depthWrite: false", renderer)
+        self.assertIn("depthTest: true", renderer)
+        self.assertIn("side: THREE.BackSide", renderer)
+        self.assertIn("dithering: true", renderer)
+        self.assertNotIn("MeshPhysicalMaterial", js)
 
     def test_initial_camera_framing_is_about_fifteen_percent_smaller(self) -> None:
         js = (ROOT / "web/js/app.js").read_text(encoding="utf-8")

@@ -86,28 +86,19 @@ def main() -> int:
         return fail("dicom=upload_region_missing")
     print("PASS medical_data=truthful_mpr_until_reconstruction")
 
-    for marker in (
-        'data-layer="volume"',
-        'data-layer="skull"',
-        'data-layer="brain"',
-        'data-layer="combined"',
-        'data-future-layer="skin"',
-        'data-future-layer="sinuses"',
-        'data-future-layer="vessels"',
-    ):
-        if marker not in html:
-            return fail(f"layers=missing_{marker}")
-    if "layerRegistry" not in js or "registerLayer" not in js or "setLayerAvailability" not in js:
-        return fail("layers=runtime_registry_missing")
-    if "/assets/models/brain.glb" in js:
-        return fail("layers=static_brain_dependency_present")
-    print("PASS layers=extensible_truthful_registry")
+    if html.count('data-layer="') != 1 or 'data-layer="volume"' not in html:
+        return fail("layers=volume_only_contract_missing")
+    if "const volumeLayer =" not in js or "setVolumeAvailability" not in js:
+        return fail("layers=volume_runtime_missing")
+    if "GLTFLoader" in js or "/assets/models/" in js or "registerLayer" in js:
+        return fail("layers=surface_runtime_present")
+    print("PASS layers=truthful_volume_only_runtime")
 
-    if "renderer.localClippingEnabled" not in js or "sectionPlane" not in js:
-        return fail("directional_cut=runtime_missing")
     if any(marker not in html for marker in ('data-section-axis="y"', 'data-section-axis="z"', 'data-section-axis="x"')):
         return fail("directional_cut=axis_controls_missing")
-    print("PASS directional_cut=only_v1_sectioning_control")
+    if "sectionSlider.disabled = true" not in js:
+        return fail("directional_cut=volume_deferred_state_missing")
+    print("PASS directional_cut=truthfully_deferred_for_volume")
 
     retired_terms = (
         "cran" + "ial",

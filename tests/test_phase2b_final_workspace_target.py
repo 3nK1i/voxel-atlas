@@ -89,8 +89,8 @@ class Phase2BFinalWorkspaceTargetTests(unittest.TestCase):
             'data-section-axis="z"',
             'data-section-axis="x"',
             'id="sectionSlider"',
-            "renderer.localClippingEnabled",
-            "sectionPlane",
+            "sectionSlider.disabled = true",
+            'directionalCutPanel.dataset.volumeDeferred = "true"',
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, html + js)
@@ -108,6 +108,9 @@ class Phase2BFinalWorkspaceTargetTests(unittest.TestCase):
         for marker in forbidden:
             with self.subTest(marker=marker):
                 self.assertNotIn(marker.lower(), combined)
+
+        self.assertNotIn("renderer.localClippingEnabled", js)
+        self.assertNotIn("sectionPlane", js)
 
     def test_retired_specialized_prototype_and_assets_are_absent(self) -> None:
         retired = (
@@ -146,29 +149,16 @@ class Phase2BFinalWorkspaceTargetTests(unittest.TestCase):
         self.assertIn("DICOM volume not loaded", html)
         self.assertNotIn("slice-placeholder.jpg", html)
 
-    def test_anatomical_layer_architecture_is_truthful_and_extensible(self) -> None:
+    def test_anatomical_layer_architecture_is_truthful_and_volume_only(self) -> None:
         html = (ROOT / "web/index.html").read_text(encoding="utf-8")
         js = (ROOT / "web/js/app.js").read_text(encoding="utf-8")
 
-        for marker in (
-            'data-layer="volume"',
-            'data-layer="skull"',
-            'data-layer="brain"',
-            'data-layer="combined"',
-            'data-future-layer="skin"',
-            'data-future-layer="sinuses"',
-            'data-future-layer="vessels"',
-            "layerRegistry",
-            "registerLayer",
-            "setLayerAvailability",
-        ):
-            with self.subTest(marker=marker):
-                self.assertIn(marker, html + js)
-
+        self.assertEqual(html.count('data-layer="'), 1)
         self.assertIn('data-layer="volume" disabled', html)
-        self.assertIn('data-layer="brain" disabled', html)
-        self.assertIn('data-layer="combined" disabled', html)
-        self.assertNotIn("/assets/models/brain.glb", js)
+        self.assertIn("const volumeLayer =", js)
+        self.assertIn("setVolumeAvailability", js)
+        self.assertNotIn("GLTFLoader", js)
+        self.assertNotIn("/assets/models/", js)
 
     def test_viewer_toolbar_controls_have_real_handlers(self) -> None:
         html = (ROOT / "web/index.html").read_text(encoding="utf-8")
@@ -225,13 +215,14 @@ class Phase2BFinalWorkspaceTargetTests(unittest.TestCase):
         self.assertNotIn("width: min(1600px, calc(100% - 12px));", css)
         self.assertIn("grid-template-rows: minmax(320px, 1fr) minmax(220px, 34%);", css)
 
-    def test_clinical_material_avoids_near_opaque_triangle_sorting_artifacts(self) -> None:
+    def test_volume_shader_avoids_surface_triangle_rendering(self) -> None:
         js = (ROOT / "web/js/app.js").read_text(encoding="utf-8")
+        ray_marcher = (ROOT / "web/js/patient-volume-ray-marcher.js").read_text(encoding="utf-8")
         self.assertIn("renderer.toneMappingExposure = 0.86;", js)
-        self.assertIn("depthWrite: true", js)
-        self.assertIn("side: THREE.DoubleSide", js)
-        self.assertIn("forceSinglePass: true", js)
-        self.assertNotIn("mesh.material.depthWrite = state.opacity >= 0.995", js)
+        self.assertIn("THREE.BackSide", ray_marcher)
+        self.assertIn("depthWrite: false", ray_marcher)
+        self.assertIn("premultipliedAlpha: true", ray_marcher)
+        self.assertNotIn("MeshPhysicalMaterial", js)
 
     def test_phase2b_runner_is_compact_on_success_and_verbose_on_failure(self) -> None:
         runner = (ROOT / "scripts/run_phase2b_checks.sh").read_text(encoding="utf-8")

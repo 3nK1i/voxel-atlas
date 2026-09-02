@@ -28,7 +28,7 @@ def main() -> int:
         'data-section-axis="y"',
         'data-section-axis="z"',
         'data-section-axis="x"',
-        'data-layer="skull"',
+        'data-layer="volume"',
         'id="opacitySlider"',
         'id="logoutButton"',
     )
@@ -78,10 +78,12 @@ def main() -> int:
         return fail("viewer_behavior=camera_framing_missing")
     print("PASS viewer_behavior=ergonomic_initial_framing")
 
-    for marker in ("renderer.localClippingEnabled", "sectionPlane", "MeshPhysicalMaterial", "0xe8e1d6"):
+    for marker in ("PatientVolumeRayMarcher", "setVolumeAvailability", "applyVolumeVisibility"):
         if marker not in js:
             return fail(f"viewer_behavior=missing_{marker}")
-    print("PASS viewer_behavior=directional_section_clinical_rendering")
+    if "GLTFLoader" in js or "MeshPhysicalMaterial" in js or "/assets/models/" in js:
+        return fail("viewer_behavior=surface_runtime_present")
+    print("PASS viewer_behavior=volume_only_clinical_rendering")
 
     if any(marker in js for marker in ("AR_URL", "activateAR", "presetButtons", "applyPreset")):
         return fail("viewer_behavior=retired_code_present")

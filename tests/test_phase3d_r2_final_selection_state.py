@@ -22,17 +22,20 @@ class Phase3DR2FinalSelectionStateTests(unittest.TestCase):
         self.assertIn("0 0 15px", self.css)
 
     def test_layer_buttons_expose_pressed_state(self) -> None:
-        self.assertIn('class="layer-button is-active" data-layer="skull" aria-pressed="true"', self.html)
-        for layer in ("volume", "brain", "combined"):
-            self.assertRegex(self.html, rf'data-layer="{layer}"[^>]*aria-pressed="false"')
-        self.assertIn('button.setAttribute("aria-pressed", isActive ? "true" : "false")', self.js)
+        self.assertEqual(self.html.count('data-layer="'), 1)
+        self.assertIn(
+            'class="layer-button is-active" data-layer="volume" disabled aria-pressed="true"',
+            self.html,
+        )
+        self.assertIn('volumeLayerButton.setAttribute("aria-pressed", "true")', self.js)
 
-    def test_disabled_future_layers_remain_visually_disabled(self) -> None:
+    def test_full_volume_is_disabled_until_verified_texture_is_ready(self) -> None:
         self.assertIn(".layer-button:disabled", self.css)
         self.assertIn("opacity: 0.40;", self.css)
-        self.assertIn('data-layer="volume" disabled aria-pressed="false"', self.html)
-        self.assertIn('data-layer="brain" disabled aria-pressed="false"', self.html)
-        self.assertIn('data-layer="combined" disabled aria-pressed="false"', self.html)
+        self.assertIn('data-layer="volume" disabled aria-pressed="true"', self.html)
+        self.assertIn("volumeLayerButton.disabled = !volumeLayer.available", self.js)
+        self.assertNotIn('data-layer="brain"', self.html)
+        self.assertNotIn('data-layer="combined"', self.html)
 
     def test_layer_transition_includes_glow_properties(self) -> None:
         self.assertIn(
@@ -42,7 +45,7 @@ class Phase3DR2FinalSelectionStateTests(unittest.TestCase):
 
     def test_final_cache_bust_is_present(self) -> None:
         self.assertIn('/css/styles.css?v=phase3d-r2', self.html)
-        self.assertIn('/js/app.js?v=phase3d-r2', self.html)
+        self.assertIn('/js/app.js?v=phase3d-r21-phase4d1', self.html)
 
 
 if __name__ == "__main__":

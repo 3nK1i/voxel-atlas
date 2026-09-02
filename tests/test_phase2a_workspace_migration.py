@@ -83,24 +83,21 @@ class Phase2AWorkspaceMigrationTests(unittest.TestCase):
         js = (ROOT / "web/js/app.js").read_text(encoding="utf-8")
         model_readme = (ROOT / "web/assets/models/README.md").read_text(encoding="utf-8")
 
-        self.assertIn('data-layer="volume"', html)
-        self.assertIn('data-layer="skull"', html)
-        self.assertIn('data-layer="brain"', html)
-        self.assertIn('data-layer="combined"', html)
+        self.assertEqual(html.count('data-layer="'), 1)
         self.assertIn('data-layer="volume" disabled', html)
-        self.assertIn('data-layer="brain" disabled', html)
-        self.assertIn('data-layer="combined" disabled', html)
-        self.assertIn("layerRegistry", js)
-        self.assertNotIn("/assets/models/brain.glb", js)
+        self.assertIn("const volumeLayer =", js)
+        self.assertNotIn("GLTFLoader", js)
+        self.assertNotIn("/assets/models/", js)
         self.assertIn("patient-specific", model_readme.lower())
         self.assertIn("browser must never fabricate", model_readme.lower())
 
-    def test_directional_clipping_and_clinical_rendering_remain(self) -> None:
+    def test_volume_rendering_and_deferred_directional_controls_remain(self) -> None:
         js = (ROOT / "web/js/app.js").read_text(encoding="utf-8")
-        self.assertIn("renderer.localClippingEnabled", js)
-        self.assertIn("sectionPlane", js)
-        self.assertIn("MeshPhysicalMaterial", js)
-        self.assertIn("0xe8e1d6", js)
+        html = (ROOT / "web/index.html").read_text(encoding="utf-8")
+        self.assertIn("PatientVolumeRayMarcher", js)
+        self.assertIn('id="directionalCutPanel"', html)
+        self.assertIn('data-section-axis="y"', html)
+        self.assertIn("sectionSlider.disabled = true", js)
         for forbidden in ("presetButtons", "presetConfig", "applyPreset", "AR_URL", "activateAR", "window.open("):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, js)

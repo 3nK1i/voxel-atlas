@@ -273,9 +273,9 @@ class Phase3ADicomIngestionFoundationTests(unittest.TestCase):
         js = (ROOT / "web/js/app.js").read_text(encoding="utf-8")
         self.assertIn("DICOM volume not loaded", html)
         self.assertIn("Geometry ready - volume reconstruction pending", js)
-        self.assertIn("Demo skull - patient reconstruction pending", js)
-        self.assertNotIn("registerLayer(\"brain\"", js)
-        self.assertNotIn("registerLayer(\"volume\"", js)
+        self.assertIn("Upload a DICOM study", js)
+        self.assertNotIn("GLTFLoader", js)
+        self.assertNotIn("registerLayer", js)
 
 
 if __name__ == "__main__":

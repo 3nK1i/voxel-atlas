@@ -44,8 +44,8 @@ class Phase4C2TrueVolumeRayMarchingTests(unittest.TestCase):
             "PATIENT_LPS_TO_VIEWER",
             "PatientVolumeRayMarcher",
             "volumeRayMarcher.create",
-            'setLayerAvailability("volume", true)',
-            'setLayer("volume")',
+            "setVolumeAvailability(true)",
+            "applyVolumeVisibility()",
             "volumeRayMarcher.dispose()",
             "renderer.compileAsync(compileScene, camera)",
         ):
@@ -53,12 +53,12 @@ class Phase4C2TrueVolumeRayMarchingTests(unittest.TestCase):
                 self.assertIn(marker, renderer + app_js)
 
         self.assertIn('data-layer="volume" disabled', html)
-        self.assertIn('/js/app.js?v=phase3d-r21-phase4c2', html)
+        self.assertIn('/js/app.js?v=phase3d-r21-phase4d1', html)
         self.assertIn(
             'from "./patient-volume-ray-marcher.js?v=phase4c2"',
             app_js,
         )
-        self.assertIn("True patient volume rendering active.", app_js)
+        self.assertIn("True patient voxel volume active.", app_js)
 
     def test_c2_preserves_deferred_medical_features_and_mpr_fallback(self) -> None:
         app_js = (ROOT / "web/js/app.js").read_text(encoding="utf-8")

@@ -25,20 +25,20 @@ class Phase3AR2FinalCorrectionTests(unittest.TestCase):
         )
         self.assertRegex(css, r"\.orientation-cube\s*\{[\s\S]*?background:\s*transparent;")
 
-    def test_intermediate_opacity_uses_perceptual_clinical_alpha_curve(self) -> None:
+    def test_intermediate_opacity_is_applied_to_volume_absorption(self) -> None:
         js = (ROOT / "web/js/app.js").read_text(encoding="utf-8")
+        renderer = (ROOT / "web/js/patient-volume-ray-marcher.js").read_text(encoding="utf-8")
 
-        self.assertIn("function clinicalVisualOpacity(opacity)", js)
-        self.assertIn("Math.pow(clamped, 0.55)", js)
-        self.assertIn("const visualOpacity = clinicalVisualOpacity(state.opacity);", js)
-        self.assertIn("mesh.material.opacity = visualOpacity;", js)
-        self.assertIn("mesh.visible = state.opacity > 0.001;", js)
-        self.assertNotIn("mesh.material.opacity = state.opacity;", js)
+        self.assertIn("volumeRayMarcher.setOpacity(state.opacity);", js)
+        self.assertIn("uGlobalOpacity", renderer)
+        self.assertIn("Math.min(1, Math.max(0", renderer)
+        self.assertIn("state.opacity > 0.001", js)
+        self.assertNotIn("mesh.material.opacity", js)
 
     def test_final_correction_has_fresh_cache_version(self) -> None:
         html = (ROOT / "web/index.html").read_text(encoding="utf-8")
         self.assertRegex(html, r'/css/styles\.css\?v=(?:phase3a-r2-final1|phase3b-geometry1|phase3c-volume1|phase3d-mpr1|phase3d-r1|phase3d-r2)')
-        self.assertRegex(html, r'/js/app\.js\?v=(?:phase3a-r2-final1|phase3b-geometry1|phase3c-volume1|phase3d-mpr1|phase3d-r1|phase3d-r2)')
+        self.assertRegex(html, r'/js/app\.js\?v=(?:phase3a-r2-final1|phase3b-geometry1|phase3c-volume1|phase3d-mpr1|phase3d-r1|phase3d-r2|phase3d-r21-phase4d1)')
 
 
 if __name__ == "__main__":

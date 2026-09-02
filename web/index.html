@@ -26,7 +26,7 @@
     })();
   </script>
 
-  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21">
+  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4d1">
 
   <script type="importmap">
   {
@@ -160,11 +160,6 @@
                 <span class="status-copy"><strong>Volume</strong><small id="volumeStatusText">Awaiting DICOM</small></span>
                 <span class="status-mark" aria-hidden="true">○</span>
               </div>
-              <div id="surfaceStatusRow" class="status-row" data-state="ready">
-                <span class="status-icon" aria-hidden="true">◇</span>
-                <span class="status-copy"><strong>Demo surface mesh</strong><small>Demo skull ready</small></span>
-                <span class="status-mark" aria-hidden="true">✓</span>
-              </div>
             </div>
           </section>
 
@@ -186,16 +181,16 @@
         </button>
       </aside>
 
-      <section class="center-workspace" aria-label="Anatomy visualization">
-        <section id="viewerStage" class="viewer-stage panel" aria-label="Interactive 3D anatomy viewer">
+      <section class="center-workspace" aria-label="Patient scan visualization">
+        <section id="viewerStage" class="viewer-stage panel" aria-label="Interactive 3D patient volume viewer">
           <div id="viewport" class="viewport"></div>
 
           <div id="modelStatus" class="model-status" data-state="loading" role="status">
             <span class="status-dot" aria-hidden="true"></span>
-            <span id="statusText">Loading demo anatomy...</span>
+            <span id="statusText">Upload a DICOM study</span>
           </div>
 
-          <div id="modelChip" class="model-chip">Demo A0101 - Skull</div>
+          <div id="modelChip" class="model-chip">Patient scan - Full Volume</div>
 
           <div id="orientationGizmo" class="orientation-cube" aria-hidden="true">
             <svg viewBox="0 0 96 96" focusable="false">
@@ -235,13 +230,13 @@
           </div>
 
           <div class="viewer-toolbar" role="toolbar" aria-label="3D viewer controls">
-            <button id="rotateToolButton" class="viewer-tool-button is-active" data-viewer-tool="rotate" type="button" title="Rotate anatomy" aria-label="Rotate anatomy with left drag" aria-pressed="true">
+            <button id="rotateToolButton" class="viewer-tool-button is-active" data-viewer-tool="rotate" type="button" title="Rotate volume" aria-label="Rotate patient volume with left drag" aria-pressed="true">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3.8l12.6 7-6.2 1.7-2.7 5.9L5 3.8z"></path><path d="M12.3 12.4l4.3 4.3"></path></svg>
             </button>
-            <button id="panToolButton" class="viewer-tool-button" data-viewer-tool="pan" type="button" title="Pan anatomy" aria-label="Pan anatomy with left drag" aria-pressed="false">
+            <button id="panToolButton" class="viewer-tool-button" data-viewer-tool="pan" type="button" title="Pan volume" aria-label="Pan patient volume with left drag" aria-pressed="false">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.2 11V6.2a1.4 1.4 0 012.8 0V10"></path><path d="M11 10V4.9a1.4 1.4 0 012.8 0V10"></path><path d="M13.8 10V6a1.4 1.4 0 012.8 0v5"></path><path d="M16.6 10.2V8a1.4 1.4 0 012.8 0v5.8c0 4-2.5 6.7-6.6 6.7h-1.6c-2.3 0-4.1-1-5.4-2.8l-2-2.8a1.55 1.55 0 012.4-1.95L8.2 15"></path></svg>
             </button>
-            <button id="fitViewButton" class="viewer-tool-button" type="button" title="Reset view" aria-label="Reset anatomy view">
+            <button id="fitViewButton" class="viewer-tool-button" type="button" title="Reset view" aria-label="Reset patient volume view">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.2 8.1A7.8 7.8 0 106.1 18"></path><path d="M19.2 3.8v4.3h-4.3"></path><path d="M4.8 15.9A7.8 7.8 0 0017.9 6"></path><path d="M4.8 20.2v-4.3h4.3"></path></svg>
             </button>
             <button id="zoomOutButton" class="viewer-tool-button" type="button" title="Zoom out" aria-label="Zoom out">
@@ -342,13 +337,13 @@
         </section>
       </section>
 
-      <aside class="right-panel panel" aria-label="3D anatomy controls">
+      <aside class="right-panel panel" aria-label="3D patient volume controls">
         <div class="panel-scroll">
           <section id="directionalCutPanel" class="control-section">
             <div class="control-heading">
               <div>
                 <div class="section-kicker">Directional Cut</div>
-                <p>Section the active anatomy along one anatomical axis.</p>
+                <p>Section the patient volume along one anatomical axis.</p>
               </div>
               <strong id="sectionValue" class="control-value">0%</strong>
             </div>
@@ -379,25 +374,16 @@
               value="0"
               aria-label="Section depth"
             >
-            <div class="range-labels"><span>Full model</span><span>Deep section</span></div>
+            <div class="range-labels"><span>Full volume</span><span>Deep section</span></div>
           </section>
 
           <section id="anatomicalLayersPanel" class="control-section">
             <div class="section-kicker">Anatomical Layers</div>
-            <div class="layer-grid" role="group" aria-label="Anatomical layers">
-              <button type="button" class="layer-button" data-layer="volume" disabled aria-pressed="false">Full Volume</button>
-              <button type="button" class="layer-button is-active" data-layer="skull" aria-pressed="true">Skull</button>
-              <button type="button" class="layer-button" data-layer="brain" disabled aria-pressed="false">Brain</button>
-              <button type="button" class="layer-button" data-layer="combined" disabled aria-pressed="false">Skull + Brain</button>
-            </div>
-
-            <div class="future-layer-grid" aria-label="Future anatomical layers">
-              <button type="button" disabled data-future-layer="skin">Skin <span>⌁</span></button>
-              <button type="button" disabled data-future-layer="sinuses">Sinuses <span>⌁</span></button>
-              <button type="button" disabled data-future-layer="vessels">Vessels <span>⌁</span></button>
+            <div class="layer-grid volume-only-layer-grid" role="group" aria-label="Anatomical layers">
+              <button id="volumeLayerButton" type="button" class="layer-button is-active" data-layer="volume" disabled aria-pressed="true">Full Volume</button>
             </div>
             <p id="anatomyNote" class="anatomy-note">
-              Direct patient volume rendering is the next active 3D workflow. Skull and brain reconstruction are deferred.
+              Upload a CT or MRI DICOM study to visualize its voxel volume in 3D.
             </p>
           </section>
 
@@ -414,7 +400,7 @@
               max="100"
               step="1"
               value="100"
-              aria-label="Anatomy opacity"
+              aria-label="Patient volume opacity"
             >
             <div class="range-labels"><span>0%</span><span>100%</span></div>
           </section>
@@ -441,6 +427,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/js/app.js?v=phase3d-r21-phase4c2"></script>
+  <script type="module" src="/js/app.js?v=phase3d-r21-phase4d1"></script>
 </body>
 </html>
