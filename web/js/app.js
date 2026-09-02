@@ -6,6 +6,7 @@ import {
   qualifyVolumeRenderingCapabilities,
   validateVolumeRenderingDescriptor,
 } from "./volume-rendering-capabilities.js";
+import { PatientVolumeTextureManager } from "./volume-texture-manager.js?v=phase4c1-r1";
 
 const SKULL_URL = "/assets/models/skull_full.glb";
 const THEME_KEY = "voxelatlas-theme";
@@ -140,7 +141,7 @@ const state = {
 };
 
 let volumeBuildPromise = null;
-let volumeRenderingPromise = null;
+let volumeRenderingTask = null;
 let mprDescriptorPromise = null;
 let mprRenderGeneration = 0;
 let mprRenderTimer = null;
@@ -167,7 +168,12 @@ const volumeRenderingCapabilities = qualifyVolumeRenderingCapabilities(renderer)
 state.volumeRendering = {
   capabilities: volumeRenderingCapabilities,
   descriptor: null,
+  textureResource: null,
 };
+const volumeTextureManager = new PatientVolumeTextureManager({
+  three: THREE,
+  initializeTexture: (texture) => renderer.initTexture(texture),
+});
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
@@ -664,7 +670,10 @@ function setWorkflowForStudy(study) {
 
 function setMprVolumeState(study) {
   const ready = Boolean(study?.volume_ready);
+  volumeTextureManager.dispose();
+  volumeRenderingTask = null;
   state.volumeRendering.descriptor = null;
+  state.volumeRendering.textureResource = null;
   for (const panel of mprPanels) {
     panel.dataset.volumeState = ready ? "loading" : "empty";
   }
@@ -683,8 +692,8 @@ function setMprVolumeState(study) {
 
 async function ensureVolumeRenderingFoundation() {
   if (!state.study?.volume_ready) return null;
-  if (state.volumeRendering.descriptor) return state.volumeRendering.descriptor;
-  if (volumeRenderingPromise) return volumeRenderingPromise;
+  if (state.volumeRendering.textureResource) return state.volumeRendering.descriptor;
+  if (volumeRenderingTask) return volumeRenderingTask.promise;
 
   const deviceQualification = qualifyCanonicalVolumeForDevice(
     state.study.volume,
@@ -695,7 +704,8 @@ async function ensureVolumeRenderingFoundation() {
     return null;
   }
 
-  volumeRenderingPromise = (async () => {
+  const task = { promise: null };
+  task.promise = (async () => {
     anatomyNote.textContent = "Preparing patient volume for GPU rendering...";
     const response = await fetch("/api/studies/latest/volume-rendering", {
       method: "POST",
@@ -708,26 +718,38 @@ async function ensureVolumeRenderingFoundation() {
         payload.detail || `3D volume preparation failed (${response.status})`,
       );
     }
+    if (volumeRenderingTask !== task) {
+      throw new DOMException("Patient volume texture load was superseded", "AbortError");
+    }
     const descriptor = payload.volume_rendering;
     const qualification = validateVolumeRenderingDescriptor(
       descriptor,
       state.volumeRendering.capabilities,
     );
     if (!qualification.ready) throw new Error(qualification.reason);
+    anatomyNote.textContent = "Downloading and verifying the patient volume texture...";
+    const textureResource = await volumeTextureManager.load(descriptor);
+    if (volumeRenderingTask !== task) {
+      throw new DOMException("Patient volume texture load was superseded", "AbortError");
+    }
     state.volumeRendering.descriptor = descriptor;
-    anatomyNote.textContent = "Patient volume is GPU-ready. Interactive Full Volume rendering activates next.";
+    state.volumeRendering.textureResource = textureResource;
+    anatomyNote.textContent = "Patient volume texture verified and GPU-initialized. Interactive Full Volume rendering activates next.";
     return descriptor;
   })();
+  volumeRenderingTask = task;
 
   try {
-    return await volumeRenderingPromise;
+    return await task.promise;
   } catch (error) {
-    anatomyNote.textContent = error instanceof Error
-      ? `${error.message}. Synchronized MPR remains available.`
-      : "3D volume preparation failed. Synchronized MPR remains available.";
+    if (volumeRenderingTask === task) {
+      anatomyNote.textContent = error instanceof Error
+        ? `${error.message}. Synchronized MPR remains available.`
+        : "3D volume preparation failed. Synchronized MPR remains available.";
+    }
     return null;
   } finally {
-    volumeRenderingPromise = null;
+    if (volumeRenderingTask === task) volumeRenderingTask = null;
   }
 }
 
@@ -1444,6 +1466,8 @@ document.addEventListener("fullscreenchange", () => {
 
 logoutButton.addEventListener("click", async () => {
   logoutButton.disabled = true;
+  volumeTextureManager.dispose();
+  state.volumeRendering.textureResource = null;
   try {
     await fetch("/api/auth/logout", {
       method: "POST",
@@ -1488,6 +1512,10 @@ void refreshLatestStudy();
 
 const timer = new THREE.Timer();
 timer.connect(document);
+window.addEventListener("pagehide", () => {
+  volumeTextureManager.dispose();
+  timer.dispose();
+}, { once: true });
 function animate(timestamp) {
   timer.update(timestamp);
   const dt = Math.min(timer.getDelta(), 0.05);

@@ -6,7 +6,7 @@ VoxelAtlas is currently an engineering/research application. It is not a certifi
 
 ## Current status
 
-The accepted foundation includes FastAPI authentication with Argon2id password verification, opaque server-side sessions, the responsive VoxelAtlas login UI, a deployed production service, the Phase 2B final V1 workspace shell, the Phase 3A DICOM study-ingestion foundation, the Phase 3A-R2 clinical viewer polish, Phase 3B DICOM geometry/reconstruction-readiness qualification, Phase 3C canonical patient-volume construction, and Phase 3D-R2.1 real synchronized MPR integration with final professional presentation, image-registered crosshairs, and harmonized clinical action/selection states. Phase 4A defines a reusable patient-specific reconstruction boundary. Phase 4B adds the immutable source-to-GPU volume contract, bounded derived RG8 representation, revision-bound authenticated binary transport, and browser WebGL2/3D-texture qualification. The actual GPU ray marcher follows in Phase 4C.
+The accepted foundation includes FastAPI authentication with Argon2id password verification, opaque server-side sessions, the responsive VoxelAtlas login UI, a deployed production service, the Phase 2B final V1 workspace shell, the Phase 3A DICOM study-ingestion foundation, the Phase 3A-R2 clinical viewer polish, Phase 3B DICOM geometry/reconstruction-readiness qualification, Phase 3C canonical patient-volume construction, and Phase 3D-R2.1 real synchronized MPR integration with final professional presentation, image-registered crosshairs, and harmonized clinical action/selection states. Phase 4A defines a reusable patient-specific reconstruction boundary. Phase 4B adds the immutable source-to-GPU volume contract and bounded derived RG8 representation. Phase 4C1 downloads that authenticated binary, verifies its complete transport identity and SHA256 in the browser, and initializes one lifecycle-managed Three.js 3D texture. The actual ray marcher follows in Phase 4C2.
 
 ## Locked V1 workspace
 
@@ -60,7 +60,7 @@ Phase 3A adds `pydicom` for DICOM parsing. Phase 3C promotes `numpy` into the ba
 Run the current compact regression from the repository root:
 
 ```bash
-bash scripts/run_phase4b_checks.sh
+bash scripts/run_phase4c1_checks.sh
 ```
 
 ## Locked V1 roadmap
@@ -102,3 +102,7 @@ Phase 4A introduces the reconstruction service boundary without generating anato
 ### Phase 4B - Direct patient volume rendering foundation
 
 Phase 4B makes the actual canonical CT/MRI voxels the primary V1 3D source. It preserves the full-resolution `float32` medical volume, produces a bounded two-byte-per-voxel RG8 presentation derivative, retains CT HU and MR modality semantics through an explicit decode mapping, and carries the patient-LPS affine into a full voxel-cell texture transform. The artifact is integrity checked, revision bound, authenticated and served with `no-store`. Browser capability is qualified before preparation, while `Full Volume` remains disabled until the Phase 4C ray marcher is real.
+
+### Phase 4C1 - Verified browser volume texture transport
+
+Phase 4C1 downloads the authenticated RG8 artifact only after source and browser qualification. The browser verifies response media type, revision, SHA256 header, `nosniff`, `no-store`, content length, received byte length and a locally computed SHA256 before creating the Three.js `Data3DTexture`. The texture is explicitly initialized on the GPU and is aborted and disposed when superseded, replaced, logged out or unloaded. `Full Volume` remains disabled until Phase 4C2 supplies the real ray marcher.

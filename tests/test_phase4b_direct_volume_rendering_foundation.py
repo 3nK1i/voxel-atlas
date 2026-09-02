@@ -385,7 +385,7 @@ class Phase4BDirectVolumeRenderingFrontendContractTests(unittest.TestCase):
         self.assertIn("timer.connect(document);", app_js)
         self.assertIn("timer.update(timestamp);", app_js)
         self.assertNotIn("new THREE.Clock()", app_js)
-        self.assertIn('/js/app.js?v=phase3d-r21-phase4b-r1', html)
+        self.assertIn('/js/app.js?v=phase3d-r21-phase4', html)
 
 
 if __name__ == "__main__":
