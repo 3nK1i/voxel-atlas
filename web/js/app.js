@@ -1,6 +1,11 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import {
+  qualifyCanonicalVolumeForDevice,
+  qualifyVolumeRenderingCapabilities,
+  validateVolumeRenderingDescriptor,
+} from "./volume-rendering-capabilities.js";
 
 const SKULL_URL = "/assets/models/skull_full.glb";
 const THEME_KEY = "voxelatlas-theme";
@@ -135,6 +140,7 @@ const state = {
 };
 
 let volumeBuildPromise = null;
+let volumeRenderingPromise = null;
 let mprDescriptorPromise = null;
 let mprRenderGeneration = 0;
 let mprRenderTimer = null;
@@ -157,6 +163,11 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.86;
 renderer.localClippingEnabled = true;
 viewport.appendChild(renderer.domElement);
+const volumeRenderingCapabilities = qualifyVolumeRenderingCapabilities(renderer);
+state.volumeRendering = {
+  capabilities: volumeRenderingCapabilities,
+  descriptor: null,
+};
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
@@ -260,7 +271,7 @@ function setLayerAvailability(name, available) {
   }
 
   if (!brainReady && !volumeReady) {
-    anatomyNote.textContent = "Patient volume and brain layers activate when the reconstruction pipeline provides them.";
+    anatomyNote.textContent = "Direct patient volume rendering is the next active 3D workflow. Skull and brain reconstruction are deferred.";
   }
 }
 
@@ -653,6 +664,7 @@ function setWorkflowForStudy(study) {
 
 function setMprVolumeState(study) {
   const ready = Boolean(study?.volume_ready);
+  state.volumeRendering.descriptor = null;
   for (const panel of mprPanels) {
     panel.dataset.volumeState = ready ? "loading" : "empty";
   }
@@ -666,6 +678,56 @@ function setMprVolumeState(study) {
       entry.position.textContent = `${entry.panel.id === "mprAxial" ? "Z" : entry.panel.id === "mprCoronal" ? "Y" : "X"}: --`;
       entry.wl.textContent = "W: --   L: --";
     }
+  }
+}
+
+async function ensureVolumeRenderingFoundation() {
+  if (!state.study?.volume_ready) return null;
+  if (state.volumeRendering.descriptor) return state.volumeRendering.descriptor;
+  if (volumeRenderingPromise) return volumeRenderingPromise;
+
+  const deviceQualification = qualifyCanonicalVolumeForDevice(
+    state.study.volume,
+    state.volumeRendering.capabilities,
+  );
+  if (!deviceQualification.ready) {
+    anatomyNote.textContent = `${deviceQualification.reason}. Synchronized MPR remains available.`;
+    return null;
+  }
+
+  volumeRenderingPromise = (async () => {
+    anatomyNote.textContent = "Preparing patient volume for GPU rendering...";
+    const response = await fetch("/api/studies/latest/volume-rendering", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Accept": "application/json" },
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(
+        payload.detail || `3D volume preparation failed (${response.status})`,
+      );
+    }
+    const descriptor = payload.volume_rendering;
+    const qualification = validateVolumeRenderingDescriptor(
+      descriptor,
+      state.volumeRendering.capabilities,
+    );
+    if (!qualification.ready) throw new Error(qualification.reason);
+    state.volumeRendering.descriptor = descriptor;
+    anatomyNote.textContent = "Patient volume is GPU-ready. Interactive Full Volume rendering activates next.";
+    return descriptor;
+  })();
+
+  try {
+    return await volumeRenderingPromise;
+  } catch (error) {
+    anatomyNote.textContent = error instanceof Error
+      ? `${error.message}. Synchronized MPR remains available.`
+      : "3D volume preparation failed. Synchronized MPR remains available.";
+    return null;
+  } finally {
+    volumeRenderingPromise = null;
   }
 }
 
@@ -1063,6 +1125,10 @@ function setUploadStatus(kind, message) {
   uploadStatus.textContent = message;
 }
 
+function setPatientVolumeReadyStatus() {
+  setUploadStatus("ready", "Patient volume and synchronized MPR ready.");
+}
+
 function renderSeriesDialog(study) {
   seriesDialogList.replaceChildren();
   if (!study || !Array.isArray(study.series) || study.series.length === 0) {
@@ -1119,7 +1185,7 @@ function applyStudy(study) {
     seriesButton.disabled = true;
     seriesButtonLabel.textContent = "DICOM series unavailable";
     uploadDicomLabel.textContent = "Upload DICOM";
-    anatomyNote.textContent = "Patient volume and brain layers activate when the reconstruction pipeline provides them.";
+    anatomyNote.textContent = "Upload CT or MRI data to build the canonical patient volume for direct 3D rendering.";
     updateLayerUI();
     return;
   }
@@ -1147,8 +1213,8 @@ function applyStudy(study) {
   seriesButtonLabel.textContent = `${study.series_count} DICOM series discovered`;
   uploadDicomLabel.textContent = "Replace DICOM Study";
   anatomyNote.textContent = study.volume_ready
-    ? "Patient volume and synchronized MPR are available. 3D patient anatomy reconstruction continues next."
-    : "Patient volume and brain layers activate when the reconstruction pipeline provides them.";
+    ? "Patient volume and synchronized MPR are available. Preparing direct 3D volume rendering."
+    : "Canonical patient volume construction is required before direct 3D rendering.";
   renderSeriesDialog(study);
   updateLayerUI();
 }
@@ -1177,6 +1243,8 @@ async function ensureCanonicalVolume(study) {
       "Canonical patient volume built. Loading synchronized MPR views...",
     );
     await ensureMprReady();
+    setPatientVolumeReadyStatus();
+    await ensureVolumeRenderingFoundation();
     return payload.study || null;
   })();
 
@@ -1208,6 +1276,8 @@ async function refreshLatestStudy() {
       if (payload.study.volume_ready) {
         setUploadStatus("ready", "Stored canonical patient volume restored. Loading MPR views...");
         await ensureMprReady();
+        setPatientVolumeReadyStatus();
+        await ensureVolumeRenderingFoundation();
       } else if (payload.study.reconstruction_ready) {
         setUploadStatus("uploading", "Stored DICOM geometry restored. Building patient volume...");
         await ensureCanonicalVolume(payload.study);
@@ -1416,10 +1486,11 @@ loadSkull();
 void refreshAccountName();
 void refreshLatestStudy();
 
-const clock = new THREE.Clock();
-function animate() {
-  requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), 0.05);
+const timer = new THREE.Timer();
+timer.connect(document);
+function animate(timestamp) {
+  timer.update(timestamp);
+  const dt = Math.min(timer.getDelta(), 0.05);
 
   if (state.autoRotate) {
     anatomyGroup.rotation.y += dt * 0.32;
@@ -1428,5 +1499,6 @@ function animate() {
   controls.update();
   updateOrientationGizmo();
   renderer.render(scene, camera);
+  requestAnimationFrame(animate);
 }
-animate();
+requestAnimationFrame(animate);

@@ -38,6 +38,13 @@ from .dicom_volume import (
     DicomVolumeValidationError,
 )
 from .passwords import verify_password
+from .volume_rendering import (
+    RENDERING_MEDIA_TYPE,
+    VolumeRenderingDependencyUnavailable,
+    VolumeRenderingError,
+    VolumeRenderingService,
+    VolumeRenderingValidationError,
+)
 
 
 COOKIE_SAMESITE = "lax"
@@ -80,6 +87,7 @@ def create_app(
     volume_service: CanonicalVolumeService | None = None,
     mpr_service: CanonicalMprService | None = None,
     anatomy_service: AnatomyReconstructionService | None = None,
+    volume_rendering_service: VolumeRenderingService | None = None,
 ) -> FastAPI:
     runtime_settings = load_settings() if settings is None else settings
     if (
@@ -116,6 +124,11 @@ def create_app(
         if anatomy_service is not None
         else AnatomyReconstructionService(data_dir=runtime_settings.data_dir)
     )
+    patient_volume_rendering_service = (
+        volume_rendering_service
+        if volume_rendering_service is not None
+        else VolumeRenderingService(data_dir=runtime_settings.data_dir)
+    )
 
     app = FastAPI(title="VoxelAtlas", docs_url=None, redoc_url=None)
     app.add_middleware(
@@ -128,6 +141,7 @@ def create_app(
     app.state.volume_service = patient_volume_service
     app.state.mpr_service = patient_mpr_service
     app.state.anatomy_service = patient_anatomy_service
+    app.state.volume_rendering_service = patient_volume_rendering_service
 
     app.mount("/assets", StaticFiles(directory=WEB_ROOT / "assets"), name="assets")
     app.mount("/css", StaticFiles(directory=WEB_ROOT / "css"), name="css")
@@ -392,6 +406,108 @@ def create_app(
             ) from exc
         response.headers["Cache-Control"] = "no-store"
         return {"reconstruction": reconstruction}
+
+    @app.get("/api/studies/latest/volume-rendering")
+    def latest_volume_rendering_descriptor(
+        response: Response,
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        current_service: VolumeRenderingService = app.state.volume_rendering_service
+        try:
+            descriptor = current_service.inspect_latest()
+        except VolumeRenderingDependencyUnavailable as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=str(exc),
+                headers={"Cache-Control": "no-store"},
+            ) from exc
+        except VolumeRenderingValidationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=str(exc),
+                headers={"Cache-Control": "no-store"},
+            ) from exc
+        except VolumeRenderingError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+                headers={"Cache-Control": "no-store"},
+            ) from exc
+        response.headers["Cache-Control"] = "no-store"
+        return {"volume_rendering": descriptor}
+
+    @app.post("/api/studies/latest/volume-rendering")
+    def prepare_latest_volume_rendering(
+        response: Response,
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        current_service: VolumeRenderingService = app.state.volume_rendering_service
+        try:
+            descriptor = current_service.prepare_latest()
+        except VolumeRenderingDependencyUnavailable as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=str(exc),
+                headers={"Cache-Control": "no-store"},
+            ) from exc
+        except VolumeRenderingValidationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(exc),
+                headers={"Cache-Control": "no-store"},
+            ) from exc
+        except VolumeRenderingError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+                headers={"Cache-Control": "no-store"},
+            ) from exc
+        response.headers["Cache-Control"] = "no-store"
+        return {"volume_rendering": descriptor}
+
+    @app.get("/api/studies/latest/volume-rendering/data")
+    def latest_volume_rendering_data(
+        revision: str = Query(
+            min_length=64,
+            max_length=64,
+            pattern=r"^[0-9a-fA-F]{64}$",
+        ),
+        username: str = Depends(require_username),
+    ) -> FileResponse:
+        del username
+        current_service: VolumeRenderingService = app.state.volume_rendering_service
+        try:
+            artifact_path, descriptor = current_service.artifact_latest(revision)
+        except VolumeRenderingDependencyUnavailable as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=str(exc),
+                headers={"Cache-Control": "no-store"},
+            ) from exc
+        except VolumeRenderingValidationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=str(exc),
+                headers={"Cache-Control": "no-store"},
+            ) from exc
+        except VolumeRenderingError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+                headers={"Cache-Control": "no-store"},
+            ) from exc
+        return FileResponse(
+            artifact_path,
+            media_type=RENDERING_MEDIA_TYPE,
+            headers={
+                "Cache-Control": "no-store",
+                "X-Content-Type-Options": "nosniff",
+                "X-VoxelAtlas-Volume-Revision": descriptor.revision,
+                "X-VoxelAtlas-Volume-SHA256": descriptor.artifact_sha256,
+            },
+        )
 
     @app.get("/api/protected/ping")
     def protected_ping(username: str = Depends(require_username)) -> dict[str, object]:

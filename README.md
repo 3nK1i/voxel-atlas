@@ -1,12 +1,12 @@
 # VoxelAtlas
 
-VoxelAtlas is a web-based medical imaging workspace under active development. V1 is centered on one end-to-end product flow: **DICOM data -> reconstruction -> interactive patient-specific 3D visualization**.
+VoxelAtlas is a web-based medical imaging workspace under active development. V1 is centered on one end-to-end product flow: **DICOM data -> canonical patient volume -> interactive patient-specific 3D voxel visualization**.
 
 VoxelAtlas is currently an engineering/research application. It is not a certified diagnostic or medical-device product.
 
 ## Current status
 
-The accepted foundation includes FastAPI authentication with Argon2id password verification, opaque server-side sessions, the responsive VoxelAtlas login UI, a deployed production service, the Phase 2B final V1 workspace shell, the Phase 3A DICOM study-ingestion foundation, the Phase 3A-R2 clinical viewer polish, Phase 3B DICOM geometry/reconstruction-readiness qualification, Phase 3C canonical patient-volume construction, and Phase 3D-R2.1 real synchronized MPR integration with final professional presentation, image-registered crosshairs, and harmonized clinical action/selection states. Phase 4A now defines the patient-specific anatomical reconstruction boundary, canonical patient-LPS mesh contract, provenance, stale-artifact protection, and authenticated reconstruction-status API. It does not yet claim a reconstructed patient skull or brain.
+The accepted foundation includes FastAPI authentication with Argon2id password verification, opaque server-side sessions, the responsive VoxelAtlas login UI, a deployed production service, the Phase 2B final V1 workspace shell, the Phase 3A DICOM study-ingestion foundation, the Phase 3A-R2 clinical viewer polish, Phase 3B DICOM geometry/reconstruction-readiness qualification, Phase 3C canonical patient-volume construction, and Phase 3D-R2.1 real synchronized MPR integration with final professional presentation, image-registered crosshairs, and harmonized clinical action/selection states. Phase 4A defines a reusable patient-specific reconstruction boundary. Phase 4B adds the immutable source-to-GPU volume contract, bounded derived RG8 representation, revision-bound authenticated binary transport, and browser WebGL2/3D-texture qualification. The actual GPU ray marcher follows in Phase 4C.
 
 ## Locked V1 workspace
 
@@ -39,7 +39,7 @@ Both original prototype lines are intentionally retired from the current tree. T
 
 Runtime web assets live under `web/assets/`. The qualified demo skull is `web/assets/models/skull_full.glb`.
 
-Patient Full Volume, Brain, and Skull + Brain are later reconstruction outputs, not static placeholder models. See `web/assets/models/README.md`.
+Patient Full Volume is the highest-priority V1 visualization and must come from the uploaded CT/MRI voxel data. Brain, Skull, and Skull + Brain are deferred patient-derived outputs, not static placeholder models. See `web/assets/models/README.md`.
 
 The product logo is served from `web/assets/logo.png`. Authoritative design references are stored under `design/reference/`.
 
@@ -60,7 +60,7 @@ Phase 3A adds `pydicom` for DICOM parsing. Phase 3C promotes `numpy` into the ba
 Run the current compact regression from the repository root:
 
 ```bash
-bash scripts/run_phase4a_checks.sh
+bash scripts/run_phase4b_checks.sh
 ```
 
 ## Locked V1 roadmap
@@ -68,10 +68,11 @@ bash scripts/run_phase4a_checks.sh
 1. foundation, login, authentication, and deployment
 2. final V1 workspace target alignment
 3. DICOM upload, study ingestion, geometry qualification, canonical patient volume, and real MPR - complete through Phase 3D
-4. patient-specific anatomical reconstruction foundation and qualified Skull / Brain reconstruction
-5. end-to-end patient-specific Full Volume / Skull / Brain / Skull + Brain visualization
-6. UX, performance, and robustness
-7. production security and V1 qualification
+4. direct patient-volume rendering foundation and authenticated GPU transport
+5. true GPU ray marching of the actual uploaded CT/MRI voxel volume
+6. medical transfer functions, clipping, synchronization and adaptive performance
+7. deferred patient Skull / Brain reconstruction and multi-layer visualization
+8. production security and V1 qualification
 
 Post-V1 work includes atlas-region interaction, AR/XR, advanced planning workflows, PACS/DICOMweb, and additional anatomical atlases.
 
@@ -97,3 +98,7 @@ MPR crosshairs are registered in pixels to the exact contained patient-image rec
 ### Phase 4A - Anatomical reconstruction foundation
 
 Phase 4A introduces the reconstruction service boundary without generating anatomy yet. Future providers consume only the qualified canonical patient volume and must publish triangle meshes directly in DICOM patient LPS millimetres. CT HU is qualified as the first skull source, while MR is the first V1-qualified brain source. Published anatomy is tied to the exact source-volume descriptor and becomes stale automatically if that source changes. Private mesh paths and provider parameters are not exposed by the reconstruction-status API.
+
+### Phase 4B - Direct patient volume rendering foundation
+
+Phase 4B makes the actual canonical CT/MRI voxels the primary V1 3D source. It preserves the full-resolution `float32` medical volume, produces a bounded two-byte-per-voxel RG8 presentation derivative, retains CT HU and MR modality semantics through an explicit decode mapping, and carries the patient-LPS affine into a full voxel-cell texture transform. The artifact is integrity checked, revision bound, authenticated and served with `no-store`. Browser capability is qualified before preparation, while `Full Volume` remains disabled until the Phase 4C ray marcher is real.

@@ -2,7 +2,7 @@
 
 `skull_full.glb` is the currently qualified demo skull used by the Phase 2B workspace while the patient-data reconstruction pipeline is being built.
 
-The final V1 anatomy layers do **not** rely on manually copied static brain or volume files. Later reconstruction phases will register patient-derived layers in one shared coordinate system and make them available to the viewer as real runtime outputs.
+Patient Full Volume is not a static model. It is the highest-priority V1 visualization and must be rendered directly from the uploaded patient-specific CT/MRI voxel data. Brain, Skull, and Skull + Brain are deferred patient-derived outputs.
 
 The locked V1 layer architecture is:
 
@@ -11,4 +11,4 @@ The locked V1 layer architecture is:
 - Brain
 - Skull + Brain
 
-Only Skull is available in the current demo shell. Full Volume, Brain, and Skull + Brain remain disabled until the DICOM and reconstruction pipeline provides qualified patient-specific data. The browser must never fabricate missing anatomy.
+Only the clearly labeled demo Skull is visible in the current shell. Phase 4B prepares a qualified patient-volume texture artifact, but Full Volume remains disabled until the Phase 4C ray marcher renders it. Brain and Skull + Brain also remain disabled. The browser must never fabricate missing anatomy.
