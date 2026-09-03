@@ -13,6 +13,7 @@ import {
 import {
   AdaptiveVolumeRenderingQuality,
 } from "./volume-rendering-quality.js?v=phase4f";
+import { SampleStudyCatalogClient } from "./sample-study-catalog.js?v=phase4g-r1";
 
 const THEME_KEY = "voxelatlas-theme";
 const DEFAULT_OPACITY = 1.0;
@@ -71,8 +72,21 @@ const uploadDicomButton = document.getElementById("uploadDicomButton");
 const uploadDicomLabel = document.getElementById("uploadDicomLabel");
 const dicomFileInput = document.getElementById("dicomFileInput");
 const uploadStatus = document.getElementById("uploadStatus");
+const sampleCatalogButton = document.getElementById("sampleCatalogButton");
+const sampleCatalogDialog = document.getElementById("sampleCatalogDialog");
+const sampleCatalogClose = document.getElementById("sampleCatalogClose");
+const sampleCatalogGrid = document.getElementById("sampleCatalogGrid");
+const sampleCatalogEmpty = document.getElementById("sampleCatalogEmpty");
+const sampleCatalogProgress = document.getElementById("sampleCatalogProgress");
+const sampleCatalogProgressTitle = document.getElementById("sampleCatalogProgressTitle");
+const sampleCatalogProgressText = document.getElementById("sampleCatalogProgressText");
+const sampleReplaceConfirm = document.getElementById("sampleReplaceConfirm");
+const sampleReplaceText = document.getElementById("sampleReplaceText");
+const sampleReplaceCancel = document.getElementById("sampleReplaceCancel");
+const sampleReplaceAccept = document.getElementById("sampleReplaceAccept");
 const studyCard = document.querySelector(".study-card");
 const studyLabel = document.getElementById("studyLabel");
+const studyOriginBadge = document.getElementById("studyOriginBadge");
 const studyId = document.getElementById("studyId");
 const studyModality = document.getElementById("studyModality");
 const studyDate = document.getElementById("studyDate");
@@ -207,6 +221,9 @@ const volumeTextureManager = new PatientVolumeTextureManager({
   initializeTexture: (texture) => renderer.initTexture(texture),
 });
 const volumeRayMarcher = new PatientVolumeRayMarcher({ three: THREE });
+const sampleStudyCatalogClient = new SampleStudyCatalogClient();
+let sampleReplacementResolver = null;
+let sampleCatalogLoading = false;
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
@@ -1292,6 +1309,169 @@ function setPatientVolumeReadyStatus() {
   setUploadStatus("ready", "Patient volume and synchronized MPR ready.");
 }
 
+function formatSampleSize(sizeBytes) {
+  const bytes = Number(sizeBytes);
+  if (!Number.isFinite(bytes) || bytes < 0) return "Size unavailable";
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0)} MB`;
+}
+
+function sampleLink(label, url) {
+  const link = document.createElement("a");
+  link.href = url;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  link.textContent = label;
+  return link;
+}
+
+function renderSampleCatalog(samples) {
+  sampleCatalogGrid.replaceChildren();
+  sampleCatalogEmpty.hidden = samples.length !== 0;
+  if (samples.length === 0) return;
+
+  for (const sample of samples) {
+    const card = document.createElement("article");
+    card.className = "sample-study-card";
+    card.dataset.sampleId = sample.sampleId;
+
+    const preview = document.createElement("div");
+    preview.className = "sample-study-preview";
+    if (sample.previewAvailable && sample.previewUrl) {
+      const image = document.createElement("img");
+      image.src = sample.previewUrl;
+      image.alt = `${sample.title} preview`;
+      image.loading = "lazy";
+      image.referrerPolicy = "same-origin";
+      preview.appendChild(image);
+    } else {
+      const monogram = document.createElement("span");
+      monogram.textContent = sample.modality;
+      preview.appendChild(monogram);
+    }
+
+    const copy = document.createElement("div");
+    copy.className = "sample-study-card-copy";
+    const tags = document.createElement("div");
+    tags.className = "sample-study-tags";
+    for (const [text, muted] of [[sample.modality, false], [sample.bodyRegion, true]]) {
+      const tag = document.createElement("span");
+      tag.className = `sample-study-tag${muted ? " is-muted" : ""}`;
+      tag.textContent = text;
+      tags.appendChild(tag);
+    }
+    const title = document.createElement("h3");
+    title.textContent = sample.title;
+    const summary = document.createElement("p");
+    summary.className = "sample-study-summary";
+    summary.textContent = sample.summary;
+    const metadata = document.createElement("p");
+    metadata.className = "sample-study-meta";
+    metadata.textContent = `${sample.fileCount} files · ${formatSampleSize(sample.sizeBytes)}`;
+    const links = document.createElement("div");
+    links.className = "sample-study-links";
+    links.append(
+      sampleLink(sample.sourceLabel, sample.sourceUrl),
+      sampleLink(sample.licenseLabel, sample.licenseUrl),
+    );
+    const open = document.createElement("button");
+    open.className = "sample-study-open";
+    open.type = "button";
+    open.textContent = "Open in VoxelAtlas";
+    open.addEventListener("click", () => void requestSampleLoad(sample));
+    copy.append(tags, title, summary, metadata, links, open);
+    card.append(preview, copy);
+    sampleCatalogGrid.appendChild(card);
+  }
+}
+
+function setSampleCatalogProgress(visible, title = "Preparing study", message = "") {
+  sampleCatalogLoading = visible;
+  sampleCatalogProgress.hidden = !visible;
+  sampleCatalogClose.disabled = visible;
+  sampleCatalogProgressTitle.textContent = title;
+  sampleCatalogProgressText.textContent = message;
+}
+
+async function openSampleCatalog() {
+  if (!sampleCatalogDialog.open && typeof sampleCatalogDialog.showModal === "function") {
+    sampleCatalogDialog.showModal();
+  }
+  sampleCatalogEmpty.hidden = true;
+  sampleReplaceConfirm.hidden = true;
+  setSampleCatalogProgress(
+    true,
+    "Loading demonstration studies",
+    "Reading the installed catalog and provenance records...",
+  );
+  try {
+    renderSampleCatalog(await sampleStudyCatalogClient.list());
+  } catch (error) {
+    renderSampleCatalog([]);
+    const message = sampleCatalogEmpty.querySelector("p");
+    if (message) {
+      message.textContent = error instanceof Error
+        ? error.message
+        : "Demonstration studies could not be loaded.";
+    }
+  } finally {
+    setSampleCatalogProgress(false);
+  }
+}
+
+function confirmSampleReplacement(sample) {
+  if (!state.study) return Promise.resolve(true);
+  if (sampleReplacementResolver) sampleReplacementResolver(false);
+  sampleReplaceText.textContent = (
+    `Opening ${sample.title} will replace the scan currently shown. `
+    + "The source files already stored on the server are not deleted."
+  );
+  sampleReplaceConfirm.hidden = false;
+  sampleReplaceAccept.focus();
+  return new Promise((resolve) => {
+    sampleReplacementResolver = resolve;
+  });
+}
+
+function resolveSampleReplacement(accepted) {
+  if (!sampleReplacementResolver) return;
+  const resolve = sampleReplacementResolver;
+  sampleReplacementResolver = null;
+  sampleReplaceConfirm.hidden = true;
+  resolve(accepted);
+}
+
+async function requestSampleLoad(sample) {
+  if (!await confirmSampleReplacement(sample)) return;
+  setSampleCatalogProgress(
+    true,
+    `Opening ${sample.title}`,
+    "Verifying every file before normal CT/MR ingestion...",
+  );
+  try {
+    const payload = await sampleStudyCatalogClient.load(sample.sampleId);
+    if (!payload?.study) throw new Error("The sample study response was incomplete");
+    applyStudy(payload.study);
+    sampleCatalogDialog.close();
+    setUploadStatus(
+      "uploading",
+      `${sample.title} verified. Building its canonical patient volume...`,
+    );
+    if (payload.study.reconstruction_ready) {
+      await ensureCanonicalVolume(payload.study);
+    } else {
+      setUploadStatus("warning", "Demonstration study loaded, but its geometry needs review.");
+    }
+  } catch (error) {
+    setUploadStatus(
+      "error",
+      error instanceof Error ? error.message : "Demonstration study could not be opened",
+    );
+  } finally {
+    setSampleCatalogProgress(false);
+  }
+}
+
 function renderSeriesDialog(study) {
   seriesDialogList.replaceChildren();
   if (!study || !Array.isArray(study.series) || study.series.length === 0) {
@@ -1333,6 +1513,7 @@ function applyStudy(study) {
   if (!study) {
     studyCard.dataset.studyState = "empty";
     studyLabel.textContent = "No DICOM study loaded";
+    studyOriginBadge.hidden = true;
     studyId.textContent = "-";
     studyModality.textContent = "-";
     studyDate.textContent = "-";
@@ -1356,6 +1537,9 @@ function applyStudy(study) {
   const modalities = Array.isArray(study.modalities) ? study.modalities.join(" / ") : "-";
   studyCard.dataset.studyState = "ready";
   studyLabel.textContent = study.study_description || "DICOM study";
+  const isSampleStudy = study.origin?.kind === "sample";
+  studyOriginBadge.hidden = !isSampleStudy;
+  studyOriginBadge.textContent = isSampleStudy ? "Sample study" : "";
   studyId.textContent = String(study.study_id || "-").slice(0, 12).toUpperCase();
   studyModality.textContent = modalities || "-";
   studyDate.textContent = formatStudyDate(study.study_date);
@@ -1500,6 +1684,22 @@ async function uploadDicomFiles(files) {
 }
 
 uploadDicomButton.addEventListener("click", () => dicomFileInput.click());
+sampleCatalogButton.addEventListener("click", () => void openSampleCatalog());
+sampleCatalogClose.addEventListener("click", () => {
+  if (!sampleCatalogLoading) sampleCatalogDialog.close();
+});
+sampleCatalogDialog.addEventListener("cancel", (event) => {
+  if (sampleCatalogLoading) event.preventDefault();
+  resolveSampleReplacement(false);
+});
+sampleCatalogDialog.addEventListener("click", (event) => {
+  if (event.target === sampleCatalogDialog && !sampleCatalogLoading) {
+    resolveSampleReplacement(false);
+    sampleCatalogDialog.close();
+  }
+});
+sampleReplaceCancel.addEventListener("click", () => resolveSampleReplacement(false));
+sampleReplaceAccept.addEventListener("click", () => resolveSampleReplacement(true));
 
 dicomFileInput.addEventListener("change", () => {
   void uploadDicomFiles(Array.from(dicomFileInput.files || []));

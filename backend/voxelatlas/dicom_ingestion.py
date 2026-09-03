@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from hashlib import sha256
 import json
 from pathlib import Path
+import re
 import shutil
 from typing import BinaryIO, Callable, Iterable, Protocol
 from uuid import uuid4
@@ -454,6 +455,24 @@ def _manifest_to_public(payload: dict[str, object]) -> dict[str, object]:
     )
     reconstruction_uid = _clean_text(payload.get("reconstruction_series_uid")) or derived_reconstruction_uid
     public_volume = _volume_from_manifest(payload)
+    public_origin = None
+    raw_origin = payload.get("origin")
+    origin_keys = (
+        "kind",
+        "sample_id",
+        "title",
+        "source_label",
+        "source_url",
+        "license_label",
+        "license_url",
+    )
+    if isinstance(raw_origin, dict) and raw_origin.get("kind") == "sample":
+        candidate_origin = {
+            key: _clean_text(raw_origin.get(key))
+            for key in origin_keys
+        }
+        if all(candidate_origin.values()):
+            public_origin = candidate_origin
     return {
         key: payload.get(key)
         for key in (
@@ -474,6 +493,7 @@ def _manifest_to_public(payload: dict[str, object]) -> dict[str, object]:
         "reconstruction_series_uid": reconstruction_uid,
         "volume_ready": public_volume is not None,
         "volume": public_volume,
+        "origin": public_origin,
         "series": public_series,
     }
 
@@ -494,6 +514,48 @@ class DicomIngestionService:
 
     def latest_public_study(self) -> dict[str, object] | None:
         return self.repository.latest_manifest()
+
+    def annotate_study_origin(
+        self,
+        study_id: str,
+        origin: dict[str, object],
+    ) -> dict[str, object]:
+        if not re.fullmatch(r"[0-9a-f]{32}", study_id):
+            raise DicomStudyValidationError("Stored study identifier is invalid")
+        required = (
+            "kind",
+            "sample_id",
+            "title",
+            "source_label",
+            "source_url",
+            "license_label",
+            "license_url",
+        )
+        clean_origin = {
+            key: _clean_text(origin.get(key))
+            for key in required
+        }
+        if clean_origin["kind"] != "sample" or not all(clean_origin.values()):
+            raise DicomStudyValidationError("Sample study provenance is invalid")
+
+        manifest_path = self.repository.studies_dir / study_id / "manifest.json"
+        if manifest_path.is_symlink() or not manifest_path.is_file():
+            raise DicomStudyValidationError("Stored study manifest is unavailable")
+        try:
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise DicomStudyValidationError("Stored study manifest is unreadable") from exc
+        if not isinstance(payload, dict) or payload.get("study_id") != study_id:
+            raise DicomStudyValidationError("Stored study manifest is invalid")
+
+        payload["origin"] = clean_origin
+        manifest_tmp = manifest_path.with_name("manifest.json.tmp")
+        manifest_tmp.write_text(
+            json.dumps(payload, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+        manifest_tmp.replace(manifest_path)
+        return _manifest_to_public(payload)
 
     def ingest(self, parts: Iterable[UploadPart]) -> DicomStudyDescriptor:
         uploads = list(parts)

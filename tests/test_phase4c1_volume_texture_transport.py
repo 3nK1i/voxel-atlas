@@ -37,7 +37,7 @@ class Phase4C1VolumeTextureTransportTests(unittest.TestCase):
         manager = (ROOT / "web/js/volume-texture-manager.js").read_text(encoding="utf-8")
 
         self.assertIn('data-layer="volume" disabled', html)
-        self.assertIn('/js/app.js?v=phase3d-r21-phase4f', html)
+        self.assertIn('/js/app.js?v=phase3d-r21-phase4g', html)
         self.assertIn(
             'from "./volume-texture-manager.js?v=phase4c1-r1"',
             app_js,

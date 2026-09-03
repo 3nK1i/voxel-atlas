@@ -6,7 +6,7 @@ VoxelAtlas is currently an engineering/research application. It is not a certifi
 
 ## Current status
 
-The accepted foundation includes FastAPI authentication with Argon2id password verification, opaque server-side sessions, the responsive VoxelAtlas login UI, a deployed production service, the Phase 2B final V1 workspace shell, the Phase 3A DICOM study-ingestion foundation, the Phase 3A-R2 clinical viewer polish, Phase 3B DICOM geometry/reconstruction-readiness qualification, Phase 3C canonical patient-volume construction, and Phase 3D-R2.1 real synchronized MPR integration with final professional presentation, image-registered crosshairs, and harmonized clinical action/selection states. Phase 4A defines a reusable patient-specific reconstruction boundary. Phase 4B adds the immutable source-to-GPU volume contract and bounded derived RG8 representation. Phase 4C1 verifies and initializes the authenticated 3D texture. Phase 4C2 ray marches that texture directly so Full Volume presents the actual uploaded patient voxels with physical proportions and patient orientation preserved. Phase 4D1 removes the legacy demo-surface runtime and locks Full Volume as the only V1 3D representation. Phase 4D2 adds medical color and opacity transfer functions with calibrated CT HU presets and truthful relative-intensity MR presets. Phase 4E adds simultaneous Patient LPS clipping, and Phase 4F adapts sampling and display density between responsive interaction and higher-quality settled rendering while suppressing idle GPU draws.
+The accepted foundation includes FastAPI authentication with Argon2id password verification, opaque server-side sessions, the responsive VoxelAtlas login UI, a deployed production service, the Phase 2B final V1 workspace shell, the Phase 3A DICOM study-ingestion foundation, the Phase 3A-R2 clinical viewer polish, Phase 3B DICOM geometry/reconstruction-readiness qualification, Phase 3C canonical patient-volume construction, and Phase 3D-R2.1 real synchronized MPR integration with final professional presentation, image-registered crosshairs, and harmonized clinical action/selection states. Phase 4A defines a reusable patient-specific reconstruction boundary. Phase 4B adds the immutable source-to-GPU volume contract and bounded derived RG8 representation. Phase 4C1 verifies and initializes the authenticated 3D texture. Phase 4C2 ray marches that texture directly so Full Volume presents the actual uploaded patient voxels with physical proportions and patient orientation preserved. Phase 4D1 removes the legacy demo-surface runtime and locks Full Volume as the only V1 3D representation. Phase 4D2 adds medical color and opacity transfer functions with calibrated CT HU presets and truthful relative-intensity MR presets. Phase 4E adds simultaneous Patient LPS clipping, Phase 4F adapts rendering quality between interaction and rest, and Phase 4G adds a provenance-first catalog for administrator-installed public demonstration studies.
 
 ## Locked V1 workspace
 
@@ -27,6 +27,7 @@ The workspace is intentionally focused on medical imaging and anatomical inspect
 - reset and auto-rotate actions
 - one truthful anatomical layer: **Full Volume**
 - medical transfer presets with adjustable intensity range and density
+- one focused sample-study gallery for approved public, deidentified CT/MR demonstrations
 
 AR/XR, holographic rendering, segmentation, OBJ/STL/GLB patient-surface generation, and specialized legacy cut behavior are outside the V1 workspace. Atlas-region exploration is post-V1.
 
@@ -59,7 +60,7 @@ Phase 3A adds `pydicom` for DICOM parsing. Phase 3C promotes `numpy` into the ba
 Run the current compact regression from the repository root:
 
 ```bash
-bash scripts/run_phase4f_checks.sh
+bash scripts/run_phase4g_checks.sh
 ```
 
 ## Locked V1 roadmap
@@ -69,7 +70,7 @@ bash scripts/run_phase4f_checks.sh
 3. DICOM upload, study ingestion, geometry qualification, canonical patient volume, and real MPR - complete through Phase 3D
 4. direct patient-volume rendering foundation and authenticated GPU transport
 5. true GPU ray marching of the actual uploaded CT/MRI voxel volume - complete through Phase 4C2
-6. medical transfer functions, clipping, synchronization and adaptive performance - complete through Phase 4F
+6. medical transfer functions, clipping, synchronization, adaptive performance, and curated demonstrations - complete through Phase 4G
 7. production security and V1 qualification
 
 Post-V1 work includes atlas-region interaction, AR/XR, advanced planning workflows, PACS/DICOMweb, and additional anatomical atlases.
@@ -124,3 +125,30 @@ Phase 4E adds independent Axial, Coronal, and Sagittal clipping planes to the tr
 ### Phase 4F - Adaptive rendering quality
 
 Phase 4F selects bounded ray-sampling and display-density profiles from the qualified volume dimensions and device pixel ratio. Orbit, pan, zoom, clipping, transfer, opacity, and auto-rotation use the responsive interactive profile; the renderer restores its higher-quality settled profile 180 ms after interaction stops. Measured interaction frame pressure can reduce sampling further within a fixed lower bound, while settled output always returns to its deterministic profile. The viewer also stops issuing Three.js draw calls when nothing changes. Medical intensities, transfer functions, DICOM Patient LPS clipping, source volume integrity, and provenance remain unchanged.
+
+### Phase 4G - Curated sample study catalog
+
+Phase 4G adds a restrained, provenance-first demonstration gallery without committing medical data to Git or publishing it as a web-static asset. Administrators install approved public, deidentified CT/MR payloads into `VOXELATLAS_DATA_DIR/sample_studies` with source and license URLs plus an integrity digest. The authenticated catalog exposes only presentation metadata and same-origin preview routes. Every load re-verifies the payload before sending it through the normal DICOM ingestion, canonical-volume, MPR, and true 3D rendering pipeline. Loading a sample never creates a special renderer or substitutes fabricated anatomy.
+
+Install an approved study from the repository root:
+
+```bash
+python scripts/install_phase4g_sample_study.py \
+  --data-dir /var/lib/voxelatlas \
+  --dicom-dir /srv/approved-samples/head-ct \
+  --sample-id head-ct \
+  --title "Head CT" \
+  --summary "Deidentified public study for volume-rendering demonstration." \
+  --modality CT \
+  --body-region Head \
+  --source-label "Public imaging archive" \
+  --source-url "https://example.org/dataset" \
+  --license-label "Source terms" \
+  --license-url "https://example.org/license" \
+  --preview /srv/approved-samples/head-ct.png \
+  --order 10 \
+  --featured \
+  --confirm-public-deidentified
+```
+
+Replace the example paths, labels, and URLs with verified facts for the exact dataset being installed. The confirmation flag is an explicit operator attestation, not an automated deidentification check.

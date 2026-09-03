@@ -104,8 +104,8 @@ class Phase4D2MedicalTransferFunctionTests(unittest.TestCase):
         self.assertIn("No segmentation", documentation)
 
     def test_phase4d2_cache_and_validation_entrypoints_are_present(self) -> None:
-        self.assertIn('/css/styles.css?v=phase3d-r21-phase4f', self.html)
-        self.assertIn('/js/app.js?v=phase3d-r21-phase4f', self.html)
+        self.assertIn('/css/styles.css?v=phase3d-r21-phase4g', self.html)
+        self.assertIn('/js/app.js?v=phase3d-r21-phase4g', self.html)
         self.assertIn(
             'from "./patient-volume-ray-marcher.js?v=phase4f"',
             self.app,

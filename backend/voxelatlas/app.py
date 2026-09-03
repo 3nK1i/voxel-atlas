@@ -38,6 +38,12 @@ from .dicom_volume import (
     DicomVolumeValidationError,
 )
 from .passwords import verify_password
+from .sample_catalog import (
+    SampleStudyCatalogError,
+    SampleStudyCatalogService,
+    SampleStudyIntegrityError,
+    SampleStudyNotFoundError,
+)
 from .volume_rendering import (
     RENDERING_MEDIA_TYPE,
     VolumeRenderingDependencyUnavailable,
@@ -88,6 +94,7 @@ def create_app(
     mpr_service: CanonicalMprService | None = None,
     anatomy_service: AnatomyReconstructionService | None = None,
     volume_rendering_service: VolumeRenderingService | None = None,
+    sample_catalog_service: SampleStudyCatalogService | None = None,
 ) -> FastAPI:
     runtime_settings = load_settings() if settings is None else settings
     if (
@@ -129,6 +136,14 @@ def create_app(
         if volume_rendering_service is not None
         else VolumeRenderingService(data_dir=runtime_settings.data_dir)
     )
+    patient_sample_catalog_service = (
+        sample_catalog_service
+        if sample_catalog_service is not None
+        else SampleStudyCatalogService(
+            data_dir=runtime_settings.data_dir,
+            dicom_service=study_service,
+        )
+    )
 
     app = FastAPI(title="VoxelAtlas", docs_url=None, redoc_url=None)
     app.add_middleware(
@@ -142,6 +157,7 @@ def create_app(
     app.state.mpr_service = patient_mpr_service
     app.state.anatomy_service = patient_anatomy_service
     app.state.volume_rendering_service = patient_volume_rendering_service
+    app.state.sample_catalog_service = patient_sample_catalog_service
 
     app.mount("/assets", StaticFiles(directory=WEB_ROOT / "assets"), name="assets")
     app.mount("/css", StaticFiles(directory=WEB_ROOT / "css"), name="css")
@@ -250,6 +266,90 @@ def create_app(
         del username
         current_service: DicomIngestionService = app.state.dicom_service
         return {"study": current_service.latest_public_study()}
+
+    @app.get("/api/sample-studies")
+    def sample_studies(
+        response: Response,
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        current_service: SampleStudyCatalogService = app.state.sample_catalog_service
+        return {"samples": current_service.list_public()}
+
+    @app.get("/api/sample-studies/{sample_id}/preview")
+    def sample_study_preview(
+        sample_id: str,
+        username: str = Depends(require_username),
+    ) -> FileResponse:
+        del username
+        current_service: SampleStudyCatalogService = app.state.sample_catalog_service
+        try:
+            preview_path = current_service.preview_path(sample_id)
+        except SampleStudyNotFoundError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(exc),
+            ) from exc
+        return FileResponse(
+            preview_path,
+            media_type="image/png",
+            headers={
+                "Cache-Control": "no-store",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
+
+    @app.post(
+        "/api/sample-studies/{sample_id}/load",
+        status_code=status.HTTP_201_CREATED,
+    )
+    def load_sample_study(
+        sample_id: str,
+        response: Response,
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        current_service: SampleStudyCatalogService = app.state.sample_catalog_service
+        try:
+            return current_service.load_sample(sample_id)
+        except SampleStudyNotFoundError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(exc),
+                headers={"Cache-Control": "no-store"},
+            ) from exc
+        except SampleStudyIntegrityError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=str(exc),
+                headers={"Cache-Control": "no-store"},
+            ) from exc
+        except DicomUploadLimitExceeded as exc:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=str(exc),
+                headers={"Cache-Control": "no-store"},
+            ) from exc
+        except DicomDependencyUnavailable as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=str(exc),
+                headers={"Cache-Control": "no-store"},
+            ) from exc
+        except DicomStudyValidationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(exc),
+                headers={"Cache-Control": "no-store"},
+            ) from exc
+        except (DicomIngestionError, SampleStudyCatalogError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+                headers={"Cache-Control": "no-store"},
+            ) from exc
 
     @app.post("/api/studies/dicom", status_code=status.HTTP_201_CREATED)
     def upload_dicom_study(

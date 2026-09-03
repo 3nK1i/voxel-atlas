@@ -92,7 +92,7 @@ class Phase4FAdaptiveRenderingQualityTests(unittest.TestCase):
         self.assertNotIn("diagnostic quality", (self.html + self.quality).lower())
 
     def test_phase4f_cache_and_validation_entrypoints_are_present(self) -> None:
-        self.assertIn('/js/app.js?v=phase3d-r21-phase4f', self.html)
+        self.assertIn('/js/app.js?v=phase3d-r21-phase4g', self.html)
         self.assertIn(
             'from "./volume-rendering-quality.js?v=phase4f"',
             self.app,
