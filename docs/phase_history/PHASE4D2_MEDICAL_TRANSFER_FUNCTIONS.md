@@ -4,7 +4,7 @@ Phase 4D2 improves the clinical readability of the true patient voxel volume by 
 
 ## Delivered behavior
 
-- CT volumes whose source units are HU receive General CT, Soft Tissue, Bone, and Lung presets expressed in calibrated Hounsfield units.
+- CT volumes whose source units are HU receive General CT, Soft Tissue, Bone, and Low-Density CT presets expressed in calibrated Hounsfield units.
 - MR volumes receive Balanced, Lower Intensities, and Higher Intensities presets expressed only against the qualified source intensity range. The application does not infer T1, T2, FLAIR, tissue class, or acquisition intent from the modality label.
 - Unclassified modalities receive one generic relative-intensity preset.
 - Every preset supplies six ordered GPU control points for medical intensity, opacity, and color.

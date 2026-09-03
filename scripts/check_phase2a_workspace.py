@@ -24,10 +24,9 @@ def main() -> int:
     required_html = (
         'data-workspace="voxelatlas-v1"',
         'id="viewport"',
-        'id="sectionSlider"',
-        'data-section-axis="y"',
-        'data-section-axis="z"',
-        'data-section-axis="x"',
+        'data-clip-enabled="axial"',
+        'data-clip-enabled="coronal"',
+        'data-clip-enabled="sagittal"',
         'data-layer="volume"',
         'id="opacitySlider"',
         'id="logoutButton"',

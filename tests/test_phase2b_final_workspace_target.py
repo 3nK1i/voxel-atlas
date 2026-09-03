@@ -85,12 +85,12 @@ class Phase2BFinalWorkspaceTargetTests(unittest.TestCase):
         js = (ROOT / "web/js/app.js").read_text(encoding="utf-8")
 
         for marker in (
-            'data-section-axis="y"',
-            'data-section-axis="z"',
-            'data-section-axis="x"',
-            'id="sectionSlider"',
-            "sectionSlider.disabled = true",
-            'directionalCutPanel.dataset.volumeDeferred = "true"',
+            'data-clip-enabled="axial"',
+            'data-clip-enabled="coronal"',
+            'data-clip-enabled="sagittal"',
+            'data-clip-slider="axial"',
+            "volumeRayMarcher.setClippingPlanes",
+            'directionalCutPanel.dataset.clippingState',
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, html + js)
@@ -188,7 +188,7 @@ class Phase2BFinalWorkspaceTargetTests(unittest.TestCase):
         self.assertEqual(login.status_code, 200)
         self.assertEqual(workspace.status_code, 200)
         self.assertIn('data-workspace="voxelatlas-v1"', workspace.text)
-        self.assertIn("Directional Cut", workspace.text)
+        self.assertIn("Multi-plane Clipping", workspace.text)
         self.assertIn("Axial", workspace.text)
         self.assertIn("Coronal", workspace.text)
         self.assertIn("Sagittal", workspace.text)

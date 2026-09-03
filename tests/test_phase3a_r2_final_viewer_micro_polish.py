@@ -52,8 +52,8 @@ class Phase3AR2FinalViewerMicroPolishTests(unittest.TestCase):
 
     def test_r2_cache_version_is_explicit(self) -> None:
         html = (ROOT / "web/index.html").read_text(encoding="utf-8")
-        self.assertRegex(html, r'/css/styles\.css\?v=(?:phase3a-r2(?:-final1)?|phase3b-geometry1|phase3c-volume1|phase3d-mpr1|phase3d-r1|phase3d-r2|phase3d-r21-phase4d2)')
-        self.assertRegex(html, r'/js/app\.js\?v=(?:phase3a-r2(?:-final1)?|phase3b-geometry1|phase3c-volume1|phase3d-mpr1|phase3d-r1|phase3d-r2|phase3d-r21-phase4d1|phase3d-r21-phase4d2)')
+        self.assertRegex(html, r'/css/styles\.css\?v=(?:phase3a-r2(?:-final1)?|phase3b-geometry1|phase3c-volume1|phase3d-mpr1|phase3d-r1|phase3d-r2|phase3d-r21-phase4e)')
+        self.assertRegex(html, r'/js/app\.js\?v=(?:phase3a-r2(?:-final1)?|phase3b-geometry1|phase3c-volume1|phase3d-mpr1|phase3d-r1|phase3d-r2|phase3d-r21-phase4d1|phase3d-r21-phase4e)')
 
 
 if __name__ == "__main__":

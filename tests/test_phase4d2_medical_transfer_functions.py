@@ -88,11 +88,13 @@ class Phase4D2MedicalTransferFunctionTests(unittest.TestCase):
         self.assertNotIn("fetch(", controls_section)
         self.assertNotIn("volumeTextureManager.load", controls_section)
 
-    def test_phase4e_multi_plane_clipping_remains_deferred(self) -> None:
+    def test_phase4e_multi_plane_clipping_is_integrated(self) -> None:
         combined = self.html + self.app
         self.assertIn('id="directionalCutPanel"', combined)
-        self.assertIn('directionalCutPanel.dataset.volumeDeferred = "true"', combined)
-        self.assertIn("sectionSlider.disabled = true", combined)
+        self.assertIn('data-clip-enabled="axial"', combined)
+        self.assertIn('data-clip-enabled="coronal"', combined)
+        self.assertIn('data-clip-enabled="sagittal"', combined)
+        self.assertIn("volumeRayMarcher.setClippingPlanes", combined)
 
         documentation = (
             ROOT / "docs/phase_history/PHASE4D2_MEDICAL_TRANSFER_FUNCTIONS.md"
@@ -102,10 +104,10 @@ class Phase4D2MedicalTransferFunctionTests(unittest.TestCase):
         self.assertIn("No segmentation", documentation)
 
     def test_phase4d2_cache_and_validation_entrypoints_are_present(self) -> None:
-        self.assertIn('/css/styles.css?v=phase3d-r21-phase4d2', self.html)
-        self.assertIn('/js/app.js?v=phase3d-r21-phase4d2', self.html)
+        self.assertIn('/css/styles.css?v=phase3d-r21-phase4e', self.html)
+        self.assertIn('/js/app.js?v=phase3d-r21-phase4e', self.html)
         self.assertIn(
-            'from "./patient-volume-ray-marcher.js?v=phase4d2"',
+            'from "./patient-volume-ray-marcher.js?v=phase4e"',
             self.app,
         )
         self.assertTrue((ROOT / "scripts/run_phase4d2_checks.sh").is_file())

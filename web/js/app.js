@@ -9,7 +9,7 @@ import { PatientVolumeTextureManager } from "./volume-texture-manager.js?v=phase
 import {
   PatientVolumeRayMarcher,
   listMedicalTransferPresets,
-} from "./patient-volume-ray-marcher.js?v=phase4d2";
+} from "./patient-volume-ray-marcher.js?v=phase4e";
 
 const THEME_KEY = "voxelatlas-theme";
 const DEFAULT_OPACITY = 1.0;
@@ -20,12 +20,23 @@ const viewerStage = document.getElementById("viewerStage");
 const modelStatus = document.getElementById("modelStatus");
 const statusText = document.getElementById("statusText");
 const modelChip = document.getElementById("modelChip");
-const sectionSlider = document.getElementById("sectionSlider");
-const sectionValue = document.getElementById("sectionValue");
-const sectionButtons = Array.from(document.querySelectorAll("[data-section-axis]"));
 const volumeLayerButton = document.getElementById("volumeLayerButton");
 const anatomyNote = document.getElementById("anatomyNote");
 const directionalCutPanel = document.getElementById("directionalCutPanel");
+const CLIPPING_PLANES = Object.freeze({
+  axial: Object.freeze({ axis: "z", axisIndex: 2, coordinate: "Z" }),
+  coronal: Object.freeze({ axis: "y", axisIndex: 1, coordinate: "Y" }),
+  sagittal: Object.freeze({ axis: "x", axisIndex: 0, coordinate: "X" }),
+});
+const clippingRegistry = new Map(Object.keys(CLIPPING_PLANES).map((plane) => [
+  plane,
+  {
+    enabled: document.querySelector(`[data-clip-enabled="${plane}"]`),
+    slider: document.querySelector(`[data-clip-slider="${plane}"]`),
+    side: document.querySelector(`[data-clip-side="${plane}"]`),
+    position: document.querySelector(`[data-clip-position="${plane}"]`),
+  },
+]));
 const volumeRenderingPanel = document.getElementById("volumeRenderingPanel");
 const transferModality = document.getElementById("transferModality");
 const transferPresetSelect = document.getElementById("transferPresetSelect");
@@ -128,8 +139,11 @@ const gizmoLabelL = document.getElementById("gizmoLabelL");
 const volumeLayer = { available: false, root: null };
 
 const state = {
-  sectionAxis: "y",
-  sectionDepth: 0,
+  clipping: {
+    axial: { enabled: false, retainedSide: "minimum" },
+    coronal: { enabled: false, retainedSide: "minimum" },
+    sagittal: { enabled: false, retainedSide: "minimum" },
+  },
   opacity: DEFAULT_OPACITY,
   autoRotate: false,
   viewerInteractionMode: "rotate",
@@ -333,9 +347,11 @@ function setVolumeAvailability(available) {
   volumeLayerButton.classList.add("is-active");
   volumeLayerButton.setAttribute("aria-pressed", "true");
   modelChip.textContent = "Patient scan - Full Volume";
-  directionalCutPanel.dataset.volumeDeferred = "true";
-  sectionSlider.disabled = true;
-  for (const button of sectionButtons) button.disabled = true;
+  setClippingControlsEnabled(
+    volumeLayer.available
+    && Boolean(volumeRayMarcher.current)
+    && Boolean(state.mpr.descriptor),
+  );
   setTransferControlsEnabled(volumeLayer.available && Boolean(volumeRayMarcher.current));
 }
 
@@ -472,8 +488,101 @@ function updateOrientationGizmo() {
   }
 }
 
-function applySection() {
-  sectionValue.textContent = `${Math.round(state.sectionDepth * 100)}%`;
+function clippingPlaneRange(plane) {
+  const range = state.mpr.descriptor?.planes?.[plane]?.position_range_mm;
+  if (!Array.isArray(range) || range.length !== 2) return null;
+  const minimum = Number(range[0]);
+  const maximum = Number(range[1]);
+  return Number.isFinite(minimum) && Number.isFinite(maximum) && maximum > minimum
+    ? [minimum, maximum]
+    : null;
+}
+
+function setClippingControlsEnabled(enabled) {
+  const available = Boolean(enabled);
+  directionalCutPanel.dataset.clippingState = available ? "ready" : "unavailable";
+  for (const [plane, controlsForPlane] of clippingRegistry.entries()) {
+    controlsForPlane.enabled.disabled = !available;
+    const planeActive = available && state.clipping[plane].enabled;
+    controlsForPlane.slider.disabled = !planeActive;
+    controlsForPlane.side.disabled = !planeActive;
+  }
+}
+
+function clippingRequest() {
+  return Object.fromEntries(Object.entries(CLIPPING_PLANES).map(([plane, definition]) => [
+    plane,
+    {
+      enabled: state.clipping[plane].enabled,
+      positionLpsMm: state.mpr.crosshairLpsMm[definition.axisIndex],
+      retainedSide: state.clipping[plane].retainedSide,
+    },
+  ]));
+}
+
+function applyPatientClipping() {
+  if (!volumeRayMarcher.current || !state.mpr.descriptor) return null;
+  return volumeRayMarcher.setClippingPlanes(clippingRequest());
+}
+
+function syncClippingControlsFromMpr() {
+  for (const [plane, definition] of Object.entries(CLIPPING_PLANES)) {
+    const controlsForPlane = clippingRegistry.get(plane);
+    const range = clippingPlaneRange(plane);
+    if (controlsForPlane) {
+      controlsForPlane.enabled.checked = state.clipping[plane].enabled;
+      controlsForPlane.side.value = state.clipping[plane].retainedSide;
+    }
+    if (!controlsForPlane || !range) {
+      if (controlsForPlane) controlsForPlane.position.textContent = `${definition.coordinate}: --`;
+      continue;
+    }
+    const [minimum, maximum] = range;
+    const position = clamp(
+      Number(state.mpr.crosshairLpsMm[definition.axisIndex]),
+      minimum,
+      maximum,
+    );
+    state.mpr.crosshairLpsMm[definition.axisIndex] = position;
+    controlsForPlane.slider.value = String(100 * (position - minimum) / (maximum - minimum));
+    controlsForPlane.position.textContent = `${definition.coordinate}: ${position.toFixed(2)} mm`;
+  }
+  setClippingControlsEnabled(
+    volumeLayer.available
+    && Boolean(volumeRayMarcher.current)
+    && Boolean(state.mpr.descriptor),
+  );
+  return applyPatientClipping();
+}
+
+function updateClippingFromControl(plane) {
+  const definition = CLIPPING_PLANES[plane];
+  const controlsForPlane = clippingRegistry.get(plane);
+  const range = clippingPlaneRange(plane);
+  if (!definition || !controlsForPlane || !range) return;
+  const normalized = clamp(Number(controlsForPlane.slider.value) / 100, 0, 1);
+  state.mpr.crosshairLpsMm[definition.axisIndex] = range[0] + normalized * (range[1] - range[0]);
+  syncClippingControlsFromMpr();
+  updateMprCrosshairOverlays();
+  scheduleMprRender(35);
+}
+
+function resetPatientClipping() {
+  for (const plane of Object.keys(CLIPPING_PLANES)) {
+    state.clipping[plane].enabled = false;
+    state.clipping[plane].retainedSide = "minimum";
+  }
+  if (state.mpr.descriptor) {
+    state.mpr.crosshairLpsMm = Object.values(CLIPPING_PLANES)
+      .sort((left, right) => left.axisIndex - right.axisIndex)
+      .map((definition) => {
+        const range = state.mpr.descriptor.patient_bounds_lps_mm[definition.axis];
+        return (Number(range[0]) + Number(range[1])) / 2;
+      });
+  }
+  syncClippingControlsFromMpr();
+  updateMprCrosshairOverlays();
+  if (state.mpr.descriptor) scheduleMprRender();
 }
 
 function applyOpacity() {
@@ -512,6 +621,7 @@ async function activatePatientVolumeRendering(textureResource, task) {
   volumeResource.root.updateMatrixWorld(true);
   configureTransferControls(volumeResource);
   setVolumeAvailability(true);
+  syncClippingControlsFromMpr();
   applyOpacity();
 
   const box = updateVolumeBounds();
@@ -525,12 +635,7 @@ async function activatePatientVolumeRendering(textureResource, task) {
 }
 
 function resetWorkspace() {
-  state.sectionDepth = 0;
-  sectionSlider.value = "0";
-  state.sectionAxis = "y";
-  for (const button of sectionButtons) {
-    button.classList.toggle("is-active", button.dataset.sectionAxis === "y");
-  }
+  resetPatientClipping();
 
   state.opacity = DEFAULT_OPACITY;
   opacitySlider.value = String(Math.round(DEFAULT_OPACITY * 100));
@@ -544,7 +649,6 @@ function resetWorkspace() {
 
   anatomyGroup.rotation.set(0, 0, 0);
   applyOpacity();
-  applySection();
   setViewerInteractionMode("rotate");
   fitSavedView();
 }
@@ -645,6 +749,7 @@ function setMprVolumeState(study) {
   }
   if (!ready) {
     state.mpr.descriptor = null;
+    resetPatientClipping();
     for (const entry of mprRegistry.values()) {
       entry.index.textContent = "-- / --";
       entry.position.textContent = `${entry.panel.id === "mprAxial" ? "Z" : entry.panel.id === "mprCoronal" ? "Y" : "X"}: --`;
@@ -946,6 +1051,7 @@ async function ensureMprReady() {
     state.mpr.crosshairLpsMm = payload.mpr.crosshair_lps_mm.map(Number);
     state.mpr.window = Number(payload.mpr.default_window.width);
     state.mpr.level = Number(payload.mpr.default_window.level);
+    syncClippingControlsFromMpr();
     for (const entry of mprRegistry.values()) {
       entry.panel.dataset.volumeState = "loading";
       entry.message.textContent = "Rendering patient volume...";
@@ -984,6 +1090,7 @@ function setMprCrosshairFromPointer(plane, event) {
   state.mpr.crosshairLpsMm[hAxis] = hMin + x * (hMax - hMin);
   const verticalFraction = planeDescriptor.vertical_reverse ? 1 - y : y;
   state.mpr.crosshairLpsMm[vAxis] = vMin + verticalFraction * (vMax - vMin);
+  syncClippingControlsFromMpr();
   updateMprCrosshairOverlays();
   scheduleMprRender(35);
 }
@@ -996,6 +1103,7 @@ function stepMprSlice(plane, direction) {
   const currentIndex = mprPlaneIndex(planeDescriptor);
   const nextIndex = clamp(currentIndex + direction, 0, Number(planeDescriptor.slice_count) - 1);
   state.mpr.crosshairLpsMm[axis] = mprPositionForIndex(planeDescriptor, nextIndex);
+  syncClippingControlsFromMpr();
   updateMprCrosshairOverlays();
   scheduleMprRender(20);
 }
@@ -1058,6 +1166,7 @@ function centerMprCrosshair() {
     const range = Array.isArray(bounds?.[axis]) ? bounds[axis].map(Number) : [0, 0];
     return (range[0] + range[1]) / 2;
   });
+  syncClippingControlsFromMpr();
   updateMprCrosshairOverlays();
   scheduleMprRender();
 }
@@ -1351,24 +1460,20 @@ seriesDialog.addEventListener("click", (event) => {
   if (event.target === seriesDialog) seriesDialog.close();
 });
 
-sectionButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    const nextAxis = button.dataset.sectionAxis;
-    if (!nextAxis || nextAxis === state.sectionAxis) return;
-    state.sectionAxis = nextAxis;
-    state.sectionDepth = 0;
-    sectionSlider.value = "0";
-    for (const candidate of sectionButtons) {
-      candidate.classList.toggle("is-active", candidate === button);
-    }
-    applySection();
+for (const [plane, controlsForPlane] of clippingRegistry.entries()) {
+  controlsForPlane.enabled.addEventListener("change", () => {
+    state.clipping[plane].enabled = controlsForPlane.enabled.checked;
+    setClippingControlsEnabled(true);
+    applyPatientClipping();
   });
-});
-
-sectionSlider.addEventListener("input", () => {
-  state.sectionDepth = Number(sectionSlider.value) / 100;
-  applySection();
-});
+  controlsForPlane.slider.addEventListener("input", () => {
+    updateClippingFromControl(plane);
+  });
+  controlsForPlane.side.addEventListener("change", () => {
+    state.clipping[plane].retainedSide = controlsForPlane.side.value;
+    applyPatientClipping();
+  });
+}
 
 transferPresetSelect.addEventListener("change", () => {
   applyTransferPreset(transferPresetSelect.value);

@@ -94,11 +94,11 @@ def main() -> int:
         return fail("layers=surface_runtime_present")
     print("PASS layers=truthful_volume_only_runtime")
 
-    if any(marker not in html for marker in ('data-section-axis="y"', 'data-section-axis="z"', 'data-section-axis="x"')):
+    if any(marker not in html for marker in ('data-clip-enabled="axial"', 'data-clip-enabled="coronal"', 'data-clip-enabled="sagittal"')):
         return fail("directional_cut=axis_controls_missing")
-    if "sectionSlider.disabled = true" not in js:
-        return fail("directional_cut=volume_deferred_state_missing")
-    print("PASS directional_cut=truthfully_deferred_for_volume")
+    if "volumeRayMarcher.setClippingPlanes" not in js:
+        return fail("directional_cut=patient_volume_clipping_missing")
+    print("PASS directional_cut=patient_space_multiplane_volume_clipping")
 
     retired_terms = (
         "cran" + "ial",

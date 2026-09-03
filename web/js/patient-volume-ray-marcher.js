@@ -41,6 +41,10 @@ uniform vec3 uTransferColors[${TRANSFER_POINT_COUNT}];
 uniform float uDensityScale;
 uniform float uGlobalOpacity;
 uniform float uSamplingRate;
+uniform mat4 uLocalToPatientLps;
+uniform vec3 uClipPlanePositions;
+uniform vec3 uClipPlaneKeepSigns;
+uniform vec3 uClipPlaneEnabled;
 
 in vec3 vRayOrigin;
 in vec3 vRayDirection;
@@ -56,6 +60,70 @@ vec2 intersectUnitBox(vec3 origin, vec3 direction) {
   vec3 farVector = max(first, second);
   float entry = max(max(nearVector.x, nearVector.y), nearVector.z);
   float exit = min(min(farVector.x, farVector.y), farVector.z);
+  return vec2(entry, exit);
+}
+
+bool clipAgainstPatientPlane(
+  float rayOrigin,
+  float rayDirection,
+  float planePosition,
+  float keepSign,
+  inout float entry,
+  inout float exit
+) {
+  float signedOrigin = keepSign * (rayOrigin - planePosition);
+  float signedDirection = keepSign * rayDirection;
+  if (abs(signedDirection) < 0.000001) {
+    return signedOrigin >= 0.0;
+  }
+  float boundary = -signedOrigin / signedDirection;
+  if (signedDirection > 0.0) {
+    entry = max(entry, boundary);
+  } else {
+    exit = min(exit, boundary);
+  }
+  return exit > entry;
+}
+
+vec2 clipPatientRayInterval(vec3 localOrigin, vec3 localDirection, vec2 boxInterval) {
+  float entry = max(boxInterval.x, 0.0);
+  float exit = boxInterval.y;
+  vec3 patientOrigin = (uLocalToPatientLps * vec4(localOrigin, 1.0)).xyz;
+  vec3 patientDirection = (uLocalToPatientLps * vec4(localDirection, 0.0)).xyz;
+
+  if (
+    uClipPlaneEnabled.x > 0.5
+    && !clipAgainstPatientPlane(
+      patientOrigin.x,
+      patientDirection.x,
+      uClipPlanePositions.x,
+      uClipPlaneKeepSigns.x,
+      entry,
+      exit
+    )
+  ) return vec2(1.0, -1.0);
+  if (
+    uClipPlaneEnabled.y > 0.5
+    && !clipAgainstPatientPlane(
+      patientOrigin.y,
+      patientDirection.y,
+      uClipPlanePositions.y,
+      uClipPlaneKeepSigns.y,
+      entry,
+      exit
+    )
+  ) return vec2(1.0, -1.0);
+  if (
+    uClipPlaneEnabled.z > 0.5
+    && !clipAgainstPatientPlane(
+      patientOrigin.z,
+      patientDirection.z,
+      uClipPlanePositions.z,
+      uClipPlaneKeepSigns.z,
+      entry,
+      exit
+    )
+  ) return vec2(1.0, -1.0);
   return vec2(entry, exit);
 }
 
@@ -95,8 +163,9 @@ vec4 sampleMedicalTransfer(float intensity) {
 
 void main() {
   vec3 direction = normalize(vRayDirection);
-  vec2 intersection = intersectUnitBox(vRayOrigin, direction);
-  float entry = max(intersection.x, 0.0);
+  vec2 boxIntersection = intersectUnitBox(vRayOrigin, direction);
+  vec2 intersection = clipPatientRayInterval(vRayOrigin, direction, boxIntersection);
+  float entry = intersection.x;
   float rayLength = intersection.y - entry;
   if (rayLength <= 0.0) discard;
 
@@ -206,10 +275,95 @@ export function buildVolumePresentation(descriptor) {
   const matrix = multiplyMatrices(centerAndScale, localToViewerMm).map(stableNumber);
   return Object.freeze({
     matrix: Object.freeze(matrix),
+    localToPatientLps: Object.freeze(localToPatientLps.map(stableNumber)),
     extentMm: Object.freeze(extentMm.map(stableNumber)),
     normalizedExtent: Object.freeze(extentMm.map((value) => stableNumber(value * scale))),
     maximumExtentMm: stableNumber(maximumExtentMm),
     viewerCenterLpsMm: Object.freeze(center.map(stableNumber)),
+  });
+}
+
+const PATIENT_CLIPPING_PLANES = Object.freeze({
+  axial: Object.freeze({ axis: "z", axisIndex: 2 }),
+  coronal: Object.freeze({ axis: "y", axisIndex: 1 }),
+  sagittal: Object.freeze({ axis: "x", axisIndex: 0 }),
+});
+
+function patientBounds(descriptor) {
+  const raw = descriptor?.patient_bounds_lps_mm;
+  let bounds;
+  if (Array.isArray(raw) && raw.length === 6) {
+    bounds = raw.map((value) => finiteNumber(value, "LPS bounds"));
+  } else {
+    const textureToPatientLps = descriptorMatrix(
+      descriptor?.texture_coordinate_to_patient_lps,
+    );
+    const corners = [];
+    for (const x of [0, 1]) {
+      for (const y of [0, 1]) {
+        for (const z of [0, 1]) {
+          corners.push(transformPoint(textureToPatientLps, [x, y, z]));
+        }
+      }
+    }
+    const minimum = [0, 1, 2].map(
+      (axis) => Math.min(...corners.map((point) => point[axis])),
+    );
+    const maximum = [0, 1, 2].map(
+      (axis) => Math.max(...corners.map((point) => point[axis])),
+    );
+    bounds = [...minimum, ...maximum];
+  }
+  for (let axis = 0; axis < 3; axis += 1) {
+    if (bounds[axis + 3] <= bounds[axis]) {
+      throw new TypeError("Patient volume LPS bounds are invalid");
+    }
+  }
+  return bounds;
+}
+
+export function createPatientClippingState(descriptor, requestedPlanes = {}) {
+  const bounds = patientBounds(descriptor);
+  const planes = {};
+  const enabled = [0, 0, 0];
+  const positionsLpsMm = [0, 0, 0];
+  const keepSigns = [-1, -1, -1];
+
+  for (const [name, definition] of Object.entries(PATIENT_CLIPPING_PLANES)) {
+    const minimum = bounds[definition.axisIndex];
+    const maximum = bounds[definition.axisIndex + 3];
+    const request = requestedPlanes?.[name] || {};
+    const position = request.positionLpsMm === undefined
+      ? (minimum + maximum) / 2
+      : finiteNumber(request.positionLpsMm, `${name} clipping position`);
+    if (position < minimum || position > maximum) {
+      throw new TypeError(`Patient volume ${name} clipping position is outside patient bounds`);
+    }
+    const retainedSide = request.retainedSide || "minimum";
+    if (retainedSide !== "minimum" && retainedSide !== "maximum") {
+      throw new TypeError(`Patient volume ${name} retained side is invalid`);
+    }
+    const plane = Object.freeze({
+      enabled: request.enabled === true,
+      axis: definition.axis,
+      axisIndex: definition.axisIndex,
+      minimumLpsMm: minimum,
+      maximumLpsMm: maximum,
+      positionLpsMm: position,
+      retainedSide,
+    });
+    planes[name] = plane;
+    enabled[definition.axisIndex] = plane.enabled ? 1 : 0;
+    positionsLpsMm[definition.axisIndex] = position;
+    keepSigns[definition.axisIndex] = retainedSide === "maximum" ? 1 : -1;
+  }
+
+  return Object.freeze({
+    patientSpace: "DICOM Patient LPS millimetres",
+    planes: Object.freeze(planes),
+    enabled: Object.freeze(enabled),
+    positionsLpsMm: Object.freeze(positionsLpsMm),
+    keepSigns: Object.freeze(keepSigns),
   });
 }
 
@@ -288,8 +442,8 @@ const CT_TRANSFER_PRESETS = Object.freeze([
   }),
   Object.freeze({
     id: "ct-lung",
-    label: "Lung",
-    description: "Emphasizes low-density CT lung-range intensities.",
+    label: "Low-Density CT",
+    description: "Emphasizes low-density CT intensities without assigning an organ class.",
     modality: "CT",
     units: "HU",
     rangeMode: "absolute",
@@ -527,6 +681,7 @@ export class PatientVolumeRayMarcher {
       || !three?.ShaderMaterial
       || !three?.Mesh
       || !three?.Group
+      || !three?.Matrix4
       || !three?.Vector3
     ) {
       throw new TypeError("Three.js volume ray-marching support is required");
@@ -543,6 +698,7 @@ export class PatientVolumeRayMarcher {
     const THREE = this.three;
     const presentation = buildVolumePresentation(descriptor);
     const transfer = selectBaselineTransferFunction(descriptor);
+    const clipping = createPatientClippingState(descriptor);
     const transferUniforms = transferUniformValues(THREE, transfer);
     const texture = textureResource.texture;
     texture.minFilter = THREE.NearestFilter;
@@ -565,6 +721,18 @@ export class PatientVolumeRayMarcher {
         uDensityScale: { value: transfer.densityScale },
         uGlobalOpacity: { value: 1 },
         uSamplingRate: { value: Math.min(Math.max(...dimensions), INTERACTIVE_SAMPLE_RATE) },
+        uLocalToPatientLps: {
+          value: new THREE.Matrix4().set(...presentation.localToPatientLps),
+        },
+        uClipPlanePositions: {
+          value: new THREE.Vector3(...clipping.positionsLpsMm),
+        },
+        uClipPlaneKeepSigns: {
+          value: new THREE.Vector3(...clipping.keepSigns),
+        },
+        uClipPlaneEnabled: {
+          value: new THREE.Vector3(...clipping.enabled),
+        },
       },
       side: THREE.BackSide,
       transparent: true,
@@ -595,6 +763,7 @@ export class PatientVolumeRayMarcher {
       presentation,
       transfer,
       transferState: { current: transfer },
+      clippingState: { current: clipping },
     });
     this.current = resource;
     return resource;
@@ -618,6 +787,20 @@ export class PatientVolumeRayMarcher {
     applyTransferUniforms(this.three, this.current.material, transfer);
     this.current.transferState.current = transfer;
     return transfer;
+  }
+
+  setClippingPlanes(planes = {}) {
+    if (!this.current) {
+      throw new TypeError("A patient volume must be active before changing clipping planes");
+    }
+    const clipping = createPatientClippingState(this.current.descriptor, planes);
+    const uniforms = this.current.material.uniforms;
+    uniforms.uClipPlaneEnabled.value.set(...clipping.enabled);
+    uniforms.uClipPlanePositions.value.set(...clipping.positionsLpsMm);
+    uniforms.uClipPlaneKeepSigns.value.set(...clipping.keepSigns);
+    this.current.material.uniformsNeedUpdate = true;
+    this.current.clippingState.current = clipping;
+    return clipping;
   }
 
   dispose() {

@@ -26,7 +26,7 @@
     })();
   </script>
 
-  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4d2">
+  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4e">
 
   <script type="importmap">
   {
@@ -339,42 +339,61 @@
 
       <aside class="right-panel panel" aria-label="3D patient volume controls">
         <div class="panel-scroll">
-          <section id="directionalCutPanel" class="control-section">
+          <section id="directionalCutPanel" class="control-section" data-clipping-state="unavailable">
             <div class="control-heading">
               <div>
-                <div class="section-kicker">Directional Cut</div>
-                <p>Section the patient volume along one anatomical axis.</p>
+                <div class="section-kicker">Multi-plane Clipping</div>
+                <p>Combine anatomical planes in DICOM Patient LPS space.</p>
               </div>
-              <strong id="sectionValue" class="control-value">0%</strong>
             </div>
 
-            <div class="direction-row" role="group" aria-label="Directional cut axis">
-              <button type="button" class="direction-button is-active" data-section-axis="y">
-                <span class="direction-symbol" aria-hidden="true">↕</span>
-                <span>Axial</span>
-              </button>
-              <button type="button" class="direction-button" data-section-axis="z">
-                <span class="direction-symbol" aria-hidden="true">⇅</span>
-                <span>Coronal</span>
-              </button>
-              <button type="button" class="direction-button" data-section-axis="x">
-                <span class="direction-symbol" aria-hidden="true">↔</span>
-                <span>Sagittal</span>
-              </button>
-            </div>
+            <div class="clip-plane-list" aria-label="Patient-space clipping planes">
+              <div class="clip-plane-control" data-clip-plane="axial">
+                <div class="clip-plane-heading">
+                  <label class="clip-plane-toggle">
+                    <input type="checkbox" data-clip-enabled="axial" aria-label="Enable axial clipping" disabled>
+                    <span>Axial</span>
+                  </label>
+                  <strong data-clip-position="axial">Z: --</strong>
+                </div>
+                <input class="slider" type="range" min="0" max="100" step="0.1" value="50" data-clip-slider="axial" aria-label="Axial clipping plane position" disabled>
+                <select data-clip-side="axial" aria-label="Axial retained side" disabled>
+                  <option value="minimum">Keep Inferior</option>
+                  <option value="maximum">Keep Superior</option>
+                </select>
+              </div>
 
-            <label class="slider-label" for="sectionSlider">Section depth</label>
-            <input
-              id="sectionSlider"
-              class="slider"
-              type="range"
-              min="0"
-              max="100"
-              step="1"
-              value="0"
-              aria-label="Section depth"
-            >
-            <div class="range-labels"><span>Full volume</span><span>Deep section</span></div>
+              <div class="clip-plane-control" data-clip-plane="coronal">
+                <div class="clip-plane-heading">
+                  <label class="clip-plane-toggle">
+                    <input type="checkbox" data-clip-enabled="coronal" aria-label="Enable coronal clipping" disabled>
+                    <span>Coronal</span>
+                  </label>
+                  <strong data-clip-position="coronal">Y: --</strong>
+                </div>
+                <input class="slider" type="range" min="0" max="100" step="0.1" value="50" data-clip-slider="coronal" aria-label="Coronal clipping plane position" disabled>
+                <select data-clip-side="coronal" aria-label="Coronal retained side" disabled>
+                  <option value="minimum">Keep Anterior</option>
+                  <option value="maximum">Keep Posterior</option>
+                </select>
+              </div>
+
+              <div class="clip-plane-control" data-clip-plane="sagittal">
+                <div class="clip-plane-heading">
+                  <label class="clip-plane-toggle">
+                    <input type="checkbox" data-clip-enabled="sagittal" aria-label="Enable sagittal clipping" disabled>
+                    <span>Sagittal</span>
+                  </label>
+                  <strong data-clip-position="sagittal">X: --</strong>
+                </div>
+                <input class="slider" type="range" min="0" max="100" step="0.1" value="50" data-clip-slider="sagittal" aria-label="Sagittal clipping plane position" disabled>
+                <select data-clip-side="sagittal" aria-label="Sagittal retained side" disabled>
+                  <option value="minimum">Keep Right</option>
+                  <option value="maximum">Keep Left</option>
+                </select>
+              </div>
+            </div>
+            <p class="anatomy-note">Plane positions share the synchronized MPR crosshair.</p>
           </section>
 
           <section id="anatomicalLayersPanel" class="control-section">
@@ -512,6 +531,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/js/app.js?v=phase3d-r21-phase4d2"></script>
+  <script type="module" src="/js/app.js?v=phase3d-r21-phase4e"></script>
 </body>
 </html>

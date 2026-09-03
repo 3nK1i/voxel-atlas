@@ -121,6 +121,7 @@ class FakeGroup {
 
 class FakeVector3 {
   constructor(x, y, z) { this.x = x; this.y = y; this.z = z; }
+  set(x, y, z) { this.x = x; this.y = y; this.z = z; return this; }
 }
 
 const THREE = {
@@ -128,6 +129,7 @@ const THREE = {
   BoxGeometry: FakeGeometry,
   GLSL3: "GLSL3",
   Group: FakeGroup,
+  Matrix4: FakeMatrix4,
   Mesh: FakeMesh,
   NearestFilter: "NearestFilter",
   ShaderMaterial: FakeMaterial,

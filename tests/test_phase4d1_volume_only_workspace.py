@@ -76,16 +76,16 @@ class Phase4D1VolumeOnlyWorkspaceTests(unittest.TestCase):
             "volumeRayMarcher.dispose",
             'id="opacitySlider"',
             'id="directionalCutPanel"',
-            'data-section-axis="y"',
-            'data-section-axis="z"',
-            'data-section-axis="x"',
+            'data-clip-enabled="axial"',
+            'data-clip-enabled="coronal"',
+            'data-clip-enabled="sagittal"',
             'fetch("/api/studies/latest/volume-rendering"',
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, combined)
 
     def test_phase4d1_cache_boundary_and_validation_entrypoints_are_present(self) -> None:
-        self.assertIn('/js/app.js?v=phase3d-r21-phase4d2', self.html)
+        self.assertIn('/js/app.js?v=phase3d-r21-phase4e', self.html)
         self.assertTrue((ROOT / "scripts/run_phase4d1_checks.sh").is_file())
         self.assertTrue((ROOT / "scripts/check_phase4d1_volume_only_workspace.mjs").is_file())
 

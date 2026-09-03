@@ -49,10 +49,9 @@ class Phase2AWorkspaceMigrationTests(unittest.TestCase):
     def test_directional_cut_and_core_actions_remain_available(self) -> None:
         html = (ROOT / "web/index.html").read_text(encoding="utf-8")
         for marker in (
-            'id="sectionSlider"',
-            'data-section-axis="y"',
-            'data-section-axis="z"',
-            'data-section-axis="x"',
+            'data-clip-enabled="axial"',
+            'data-clip-enabled="coronal"',
+            'data-clip-enabled="sagittal"',
             'id="opacitySlider"',
             'id="resetButton"',
             'id="autoRotateButton"',
@@ -91,13 +90,13 @@ class Phase2AWorkspaceMigrationTests(unittest.TestCase):
         self.assertIn("patient-specific", model_readme.lower())
         self.assertIn("browser must never fabricate", model_readme.lower())
 
-    def test_volume_rendering_and_deferred_directional_controls_remain(self) -> None:
+    def test_volume_rendering_and_patient_space_clipping_controls_remain(self) -> None:
         js = (ROOT / "web/js/app.js").read_text(encoding="utf-8")
         html = (ROOT / "web/index.html").read_text(encoding="utf-8")
         self.assertIn("PatientVolumeRayMarcher", js)
         self.assertIn('id="directionalCutPanel"', html)
-        self.assertIn('data-section-axis="y"', html)
-        self.assertIn("sectionSlider.disabled = true", js)
+        self.assertIn('data-clip-enabled="axial"', html)
+        self.assertIn("volumeRayMarcher.setClippingPlanes", js)
         for forbidden in ("presetButtons", "presetConfig", "applyPreset", "AR_URL", "activateAR", "window.open("):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, js)
@@ -119,7 +118,7 @@ class Phase2AWorkspaceMigrationTests(unittest.TestCase):
         self.assertEqual(login.status_code, 200)
         self.assertEqual(workspace.status_code, 200)
         self.assertIn('data-workspace="voxelatlas-v1"', workspace.text)
-        self.assertIn("Directional Cut", workspace.text)
+        self.assertIn("Multi-plane Clipping", workspace.text)
         self.assertNotIn("View in AR", workspace.text)
 
     def test_workspace_logout_copy_is_concise(self) -> None:
