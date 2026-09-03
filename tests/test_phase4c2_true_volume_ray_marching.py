@@ -57,9 +57,9 @@ class Phase4C2TrueVolumeRayMarchingTests(unittest.TestCase):
                 self.assertIn(marker, renderer + app_js)
 
         self.assertIn('data-layer="volume" disabled', html)
-        self.assertIn('/js/app.js?v=phase3d-r21-phase4e', html)
+        self.assertIn('/js/app.js?v=phase3d-r21-phase4f', html)
         self.assertIn(
-            'from "./patient-volume-ray-marcher.js?v=phase4e"',
+            'from "./patient-volume-ray-marcher.js?v=phase4f"',
             app_js,
         )
         self.assertIn("True patient voxel volume active.", app_js)

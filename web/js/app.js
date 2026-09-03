@@ -9,7 +9,10 @@ import { PatientVolumeTextureManager } from "./volume-texture-manager.js?v=phase
 import {
   PatientVolumeRayMarcher,
   listMedicalTransferPresets,
-} from "./patient-volume-ray-marcher.js?v=phase4e";
+} from "./patient-volume-ray-marcher.js?v=phase4f";
+import {
+  AdaptiveVolumeRenderingQuality,
+} from "./volume-rendering-quality.js?v=phase4f";
 
 const THEME_KEY = "voxelatlas-theme";
 const DEFAULT_OPACITY = 1.0;
@@ -48,6 +51,7 @@ const transferDensity = document.getElementById("transferDensity");
 const transferDensityValue = document.getElementById("transferDensityValue");
 const transferResetButton = document.getElementById("transferResetButton");
 const transferFunctionNote = document.getElementById("transferFunctionNote");
+const renderQualityStatus = document.getElementById("renderQualityStatus");
 const opacitySlider = document.getElementById("opacitySlider");
 const opacityValue = document.getElementById("opacityValue");
 const resetButton = document.getElementById("resetButton");
@@ -165,6 +169,12 @@ let mprDescriptorPromise = null;
 let mprRenderGeneration = 0;
 let mprRenderTimer = null;
 let mprAbortController = null;
+let viewerRenderRequested = true;
+let lastRenderedTimestamp = null;
+
+function requestViewerRender() {
+  viewerRenderRequested = true;
+}
 
 const scene = new THREE.Scene();
 const anatomyGroup = new THREE.Group();
@@ -212,6 +222,37 @@ controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
 controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
 controls.touches.ONE = THREE.TOUCH.ROTATE;
 controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
+
+function updateRenderingQualityStatus(quality) {
+  if (!renderQualityStatus) return;
+  if (quality.mode === "inactive") {
+    renderQualityStatus.dataset.mode = "inactive";
+    renderQualityStatus.textContent = "Rendering quality: waiting for patient volume";
+    return;
+  }
+  renderQualityStatus.dataset.mode = quality.mode;
+  const mode = quality.mode === "interactive" ? "Interactive" : "Settled";
+  renderQualityStatus.textContent = (
+    `Rendering quality: ${mode} · ${quality.samplingRate} samples · `
+    + `${quality.pixelRatio.toFixed(2)}x pixel ratio`
+  );
+}
+
+const volumeRenderingQuality = new AdaptiveVolumeRenderingQuality({
+  renderer,
+  rayMarcher: volumeRayMarcher,
+  devicePixelRatio: window.devicePixelRatio || 1,
+  requestRender: requestViewerRender,
+  onStateChange: updateRenderingQualityStatus,
+});
+
+controls.addEventListener("start", () => {
+  volumeRenderingQuality.beginInteraction("orbit");
+});
+controls.addEventListener("end", () => {
+  volumeRenderingQuality.endInteraction("orbit");
+});
+controls.addEventListener("change", requestViewerRender);
 
 function setStatus(kind, message) {
   modelStatus.dataset.state = kind;
@@ -310,6 +351,7 @@ function applyTransferPreset(presetId = transferPresetSelect.value) {
   if (!volumeRayMarcher.current || !presetId) return null;
   const transfer = volumeRayMarcher.setTransferPreset(presetId);
   syncTransferControls(transfer);
+  requestViewerRender();
   return transfer;
 }
 
@@ -338,6 +380,7 @@ function applyTransferAdjustments(changedControl = null) {
     },
   );
   syncTransferControls(transfer);
+  requestViewerRender();
   return transfer;
 }
 
@@ -358,6 +401,7 @@ function setVolumeAvailability(available) {
 function applyVolumeVisibility() {
   if (volumeLayer.root) {
     volumeLayer.root.visible = volumeLayer.available && state.opacity > 0.001;
+    requestViewerRender();
   }
 }
 
@@ -522,7 +566,9 @@ function clippingRequest() {
 
 function applyPatientClipping() {
   if (!volumeRayMarcher.current || !state.mpr.descriptor) return null;
-  return volumeRayMarcher.setClippingPlanes(clippingRequest());
+  const clipping = volumeRayMarcher.setClippingPlanes(clippingRequest());
+  requestViewerRender();
+  return clipping;
 }
 
 function syncClippingControlsFromMpr() {
@@ -589,9 +635,11 @@ function applyOpacity() {
   volumeRayMarcher.setOpacity(state.opacity);
   applyVolumeVisibility();
   opacityValue.textContent = `${Math.round(state.opacity * 100)}%`;
+  requestViewerRender();
 }
 
 function clearPatientVolumeRendering() {
+  volumeRenderingQuality.deactivate();
   volumeRayMarcher.dispose();
   volumeLayer.root = null;
   clearTransferControls();
@@ -616,6 +664,14 @@ async function activatePatientVolumeRendering(textureResource, task) {
     throw new DOMException("Patient volume rendering was superseded", "AbortError");
   }
 
+  volumeRenderingQuality.activate(
+    volumeResource.descriptor,
+    state.volumeRendering.capabilities,
+  );
+  if (state.autoRotate) {
+    volumeRenderingQuality.beginInteraction("auto-rotate");
+  }
+
   volumeLayer.root = volumeResource.root;
   anatomyGroup.add(volumeResource.root);
   volumeResource.root.updateMatrixWorld(true);
@@ -626,6 +682,7 @@ async function activatePatientVolumeRendering(textureResource, task) {
 
   const box = updateVolumeBounds();
   if (box) fitCamera(box);
+  requestViewerRender();
   setStatus("ready", "Patient volume rendering ready");
   anatomyNote.textContent = "True patient voxel volume active. Medical transfer controls are ready.";
   setWorkflowStep(workflowVisualization, "complete");
@@ -643,6 +700,7 @@ function resetWorkspace() {
     applyTransferPreset(state.volumeRendering.transferPresetId);
   }
   state.autoRotate = false;
+  volumeRenderingQuality.endInteraction("auto-rotate");
   autoRotateButton.classList.remove("is-active");
   autoRotateButton.setAttribute("aria-pressed", "false");
   autoRotateButton.textContent = "Auto rotate";
@@ -1465,48 +1523,84 @@ for (const [plane, controlsForPlane] of clippingRegistry.entries()) {
     state.clipping[plane].enabled = controlsForPlane.enabled.checked;
     setClippingControlsEnabled(true);
     applyPatientClipping();
+    volumeRenderingQuality.pulseInteraction("clipping");
   });
   controlsForPlane.slider.addEventListener("input", () => {
     updateClippingFromControl(plane);
+    volumeRenderingQuality.pulseInteraction("clipping");
   });
   controlsForPlane.side.addEventListener("change", () => {
     state.clipping[plane].retainedSide = controlsForPlane.side.value;
     applyPatientClipping();
+    volumeRenderingQuality.pulseInteraction("clipping");
   });
 }
 
 transferPresetSelect.addEventListener("change", () => {
   applyTransferPreset(transferPresetSelect.value);
+  volumeRenderingQuality.pulseInteraction("transfer");
 });
 
 transferRangeLow.addEventListener("input", () => {
   applyTransferAdjustments(transferRangeLow);
+  volumeRenderingQuality.pulseInteraction("transfer");
 });
 
 transferRangeHigh.addEventListener("input", () => {
   applyTransferAdjustments(transferRangeHigh);
+  volumeRenderingQuality.pulseInteraction("transfer");
 });
 
 transferDensity.addEventListener("input", () => {
   applyTransferAdjustments(transferDensity);
+  volumeRenderingQuality.pulseInteraction("transfer");
 });
 
 transferResetButton.addEventListener("click", () => {
   applyTransferPreset(state.volumeRendering.transferPresetId);
+  volumeRenderingQuality.pulseInteraction("transfer");
 });
 
 opacitySlider.addEventListener("input", () => {
   state.opacity = Number(opacitySlider.value) / 100;
   applyOpacity();
+  volumeRenderingQuality.pulseInteraction("opacity");
 });
+
+const qualityInteractionControls = [
+  ...Array.from(clippingRegistry.values()).map((entry) => entry.slider),
+  transferRangeLow,
+  transferRangeHigh,
+  transferDensity,
+  opacitySlider,
+].filter(Boolean);
+
+for (const control of qualityInteractionControls) {
+  const source = `control:${control.id || "range"}`;
+  control.addEventListener("pointerdown", () => {
+    volumeRenderingQuality.beginInteraction(source);
+  });
+  const endQualityInteraction = () => {
+    volumeRenderingQuality.endInteraction(source);
+  };
+  control.addEventListener("pointerup", endQualityInteraction);
+  control.addEventListener("pointercancel", endQualityInteraction);
+  control.addEventListener("change", endQualityInteraction);
+}
 
 resetButton.addEventListener("click", resetWorkspace);
 
 autoRotateButton.addEventListener("click", () => {
   state.autoRotate = !state.autoRotate;
+  if (state.autoRotate && volumeLayer.root) {
+    volumeRenderingQuality.beginInteraction("auto-rotate");
+  } else {
+    volumeRenderingQuality.endInteraction("auto-rotate");
+  }
   autoRotateButton.classList.toggle("is-active", state.autoRotate);
   autoRotateButton.setAttribute("aria-pressed", state.autoRotate ? "true" : "false");
   autoRotateButton.textContent = state.autoRotate ? "Stop rotate" : "Auto rotate";
+  requestViewerRender();
 });
 
 themeToggle.addEventListener("click", () => {
@@ -1580,6 +1674,7 @@ function resize() {
   renderer.setSize(width, height, false);
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
+  requestViewerRender();
   if (state.mpr.descriptor) {
     for (const [plane, entry] of mprRegistry.entries()) {
       const planeDescriptor = state.mpr.descriptor.planes[plane];
@@ -1605,6 +1700,7 @@ void refreshLatestStudy();
 const timer = new THREE.Timer();
 timer.connect(document);
 window.addEventListener("pagehide", () => {
+  volumeRenderingQuality.deactivate();
   volumeRayMarcher.dispose();
   volumeTextureManager.dispose();
   timer.dispose();
@@ -1613,13 +1709,27 @@ function animate(timestamp) {
   timer.update(timestamp);
   const dt = Math.min(timer.getDelta(), 0.05);
 
+  let shouldRender = viewerRenderRequested;
   if (state.autoRotate) {
     anatomyGroup.rotation.y += dt * 0.32;
+    shouldRender = true;
   }
 
-  controls.update();
-  updateOrientationGizmo();
-  renderer.render(scene, camera);
+  if (controls.update()) shouldRender = true;
+  if (volumeRenderingQuality.update(timestamp)) shouldRender = true;
+  if (shouldRender) {
+    viewerRenderRequested = false;
+    updateOrientationGizmo();
+    renderer.render(scene, camera);
+    if (
+      volumeRenderingQuality.isInteractive()
+      && lastRenderedTimestamp !== null
+      && timestamp - lastRenderedTimestamp < 250
+    ) {
+      volumeRenderingQuality.recordFrameDuration(timestamp - lastRenderedTimestamp);
+    }
+    lastRenderedTimestamp = timestamp;
+  }
   requestAnimationFrame(animate);
 }
 requestAnimationFrame(animate);

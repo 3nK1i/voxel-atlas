@@ -1,5 +1,6 @@
 const MAX_RAY_STEPS = 512;
-const INTERACTIVE_SAMPLE_RATE = 384;
+export const MIN_RAY_SAMPLING_RATE = 48;
+const DEFAULT_SAMPLE_RATE = 384;
 export const TRANSFER_POINT_COUNT = 6;
 
 export const PATIENT_LPS_TO_VIEWER = Object.freeze([
@@ -720,7 +721,7 @@ export class PatientVolumeRayMarcher {
         uTransferColors: { value: transferUniforms.colors },
         uDensityScale: { value: transfer.densityScale },
         uGlobalOpacity: { value: 1 },
-        uSamplingRate: { value: Math.min(Math.max(...dimensions), INTERACTIVE_SAMPLE_RATE) },
+        uSamplingRate: { value: Math.min(Math.max(...dimensions), DEFAULT_SAMPLE_RATE) },
         uLocalToPatientLps: {
           value: new THREE.Matrix4().set(...presentation.localToPatientLps),
         },
@@ -764,6 +765,9 @@ export class PatientVolumeRayMarcher {
       transfer,
       transferState: { current: transfer },
       clippingState: { current: clipping },
+      qualityState: {
+        samplingRate: Math.min(Math.max(...dimensions), DEFAULT_SAMPLE_RATE),
+      },
     });
     this.current = resource;
     return resource;
@@ -773,6 +777,17 @@ export class PatientVolumeRayMarcher {
     if (!this.current) return;
     const opacity = Math.min(1, Math.max(0, finiteNumber(value, "opacity")));
     this.current.material.uniforms.uGlobalOpacity.value = opacity;
+  }
+
+  setSamplingRate(value) {
+    if (!this.current) return null;
+    const samplingRate = Math.round(Math.min(
+      MAX_RAY_STEPS,
+      Math.max(MIN_RAY_SAMPLING_RATE, finiteNumber(value, "sampling rate")),
+    ));
+    this.current.material.uniforms.uSamplingRate.value = samplingRate;
+    this.current.qualityState.samplingRate = samplingRate;
+    return samplingRate;
   }
 
   setTransferPreset(presetId, adjustments = {}) {

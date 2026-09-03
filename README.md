@@ -6,7 +6,7 @@ VoxelAtlas is currently an engineering/research application. It is not a certifi
 
 ## Current status
 
-The accepted foundation includes FastAPI authentication with Argon2id password verification, opaque server-side sessions, the responsive VoxelAtlas login UI, a deployed production service, the Phase 2B final V1 workspace shell, the Phase 3A DICOM study-ingestion foundation, the Phase 3A-R2 clinical viewer polish, Phase 3B DICOM geometry/reconstruction-readiness qualification, Phase 3C canonical patient-volume construction, and Phase 3D-R2.1 real synchronized MPR integration with final professional presentation, image-registered crosshairs, and harmonized clinical action/selection states. Phase 4A defines a reusable patient-specific reconstruction boundary. Phase 4B adds the immutable source-to-GPU volume contract and bounded derived RG8 representation. Phase 4C1 verifies and initializes the authenticated 3D texture. Phase 4C2 ray marches that texture directly so Full Volume presents the actual uploaded patient voxels with physical proportions and patient orientation preserved. Phase 4D1 removes the legacy demo-surface runtime and locks Full Volume as the only V1 3D representation. Phase 4D2 adds medical color and opacity transfer functions with calibrated CT HU presets and truthful relative-intensity MR presets.
+The accepted foundation includes FastAPI authentication with Argon2id password verification, opaque server-side sessions, the responsive VoxelAtlas login UI, a deployed production service, the Phase 2B final V1 workspace shell, the Phase 3A DICOM study-ingestion foundation, the Phase 3A-R2 clinical viewer polish, Phase 3B DICOM geometry/reconstruction-readiness qualification, Phase 3C canonical patient-volume construction, and Phase 3D-R2.1 real synchronized MPR integration with final professional presentation, image-registered crosshairs, and harmonized clinical action/selection states. Phase 4A defines a reusable patient-specific reconstruction boundary. Phase 4B adds the immutable source-to-GPU volume contract and bounded derived RG8 representation. Phase 4C1 verifies and initializes the authenticated 3D texture. Phase 4C2 ray marches that texture directly so Full Volume presents the actual uploaded patient voxels with physical proportions and patient orientation preserved. Phase 4D1 removes the legacy demo-surface runtime and locks Full Volume as the only V1 3D representation. Phase 4D2 adds medical color and opacity transfer functions with calibrated CT HU presets and truthful relative-intensity MR presets. Phase 4E adds simultaneous Patient LPS clipping, and Phase 4F adapts sampling and display density between responsive interaction and higher-quality settled rendering while suppressing idle GPU draws.
 
 ## Locked V1 workspace
 
@@ -59,7 +59,7 @@ Phase 3A adds `pydicom` for DICOM parsing. Phase 3C promotes `numpy` into the ba
 Run the current compact regression from the repository root:
 
 ```bash
-bash scripts/run_phase4d2_checks.sh
+bash scripts/run_phase4f_checks.sh
 ```
 
 ## Locked V1 roadmap
@@ -69,7 +69,7 @@ bash scripts/run_phase4d2_checks.sh
 3. DICOM upload, study ingestion, geometry qualification, canonical patient volume, and real MPR - complete through Phase 3D
 4. direct patient-volume rendering foundation and authenticated GPU transport
 5. true GPU ray marching of the actual uploaded CT/MRI voxel volume - complete through Phase 4C2
-6. medical transfer functions, clipping, synchronization and adaptive performance - transfer functions complete through Phase 4D2
+6. medical transfer functions, clipping, synchronization and adaptive performance - complete through Phase 4F
 7. production security and V1 qualification
 
 Post-V1 work includes atlas-region interaction, AR/XR, advanced planning workflows, PACS/DICOMweb, and additional anatomical atlases.
@@ -120,3 +120,7 @@ Phase 4D2 maps the verified patient voxels through six-point GPU color and opaci
 ### Phase 4E - Multi-plane patient-space clipping
 
 Phase 4E adds independent Axial, Coronal, and Sagittal clipping planes to the true patient voxel renderer. Any combination of the three planes can be active simultaneously. Each plane has its own retained anatomical side and physical position in DICOM Patient LPS millimetres. The shader clips the ray interval before sampling, and the clipping intersection shares the synchronized MPR crosshair coordinates. Reset disables every plane, restores deterministic retained sides, recenters the MPR/clipping intersection, and leaves the patient volume and medical transfer function intact. No segmentation or surface geometry is created.
+
+### Phase 4F - Adaptive rendering quality
+
+Phase 4F selects bounded ray-sampling and display-density profiles from the qualified volume dimensions and device pixel ratio. Orbit, pan, zoom, clipping, transfer, opacity, and auto-rotation use the responsive interactive profile; the renderer restores its higher-quality settled profile 180 ms after interaction stops. Measured interaction frame pressure can reduce sampling further within a fixed lower bound, while settled output always returns to its deterministic profile. The viewer also stops issuing Three.js draw calls when nothing changes. Medical intensities, transfer functions, DICOM Patient LPS clipping, source volume integrity, and provenance remain unchanged.
