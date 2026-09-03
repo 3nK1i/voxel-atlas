@@ -81,7 +81,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -91,6 +92,7 @@ button {
 
 button:focus-visible,
 input:focus-visible,
+select:focus-visible,
 a:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 78%, white 10%);
   outline-offset: 2px;
@@ -1066,6 +1068,76 @@ button:disabled {
   line-height: 1.4;
 }
 
+.transfer-preset-select {
+  width: 100%;
+  min-height: 31px;
+  padding: 0 28px 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+  color: var(--text-soft);
+  font-size: 7px;
+  font-weight: 720;
+  cursor: pointer;
+}
+
+.transfer-preset-select:disabled,
+.transfer-adjustment input:disabled,
+.transfer-reset-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.transfer-adjustments {
+  display: grid;
+  gap: 4px;
+  margin-top: 7px;
+}
+
+.transfer-adjustment-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: -2px;
+  color: var(--muted);
+  font-size: 6.5px;
+  font-weight: 700;
+}
+
+.transfer-adjustment-heading strong {
+  color: var(--text-soft);
+  font-size: 6.8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.transfer-adjustment .slider {
+  min-height: 20px;
+}
+
+.transfer-reset-button {
+  width: 100%;
+  min-height: 30px;
+  margin-top: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+  color: var(--text-soft);
+  font-size: 6.8px;
+  font-weight: 740;
+  cursor: pointer;
+  transition: border-color 130ms ease, background 130ms ease, transform 130ms ease;
+}
+
+.transfer-reset-button:hover:not(:disabled) {
+  border-color: var(--line-strong);
+  background: var(--panel-hover);
+}
+
+.transfer-reset-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
 .action-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1171,6 +1243,12 @@ button:disabled {
   .layer-grid { gap: 7px; margin-top: 10px; }
   .layer-button { min-height: 44px; font-size: 9px; }
   .anatomy-note { margin-top: 9px; font-size: 8px; }
+  .transfer-preset-select { min-height: 36px; font-size: 8.5px; }
+  .transfer-adjustments { gap: 5px; margin-top: 9px; }
+  .transfer-adjustment-heading { font-size: 8px; }
+  .transfer-adjustment-heading strong { font-size: 8px; }
+  .transfer-adjustment .slider { min-height: 24px; }
+  .transfer-reset-button { min-height: 34px; font-size: 8.5px; }
   .action-row { gap: 8px; padding: 12px 14px 14px; }
   .action-row button { min-height: 44px; font-size: 9.5px; }
 }

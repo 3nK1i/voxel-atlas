@@ -6,7 +6,10 @@ import {
   validateVolumeRenderingDescriptor,
 } from "./volume-rendering-capabilities.js";
 import { PatientVolumeTextureManager } from "./volume-texture-manager.js?v=phase4c1-r1";
-import { PatientVolumeRayMarcher } from "./patient-volume-ray-marcher.js?v=phase4c2";
+import {
+  PatientVolumeRayMarcher,
+  listMedicalTransferPresets,
+} from "./patient-volume-ray-marcher.js?v=phase4d2";
 
 const THEME_KEY = "voxelatlas-theme";
 const DEFAULT_OPACITY = 1.0;
@@ -23,6 +26,17 @@ const sectionButtons = Array.from(document.querySelectorAll("[data-section-axis]
 const volumeLayerButton = document.getElementById("volumeLayerButton");
 const anatomyNote = document.getElementById("anatomyNote");
 const directionalCutPanel = document.getElementById("directionalCutPanel");
+const volumeRenderingPanel = document.getElementById("volumeRenderingPanel");
+const transferModality = document.getElementById("transferModality");
+const transferPresetSelect = document.getElementById("transferPresetSelect");
+const transferRangeLow = document.getElementById("transferRangeLow");
+const transferRangeLowValue = document.getElementById("transferRangeLowValue");
+const transferRangeHigh = document.getElementById("transferRangeHigh");
+const transferRangeHighValue = document.getElementById("transferRangeHighValue");
+const transferDensity = document.getElementById("transferDensity");
+const transferDensityValue = document.getElementById("transferDensityValue");
+const transferResetButton = document.getElementById("transferResetButton");
+const transferFunctionNote = document.getElementById("transferFunctionNote");
 const opacitySlider = document.getElementById("opacitySlider");
 const opacityValue = document.getElementById("opacityValue");
 const resetButton = document.getElementById("resetButton");
@@ -159,6 +173,10 @@ state.volumeRendering = {
   capabilities: volumeRenderingCapabilities,
   descriptor: null,
   textureResource: null,
+  transferPresetId: null,
+  transferRangeLow: null,
+  transferRangeHigh: null,
+  transferDensityMultiplier: 1,
 };
 const volumeTextureManager = new PatientVolumeTextureManager({
   three: THREE,
@@ -186,6 +204,129 @@ function setStatus(kind, message) {
   statusText.textContent = message;
 }
 
+function setTransferControlsEnabled(enabled) {
+  const available = Boolean(enabled);
+  volumeRenderingPanel.dataset.state = available ? "ready" : "unavailable";
+  for (const control of [
+    transferPresetSelect,
+    transferRangeLow,
+    transferRangeHigh,
+    transferDensity,
+    transferResetButton,
+  ]) {
+    control.disabled = !available;
+  }
+}
+
+function clearTransferControls() {
+  state.volumeRendering.transferPresetId = null;
+  state.volumeRendering.transferRangeLow = null;
+  state.volumeRendering.transferRangeHigh = null;
+  state.volumeRendering.transferDensityMultiplier = 1;
+  transferPresetSelect.replaceChildren();
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "Load a patient volume";
+  transferPresetSelect.appendChild(placeholder);
+  transferModality.textContent = "--";
+  transferRangeLowValue.textContent = "--";
+  transferRangeHighValue.textContent = "--";
+  transferDensity.value = "100";
+  transferDensityValue.textContent = "100%";
+  transferFunctionNote.textContent = (
+    "Medical transfer controls activate with a qualified patient volume."
+  );
+  setTransferControlsEnabled(false);
+}
+
+function transferIntensityStep(transfer) {
+  if (transfer.units === "HU") return 1;
+  const span = transfer.sourceRange[1] - transfer.sourceRange[0];
+  return Math.max(span / 1000, 0.001);
+}
+
+function formatTransferIntensity(value, transfer) {
+  if (transfer.units === "HU") return `${Math.round(value)} HU`;
+  const span = transfer.sourceRange[1] - transfer.sourceRange[0];
+  const digits = span >= 100 ? 0 : span >= 10 ? 1 : 2;
+  return `${Number(value).toFixed(digits)} rel`;
+}
+
+function syncTransferControls(transfer) {
+  const step = transferIntensityStep(transfer);
+  const [sourceLow, sourceHigh] = transfer.sourceRange;
+  const minimumGap = Math.max(step, 0.000001);
+  state.volumeRendering.transferPresetId = transfer.id;
+  state.volumeRendering.transferRangeLow = transfer.rangeLow;
+  state.volumeRendering.transferRangeHigh = transfer.rangeHigh;
+  state.volumeRendering.transferDensityMultiplier = transfer.densityMultiplier;
+
+  transferPresetSelect.value = transfer.id;
+  transferRangeLow.min = String(sourceLow);
+  transferRangeLow.max = String(Math.max(sourceLow, transfer.rangeHigh - minimumGap));
+  transferRangeLow.step = String(step);
+  transferRangeLow.value = String(transfer.rangeLow);
+  transferRangeHigh.min = String(Math.min(sourceHigh, transfer.rangeLow + minimumGap));
+  transferRangeHigh.max = String(sourceHigh);
+  transferRangeHigh.step = String(step);
+  transferRangeHigh.value = String(transfer.rangeHigh);
+  transferDensity.value = String(Math.round(transfer.densityMultiplier * 100));
+
+  transferModality.textContent = `${transfer.modality} · ${transfer.units}`;
+  transferRangeLowValue.textContent = formatTransferIntensity(transfer.rangeLow, transfer);
+  transferRangeHighValue.textContent = formatTransferIntensity(transfer.rangeHigh, transfer);
+  transferDensityValue.textContent = `${Math.round(transfer.densityMultiplier * 100)}%`;
+  transferFunctionNote.textContent = transfer.description;
+}
+
+function configureTransferControls(volumeResource) {
+  const presets = listMedicalTransferPresets(volumeResource.descriptor);
+  transferPresetSelect.replaceChildren();
+  for (const preset of presets) {
+    const option = document.createElement("option");
+    option.value = preset.id;
+    option.textContent = preset.label;
+    transferPresetSelect.appendChild(option);
+  }
+  syncTransferControls(volumeResource.transferState.current);
+  setTransferControlsEnabled(true);
+}
+
+function applyTransferPreset(presetId = transferPresetSelect.value) {
+  if (!volumeRayMarcher.current || !presetId) return null;
+  const transfer = volumeRayMarcher.setTransferPreset(presetId);
+  syncTransferControls(transfer);
+  return transfer;
+}
+
+function applyTransferAdjustments(changedControl = null) {
+  if (!volumeRayMarcher.current || !state.volumeRendering.transferPresetId) return null;
+  const current = volumeRayMarcher.current.transferState.current;
+  const [sourceLow, sourceHigh] = current.sourceRange;
+  const minimumGap = Math.max(transferIntensityStep(current), 0.000001);
+  let rangeLow = Math.min(sourceHigh, Math.max(sourceLow, Number(transferRangeLow.value)));
+  let rangeHigh = Math.min(sourceHigh, Math.max(sourceLow, Number(transferRangeHigh.value)));
+
+  if (rangeHigh - rangeLow < minimumGap) {
+    if (changedControl === transferRangeLow) {
+      rangeLow = Math.max(sourceLow, rangeHigh - minimumGap);
+    } else {
+      rangeHigh = Math.min(sourceHigh, rangeLow + minimumGap);
+    }
+  }
+
+  const transfer = volumeRayMarcher.setTransferPreset(
+    state.volumeRendering.transferPresetId,
+    {
+      rangeLow,
+      rangeHigh,
+      densityMultiplier: Number(transferDensity.value) / 100,
+    },
+  );
+  syncTransferControls(transfer);
+  return transfer;
+}
+
 function setVolumeAvailability(available) {
   volumeLayer.available = Boolean(available);
   volumeLayerButton.disabled = !volumeLayer.available;
@@ -195,6 +336,7 @@ function setVolumeAvailability(available) {
   directionalCutPanel.dataset.volumeDeferred = "true";
   sectionSlider.disabled = true;
   for (const button of sectionButtons) button.disabled = true;
+  setTransferControlsEnabled(volumeLayer.available && Boolean(volumeRayMarcher.current));
 }
 
 function applyVolumeVisibility() {
@@ -343,6 +485,7 @@ function applyOpacity() {
 function clearPatientVolumeRendering() {
   volumeRayMarcher.dispose();
   volumeLayer.root = null;
+  clearTransferControls();
   setVolumeAvailability(false);
   applyVolumeVisibility();
   setStatus(
@@ -367,13 +510,14 @@ async function activatePatientVolumeRendering(textureResource, task) {
   volumeLayer.root = volumeResource.root;
   anatomyGroup.add(volumeResource.root);
   volumeResource.root.updateMatrixWorld(true);
+  configureTransferControls(volumeResource);
   setVolumeAvailability(true);
   applyOpacity();
 
   const box = updateVolumeBounds();
   if (box) fitCamera(box);
   setStatus("ready", "Patient volume rendering ready");
-  anatomyNote.textContent = "True patient voxel volume active. Medical transfer-function controls follow in Phase 4D2.";
+  anatomyNote.textContent = "True patient voxel volume active. Medical transfer controls are ready.";
   setWorkflowStep(workflowVisualization, "complete");
   volumeStatusRow.dataset.state = "ready";
   volumeStatusText.textContent = "Patient volume rendered";
@@ -390,6 +534,9 @@ function resetWorkspace() {
 
   state.opacity = DEFAULT_OPACITY;
   opacitySlider.value = String(Math.round(DEFAULT_OPACITY * 100));
+  if (state.volumeRendering.transferPresetId) {
+    applyTransferPreset(state.volumeRendering.transferPresetId);
+  }
   state.autoRotate = false;
   autoRotateButton.classList.remove("is-active");
   autoRotateButton.setAttribute("aria-pressed", "false");
@@ -556,7 +703,7 @@ async function ensureVolumeRenderingFoundation() {
     }
     state.volumeRendering.descriptor = descriptor;
     state.volumeRendering.textureResource = textureResource;
-    anatomyNote.textContent = "True patient voxel volume active. Medical transfer-function controls follow in Phase 4D2.";
+    anatomyNote.textContent = "True patient voxel volume active. Medical transfer controls are ready.";
     return descriptor;
   })();
   volumeRenderingTask = task;
@@ -1221,6 +1368,26 @@ sectionButtons.forEach((button) => {
 sectionSlider.addEventListener("input", () => {
   state.sectionDepth = Number(sectionSlider.value) / 100;
   applySection();
+});
+
+transferPresetSelect.addEventListener("change", () => {
+  applyTransferPreset(transferPresetSelect.value);
+});
+
+transferRangeLow.addEventListener("input", () => {
+  applyTransferAdjustments(transferRangeLow);
+});
+
+transferRangeHigh.addEventListener("input", () => {
+  applyTransferAdjustments(transferRangeHigh);
+});
+
+transferDensity.addEventListener("input", () => {
+  applyTransferAdjustments(transferDensity);
+});
+
+transferResetButton.addEventListener("click", () => {
+  applyTransferPreset(state.volumeRendering.transferPresetId);
 });
 
 opacitySlider.addEventListener("input", () => {

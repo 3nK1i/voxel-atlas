@@ -58,6 +58,10 @@ class FakeMatrix4 {
   set(...elements) { this.elements = elements; return this; }
 }
 
+class FakeVector3 {
+  constructor(x, y, z) { this.x = x; this.y = y; this.z = z; }
+}
+
 class FakeMesh {
   constructor(geometry, material) {
     this.geometry = geometry;
@@ -89,6 +93,7 @@ const THREE = {
   Matrix4: FakeMatrix4,
   Mesh: FakeMesh,
   ShaderMaterial: FakeMaterial,
+  Vector3: FakeVector3,
 };
 
 const texture = { minFilter: "Nearest", magFilter: "Nearest", needsUpdate: false };

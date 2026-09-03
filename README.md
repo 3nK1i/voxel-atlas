@@ -6,7 +6,7 @@ VoxelAtlas is currently an engineering/research application. It is not a certifi
 
 ## Current status
 
-The accepted foundation includes FastAPI authentication with Argon2id password verification, opaque server-side sessions, the responsive VoxelAtlas login UI, a deployed production service, the Phase 2B final V1 workspace shell, the Phase 3A DICOM study-ingestion foundation, the Phase 3A-R2 clinical viewer polish, Phase 3B DICOM geometry/reconstruction-readiness qualification, Phase 3C canonical patient-volume construction, and Phase 3D-R2.1 real synchronized MPR integration with final professional presentation, image-registered crosshairs, and harmonized clinical action/selection states. Phase 4A defines a reusable patient-specific reconstruction boundary. Phase 4B adds the immutable source-to-GPU volume contract and bounded derived RG8 representation. Phase 4C1 verifies and initializes the authenticated 3D texture. Phase 4C2 ray marches that texture directly so Full Volume presents the actual uploaded patient voxels with physical proportions and patient orientation preserved. Phase 4D1 removes the legacy demo-surface runtime and locks Full Volume as the only V1 3D representation.
+The accepted foundation includes FastAPI authentication with Argon2id password verification, opaque server-side sessions, the responsive VoxelAtlas login UI, a deployed production service, the Phase 2B final V1 workspace shell, the Phase 3A DICOM study-ingestion foundation, the Phase 3A-R2 clinical viewer polish, Phase 3B DICOM geometry/reconstruction-readiness qualification, Phase 3C canonical patient-volume construction, and Phase 3D-R2.1 real synchronized MPR integration with final professional presentation, image-registered crosshairs, and harmonized clinical action/selection states. Phase 4A defines a reusable patient-specific reconstruction boundary. Phase 4B adds the immutable source-to-GPU volume contract and bounded derived RG8 representation. Phase 4C1 verifies and initializes the authenticated 3D texture. Phase 4C2 ray marches that texture directly so Full Volume presents the actual uploaded patient voxels with physical proportions and patient orientation preserved. Phase 4D1 removes the legacy demo-surface runtime and locks Full Volume as the only V1 3D representation. Phase 4D2 adds medical color and opacity transfer functions with calibrated CT HU presets and truthful relative-intensity MR presets.
 
 ## Locked V1 workspace
 
@@ -26,6 +26,7 @@ The workspace is intentionally focused on medical imaging and anatomical inspect
 - synchronized anatomical orientation gizmo with transparent styling and axis arrows
 - reset and auto-rotate actions
 - one truthful anatomical layer: **Full Volume**
+- medical transfer presets with adjustable intensity range and density
 
 AR/XR, holographic rendering, segmentation, OBJ/STL/GLB patient-surface generation, and specialized legacy cut behavior are outside the V1 workspace. Atlas-region exploration is post-V1.
 
@@ -58,7 +59,7 @@ Phase 3A adds `pydicom` for DICOM parsing. Phase 3C promotes `numpy` into the ba
 Run the current compact regression from the repository root:
 
 ```bash
-bash scripts/run_phase4d1_checks.sh
+bash scripts/run_phase4d2_checks.sh
 ```
 
 ## Locked V1 roadmap
@@ -68,7 +69,7 @@ bash scripts/run_phase4d1_checks.sh
 3. DICOM upload, study ingestion, geometry qualification, canonical patient volume, and real MPR - complete through Phase 3D
 4. direct patient-volume rendering foundation and authenticated GPU transport
 5. true GPU ray marching of the actual uploaded CT/MRI voxel volume - complete through Phase 4C2
-6. medical transfer functions, clipping, synchronization and adaptive performance
+6. medical transfer functions, clipping, synchronization and adaptive performance - transfer functions complete through Phase 4D2
 7. production security and V1 qualification
 
 Post-V1 work includes atlas-region interaction, AR/XR, advanced planning workflows, PACS/DICOMweb, and additional anatomical atlases.
@@ -111,3 +112,7 @@ Phase 4C2 creates a WebGL2 `sampler3D` ray marcher around the verified texture. 
 ### Phase 4D1 - Volume-only workspace
 
 Phase 4D1 makes `Full Volume` the only V1 anatomical layer and removes the demo skull, static GLB loading, surface-material path, and multi-layer controls from the browser runtime. The 3D viewport now displays only the actual uploaded CT/MRI voxel volume. Before that volume is ready, or if GPU preparation fails, the application remains truthful and keeps synchronized MPR available without substituting a model. The canonical medical volume, authenticated transport, physical patient geometry, and C2 ray marcher are unchanged.
+
+### Phase 4D2 - Medical transfer functions
+
+Phase 4D2 maps the verified patient voxels through six-point GPU color and opacity transfer functions. Qualified CT volumes receive General CT, Soft Tissue, Bone, and Lung starting presets in calibrated HU. MR presets remain relative to the source intensity range and make no T1, T2, FLAIR, or tissue-class claim. Doctors can adjust the visible intensity interval and density without downloading or rebuilding the volume, while global opacity remains independent. The source volume and its provenance are unchanged, and no segmentation or surface model is generated. Simultaneous multi-plane patient-space clipping remains locked for Phase 4E.

@@ -18,6 +18,10 @@ class Phase4C2TrueVolumeRayMarchingTests(unittest.TestCase):
             "intersectUnitBox",
             "decodeMedicalIntensity",
             "texture(uVolume, textureCoordinate)",
+            "sampleMedicalTransfer",
+            "uTransferIntensities",
+            "uTransferOpacities",
+            "uTransferColors",
             "accumulated.rgb += remaining * sampleAlpha * sampleColor",
             "accumulated.a += remaining * sampleAlpha",
             "if (accumulated.a >= 0.98)",
@@ -53,9 +57,9 @@ class Phase4C2TrueVolumeRayMarchingTests(unittest.TestCase):
                 self.assertIn(marker, renderer + app_js)
 
         self.assertIn('data-layer="volume" disabled', html)
-        self.assertIn('/js/app.js?v=phase3d-r21-phase4d1', html)
+        self.assertIn('/js/app.js?v=phase3d-r21-phase4d2', html)
         self.assertIn(
-            'from "./patient-volume-ray-marcher.js?v=phase4c2"',
+            'from "./patient-volume-ray-marcher.js?v=phase4d2"',
             app_js,
         )
         self.assertIn("True patient voxel volume active.", app_js)

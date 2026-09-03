@@ -1,5 +1,6 @@
 const MAX_RAY_STEPS = 512;
 const INTERACTIVE_SAMPLE_RATE = 384;
+export const TRANSFER_POINT_COUNT = 6;
 
 export const PATIENT_LPS_TO_VIEWER = Object.freeze([
   -1, 0, 0, 0,
@@ -34,13 +35,12 @@ precision highp sampler3D;
 uniform highp sampler3D uVolume;
 uniform float uDecodeOffset;
 uniform float uDecodeScale;
-uniform float uIntensityLow;
-uniform float uIntensityHigh;
-uniform float uAbsorption;
+uniform float uTransferIntensities[${TRANSFER_POINT_COUNT}];
+uniform float uTransferOpacities[${TRANSFER_POINT_COUNT}];
+uniform vec3 uTransferColors[${TRANSFER_POINT_COUNT}];
+uniform float uDensityScale;
 uniform float uGlobalOpacity;
 uniform float uSamplingRate;
-uniform vec3 uColorLow;
-uniform vec3 uColorHigh;
 
 in vec3 vRayOrigin;
 in vec3 vRayDirection;
@@ -66,6 +66,33 @@ float decodeMedicalIntensity(vec3 textureCoordinate) {
   return uDecodeOffset + uDecodeScale * (lowByte + highByte * 256.0);
 }
 
+vec4 sampleMedicalTransfer(float intensity) {
+  if (intensity <= uTransferIntensities[0]) {
+    return vec4(uTransferColors[0], uTransferOpacities[0]);
+  }
+  for (int point = 1; point < ${TRANSFER_POINT_COUNT}; point += 1) {
+    if (intensity <= uTransferIntensities[point]) {
+      float interval = max(
+        uTransferIntensities[point] - uTransferIntensities[point - 1],
+        0.000001
+      );
+      float blend = clamp(
+        (intensity - uTransferIntensities[point - 1]) / interval,
+        0.0,
+        1.0
+      );
+      return vec4(
+        mix(uTransferColors[point - 1], uTransferColors[point], blend),
+        mix(uTransferOpacities[point - 1], uTransferOpacities[point], blend)
+      );
+    }
+  }
+  return vec4(
+    uTransferColors[${TRANSFER_POINT_COUNT - 1}],
+    uTransferOpacities[${TRANSFER_POINT_COUNT - 1}]
+  );
+}
+
 void main() {
   vec3 direction = normalize(vRayDirection);
   vec2 intersection = intersectUnitBox(vRayOrigin, direction);
@@ -83,11 +110,11 @@ void main() {
     if (float(index) >= sampleCount) break;
     vec3 textureCoordinate = samplePosition + vec3(0.5);
     float intensity = decodeMedicalIntensity(textureCoordinate);
-    float density = smoothstep(uIntensityLow, uIntensityHigh, intensity);
+    vec4 transferSample = sampleMedicalTransfer(intensity);
+    vec3 sampleColor = transferSample.rgb;
     float sampleAlpha = 1.0 - exp(
-      -density * uAbsorption * uGlobalOpacity * stepLength
+      -transferSample.a * uDensityScale * uGlobalOpacity * stepLength
     );
-    vec3 sampleColor = mix(uColorLow, uColorHigh, density);
     float remaining = 1.0 - accumulated.a;
     accumulated.rgb += remaining * sampleAlpha * sampleColor;
     accumulated.a += remaining * sampleAlpha;
@@ -196,48 +223,283 @@ function sourceRange(descriptor) {
   return [low, high];
 }
 
-export function selectBaselineTransferFunction(descriptor) {
-  const [sourceLow, sourceHigh] = sourceRange(descriptor);
-  const span = Math.max(sourceHigh - sourceLow, 1);
+function transferPoint(position, opacity, color) {
+  return Object.freeze({
+    position,
+    opacity,
+    color: Object.freeze(color),
+  });
+}
+
+const CT_TRANSFER_PRESETS = Object.freeze([
+  Object.freeze({
+    id: "ct-general",
+    label: "General CT",
+    description: "Balanced CT overview across air, soft tissue, and dense structures.",
+    modality: "CT",
+    units: "HU",
+    rangeMode: "absolute",
+    range: Object.freeze([-1000, 1200]),
+    densityScale: 12.0,
+    points: Object.freeze([
+      transferPoint(0.00, 0.000, [0.03, 0.05, 0.08]),
+      transferPoint(0.18, 0.008, [0.16, 0.22, 0.30]),
+      transferPoint(0.38, 0.055, [0.48, 0.38, 0.34]),
+      transferPoint(0.56, 0.150, [0.78, 0.58, 0.46]),
+      transferPoint(0.76, 0.360, [0.96, 0.82, 0.66]),
+      transferPoint(1.00, 0.720, [1.00, 0.96, 0.88]),
+    ]),
+  }),
+  Object.freeze({
+    id: "ct-soft-tissue",
+    label: "Soft Tissue",
+    description: "Emphasizes CT soft-tissue intensities while suppressing dense bone.",
+    modality: "CT",
+    units: "HU",
+    rangeMode: "absolute",
+    range: Object.freeze([-180, 350]),
+    densityScale: 14.0,
+    points: Object.freeze([
+      transferPoint(0.00, 0.000, [0.12, 0.07, 0.08]),
+      transferPoint(0.18, 0.045, [0.42, 0.20, 0.18]),
+      transferPoint(0.38, 0.230, [0.72, 0.38, 0.32]),
+      transferPoint(0.58, 0.420, [0.94, 0.64, 0.48]),
+      transferPoint(0.80, 0.120, [0.92, 0.78, 0.65]),
+      transferPoint(1.00, 0.000, [0.96, 0.90, 0.82]),
+    ]),
+  }),
+  Object.freeze({
+    id: "ct-bone",
+    label: "Bone",
+    description: "Emphasizes high-density CT structures using calibrated HU values.",
+    modality: "CT",
+    units: "HU",
+    rangeMode: "absolute",
+    range: Object.freeze([150, 1800]),
+    densityScale: 12.0,
+    points: Object.freeze([
+      transferPoint(0.00, 0.000, [0.18, 0.15, 0.12]),
+      transferPoint(0.18, 0.008, [0.42, 0.34, 0.25]),
+      transferPoint(0.38, 0.080, [0.72, 0.59, 0.42]),
+      transferPoint(0.58, 0.260, [0.92, 0.79, 0.60]),
+      transferPoint(0.78, 0.560, [1.00, 0.91, 0.76]),
+      transferPoint(1.00, 0.880, [1.00, 0.98, 0.92]),
+    ]),
+  }),
+  Object.freeze({
+    id: "ct-lung",
+    label: "Lung",
+    description: "Emphasizes low-density CT lung-range intensities.",
+    modality: "CT",
+    units: "HU",
+    rangeMode: "absolute",
+    range: Object.freeze([-1000, -250]),
+    densityScale: 10.0,
+    points: Object.freeze([
+      transferPoint(0.00, 0.000, [0.02, 0.05, 0.09]),
+      transferPoint(0.18, 0.090, [0.12, 0.32, 0.48]),
+      transferPoint(0.38, 0.360, [0.30, 0.62, 0.78]),
+      transferPoint(0.58, 0.250, [0.58, 0.78, 0.88]),
+      transferPoint(0.80, 0.070, [0.82, 0.88, 0.90]),
+      transferPoint(1.00, 0.000, [0.92, 0.92, 0.88]),
+    ]),
+  }),
+]);
+
+const MR_TRANSFER_PRESETS = Object.freeze([
+  Object.freeze({
+    id: "mr-balanced",
+    label: "MR Balanced",
+    description: "Balanced relative-intensity MR presentation without sequence assumptions.",
+    modality: "MR",
+    units: "modality",
+    rangeMode: "relative",
+    range: Object.freeze([0.03, 0.98]),
+    densityScale: 10.0,
+    points: Object.freeze([
+      transferPoint(0.00, 0.000, [0.02, 0.03, 0.06]),
+      transferPoint(0.18, 0.018, [0.12, 0.18, 0.28]),
+      transferPoint(0.38, 0.100, [0.32, 0.44, 0.58]),
+      transferPoint(0.58, 0.280, [0.58, 0.70, 0.82]),
+      transferPoint(0.78, 0.500, [0.82, 0.88, 0.94]),
+      transferPoint(1.00, 0.740, [0.98, 0.99, 1.00]),
+    ]),
+  }),
+  Object.freeze({
+    id: "mr-lower-intensity",
+    label: "MR Lower Intensities",
+    description: "Emphasizes lower relative MR signal without assigning a tissue class.",
+    modality: "MR",
+    units: "modality",
+    rangeMode: "relative",
+    range: Object.freeze([0.02, 0.68]),
+    densityScale: 11.0,
+    points: Object.freeze([
+      transferPoint(0.00, 0.000, [0.03, 0.05, 0.10]),
+      transferPoint(0.18, 0.110, [0.14, 0.28, 0.48]),
+      transferPoint(0.38, 0.380, [0.34, 0.58, 0.76]),
+      transferPoint(0.58, 0.270, [0.62, 0.78, 0.88]),
+      transferPoint(0.80, 0.070, [0.84, 0.90, 0.95]),
+      transferPoint(1.00, 0.000, [0.98, 0.99, 1.00]),
+    ]),
+  }),
+  Object.freeze({
+    id: "mr-higher-intensity",
+    label: "MR Higher Intensities",
+    description: "Emphasizes higher relative MR signal without assigning a tissue class.",
+    modality: "MR",
+    units: "modality",
+    rangeMode: "relative",
+    range: Object.freeze([0.24, 0.98]),
+    densityScale: 10.0,
+    points: Object.freeze([
+      transferPoint(0.00, 0.000, [0.04, 0.04, 0.08]),
+      transferPoint(0.18, 0.012, [0.16, 0.20, 0.34]),
+      transferPoint(0.38, 0.090, [0.38, 0.48, 0.68]),
+      transferPoint(0.58, 0.300, [0.64, 0.72, 0.88]),
+      transferPoint(0.78, 0.580, [0.84, 0.88, 0.98]),
+      transferPoint(1.00, 0.840, [1.00, 1.00, 1.00]),
+    ]),
+  }),
+]);
+
+const RELATIVE_TRANSFER_PRESETS = Object.freeze([
+  Object.freeze({
+    id: "relative-balanced",
+    label: "Relative Intensity",
+    description: "Generic relative-intensity presentation for an unclassified modality.",
+    modality: "UNKNOWN",
+    units: "modality",
+    rangeMode: "relative",
+    range: Object.freeze([0.05, 0.95]),
+    densityScale: 9.0,
+    points: MR_TRANSFER_PRESETS[0].points,
+  }),
+]);
+
+function presetDefinitions(descriptor) {
   const modality = String(descriptor?.source_modality || "").toUpperCase();
   const units = String(descriptor?.source_intensity_units || "");
   if (modality === "CT" && units === "HU") {
-    let intensityLow = Math.max(sourceLow, -250);
-    let intensityHigh = Math.min(sourceHigh, 900);
-    if (intensityHigh <= intensityLow) {
-      intensityLow = sourceLow - 0.5;
-      intensityHigh = sourceHigh + 0.5;
-    }
-    return Object.freeze({
-      modality,
-      units,
-      intensityLow,
-      intensityHigh,
-      absorption: 7.5,
-      colorLow: Object.freeze([0.38, 0.44, 0.50]),
-      colorHigh: Object.freeze([1.0, 0.91, 0.78]),
-    });
+    return CT_TRANSFER_PRESETS;
   }
-  if (sourceHigh === sourceLow) {
-    return Object.freeze({
-      modality: modality || "UNKNOWN",
-      units: units || "modality",
-      intensityLow: sourceLow - 0.5,
-      intensityHigh: sourceHigh + 0.5,
-      absorption: 7.0,
-      colorLow: Object.freeze([0.30, 0.38, 0.48]),
-      colorHigh: Object.freeze([0.92, 0.96, 1.0]),
-    });
+  if (modality === "MR") {
+    return MR_TRANSFER_PRESETS;
   }
+  return RELATIVE_TRANSFER_PRESETS;
+}
+
+function effectiveSourceRange(descriptor) {
+  const [low, high] = sourceRange(descriptor);
+  return high === low ? [low - 0.5, high + 0.5] : [low, high];
+}
+
+function resolvedPresetRange(preset, sourceLow, sourceHigh) {
+  const span = sourceHigh - sourceLow;
+  let low;
+  let high;
+  if (preset.rangeMode === "relative") {
+    low = sourceLow + span * preset.range[0];
+    high = sourceLow + span * preset.range[1];
+  } else {
+    low = Math.max(sourceLow, preset.range[0]);
+    high = Math.min(sourceHigh, preset.range[1]);
+  }
+  if (high <= low) return [sourceLow, sourceHigh];
+  return [low, high];
+}
+
+export function listMedicalTransferPresets(descriptor) {
+  const modality = String(descriptor?.source_modality || "").toUpperCase() || "UNKNOWN";
+  const units = String(descriptor?.source_intensity_units || "") || "modality";
+  sourceRange(descriptor);
+  return Object.freeze(presetDefinitions(descriptor).map((preset) => Object.freeze({
+    id: preset.id,
+    label: preset.label,
+    description: preset.description,
+    modality,
+    units,
+  })));
+}
+
+export function createMedicalTransferFunction(descriptor, presetId = null, adjustments = {}) {
+  const definitions = presetDefinitions(descriptor);
+  const preset = presetId === null
+    ? definitions[0]
+    : definitions.find(({ id }) => id === presetId);
+  if (!preset) throw new TypeError("Patient volume transfer-function preset is invalid");
+
+  const [sourceLow, sourceHigh] = effectiveSourceRange(descriptor);
+  const [presetLow, presetHigh] = resolvedPresetRange(preset, sourceLow, sourceHigh);
+  const requestedLow = adjustments.rangeLow === undefined
+    ? presetLow
+    : finiteNumber(adjustments.rangeLow, "transfer-function lower intensity");
+  const requestedHigh = adjustments.rangeHigh === undefined
+    ? presetHigh
+    : finiteNumber(adjustments.rangeHigh, "transfer-function upper intensity");
+  const rangeLow = Math.max(sourceLow, Math.min(sourceHigh, requestedLow));
+  const rangeHigh = Math.max(sourceLow, Math.min(sourceHigh, requestedHigh));
+  const minimumInterval = Math.max((sourceHigh - sourceLow) / 65535, 0.000001);
+  if (rangeHigh - rangeLow < minimumInterval) {
+    throw new TypeError("Patient volume transfer-function intensity range is invalid");
+  }
+
+  const densityMultiplier = adjustments.densityMultiplier === undefined
+    ? 1
+    : finiteNumber(adjustments.densityMultiplier, "transfer-function density");
+  if (densityMultiplier < 0.25 || densityMultiplier > 2) {
+    throw new TypeError("Patient volume transfer-function density is invalid");
+  }
+
+  const rangeSpan = rangeHigh - rangeLow;
+  const controlPoints = Object.freeze(preset.points.map((point) => Object.freeze({
+    intensity: rangeLow + rangeSpan * point.position,
+    opacity: point.opacity,
+    color: point.color,
+  })));
+  const modality = String(descriptor?.source_modality || "").toUpperCase() || "UNKNOWN";
+  const units = String(descriptor?.source_intensity_units || "") || "modality";
   return Object.freeze({
-    modality: modality || "UNKNOWN",
-    units: units || "modality",
-    intensityLow: sourceLow + span * 0.12,
-    intensityHigh: sourceLow + span * 0.82,
-    absorption: 7.0,
-    colorLow: Object.freeze([0.30, 0.38, 0.48]),
-    colorHigh: Object.freeze([0.92, 0.96, 1.0]),
+    id: preset.id,
+    label: preset.label,
+    description: preset.description,
+    modality,
+    units,
+    sourceRange: Object.freeze([sourceLow, sourceHigh]),
+    rangeLow,
+    rangeHigh,
+    densityMultiplier,
+    densityScale: preset.densityScale * densityMultiplier,
+    controlPoints,
+    intensityLow: rangeLow,
+    intensityHigh: rangeHigh,
+    absorption: preset.densityScale * densityMultiplier,
+    colorLow: controlPoints[0].color,
+    colorHigh: controlPoints[controlPoints.length - 1].color,
   });
+}
+
+export function selectBaselineTransferFunction(descriptor) {
+  return createMedicalTransferFunction(descriptor);
+}
+
+function transferUniformValues(THREE, transfer) {
+  return {
+    intensities: transfer.controlPoints.map(({ intensity }) => intensity),
+    opacities: transfer.controlPoints.map(({ opacity }) => opacity),
+    colors: transfer.controlPoints.map(
+      ({ color }) => new THREE.Vector3(color[0], color[1], color[2]),
+    ),
+  };
+}
+
+function applyTransferUniforms(THREE, material, transfer) {
+  const values = transferUniformValues(THREE, transfer);
+  material.uniforms.uTransferIntensities.value = values.intensities;
+  material.uniforms.uTransferOpacities.value = values.opacities;
+  material.uniforms.uTransferColors.value = values.colors;
+  material.uniforms.uDensityScale.value = transfer.densityScale;
+  material.uniformsNeedUpdate = true;
 }
 
 function requireTextureResource(textureResource) {
@@ -260,7 +522,13 @@ function requireTextureResource(textureResource) {
 
 export class PatientVolumeRayMarcher {
   constructor({ three }) {
-    if (!three?.BoxGeometry || !three?.ShaderMaterial || !three?.Mesh || !three?.Group) {
+    if (
+      !three?.BoxGeometry
+      || !three?.ShaderMaterial
+      || !three?.Mesh
+      || !three?.Group
+      || !three?.Vector3
+    ) {
       throw new TypeError("Three.js volume ray-marching support is required");
     }
     this.three = three;
@@ -275,6 +543,7 @@ export class PatientVolumeRayMarcher {
     const THREE = this.three;
     const presentation = buildVolumePresentation(descriptor);
     const transfer = selectBaselineTransferFunction(descriptor);
+    const transferUniforms = transferUniformValues(THREE, transfer);
     const texture = textureResource.texture;
     texture.minFilter = THREE.NearestFilter;
     texture.magFilter = THREE.NearestFilter;
@@ -290,13 +559,12 @@ export class PatientVolumeRayMarcher {
         uVolume: { value: texture },
         uDecodeOffset: { value: decodeOffset },
         uDecodeScale: { value: decodeScale },
-        uIntensityLow: { value: transfer.intensityLow },
-        uIntensityHigh: { value: transfer.intensityHigh },
-        uAbsorption: { value: transfer.absorption },
+        uTransferIntensities: { value: transferUniforms.intensities },
+        uTransferOpacities: { value: transferUniforms.opacities },
+        uTransferColors: { value: transferUniforms.colors },
+        uDensityScale: { value: transfer.densityScale },
         uGlobalOpacity: { value: 1 },
         uSamplingRate: { value: Math.min(Math.max(...dimensions), INTERACTIVE_SAMPLE_RATE) },
-        uColorLow: { value: transfer.colorLow },
-        uColorHigh: { value: transfer.colorHigh },
       },
       side: THREE.BackSide,
       transparent: true,
@@ -326,6 +594,7 @@ export class PatientVolumeRayMarcher {
       descriptor,
       presentation,
       transfer,
+      transferState: { current: transfer },
     });
     this.current = resource;
     return resource;
@@ -335,6 +604,20 @@ export class PatientVolumeRayMarcher {
     if (!this.current) return;
     const opacity = Math.min(1, Math.max(0, finiteNumber(value, "opacity")));
     this.current.material.uniforms.uGlobalOpacity.value = opacity;
+  }
+
+  setTransferPreset(presetId, adjustments = {}) {
+    if (!this.current) {
+      throw new TypeError("A patient volume must be active before changing its transfer function");
+    }
+    const transfer = createMedicalTransferFunction(
+      this.current.descriptor,
+      presetId,
+      adjustments,
+    );
+    applyTransferUniforms(this.three, this.current.material, transfer);
+    this.current.transferState.current = transfer;
+    return transfer;
   }
 
   dispose() {
