@@ -6,7 +6,7 @@ VoxelAtlas is currently an engineering/research application. It is not a certifi
 
 ## Current status
 
-The accepted foundation includes FastAPI authentication with Argon2id password verification, opaque server-side sessions, the responsive VoxelAtlas login UI, a deployed production service, the Phase 2B final V1 workspace shell, the Phase 3A DICOM study-ingestion foundation, the Phase 3A-R2 clinical viewer polish, Phase 3B DICOM geometry/reconstruction-readiness qualification, Phase 3C canonical patient-volume construction, and Phase 3D-R2.1 real synchronized MPR integration with final professional presentation, image-registered crosshairs, and harmonized clinical action/selection states. Phase 4A defines a reusable patient-specific reconstruction boundary. Phase 4B adds the immutable source-to-GPU volume contract and bounded derived RG8 representation. Phase 4C1 verifies and initializes the authenticated 3D texture. Phase 4C2 ray marches that texture directly so Full Volume presents the actual uploaded patient voxels with physical proportions and patient orientation preserved. Phase 4D1 removes the legacy demo-surface runtime and locks Full Volume as the only V1 3D representation. Phase 4D2 adds medical color and opacity transfer functions with calibrated CT HU presets and truthful relative-intensity MR presets. Phase 4E adds simultaneous Patient LPS clipping, Phase 4F adapts rendering quality between interaction and rest, and Phase 4G adds a provenance-first catalog for administrator-installed public demonstration studies.
+The accepted foundation includes FastAPI authentication with Argon2id password verification, opaque server-side sessions, the responsive VoxelAtlas login UI, a deployed production service, the Phase 2B final V1 workspace shell, the Phase 3A DICOM study-ingestion foundation, the Phase 3A-R2 clinical viewer polish, Phase 3B DICOM geometry/reconstruction-readiness qualification, Phase 3C canonical patient-volume construction, and Phase 3D-R2.1 real synchronized MPR integration with final professional presentation, image-registered crosshairs, and harmonized clinical action/selection states. Phase 4A defines a reusable patient-specific reconstruction boundary. Phase 4B adds the immutable source-to-GPU volume contract and bounded derived RG8 representation. Phase 4C1 verifies and initializes the authenticated 3D texture. Phase 4C2 ray marches that texture directly so Full Volume presents the actual uploaded patient voxels with physical proportions and patient orientation preserved. Phase 4D1 removes the legacy demo-surface runtime and locks Full Volume as the only V1 3D representation. Phase 4D2 adds medical color and opacity transfer functions with calibrated CT HU presets and truthful relative-intensity MR presets. Phase 4E adds simultaneous Patient LPS clipping, Phase 4F adapts rendering quality between interaction and rest, Phase 4G adds a provenance-first catalog for administrator-installed public demonstration studies, and Phase 4H adds professional medical display and volume-definition controls.
 
 ## Locked V1 workspace
 
@@ -26,7 +26,7 @@ The workspace is intentionally focused on medical imaging and anatomical inspect
 - synchronized anatomical orientation gizmo with transparent styling and axis arrows
 - reset and auto-rotate actions
 - one truthful anatomical layer: **Full Volume**
-- medical transfer presets with adjustable intensity range and density
+- medical transfer presets with adjustable intensity range, absorption, opacity softness, edge definition, and depth shading
 - one focused sample-study gallery for approved public, deidentified CT/MR demonstrations
 
 AR/XR, holographic rendering, segmentation, OBJ/STL/GLB patient-surface generation, and specialized legacy cut behavior are outside the V1 workspace. Atlas-region exploration is post-V1.
@@ -60,7 +60,7 @@ Phase 3A adds `pydicom` for DICOM parsing. Phase 3C promotes `numpy` into the ba
 Run the current compact regression from the repository root:
 
 ```bash
-bash scripts/run_phase4h1_checks.sh
+bash scripts/run_phase4h2_checks.sh
 ```
 
 ## Locked V1 roadmap
@@ -70,7 +70,7 @@ bash scripts/run_phase4h1_checks.sh
 3. DICOM upload, study ingestion, geometry qualification, canonical patient volume, and real MPR - complete through Phase 3D
 4. direct patient-volume rendering foundation and authenticated GPU transport
 5. true GPU ray marching of the actual uploaded CT/MRI voxel volume - complete through Phase 4C2
-6. medical transfer functions, clipping, adaptive performance, curated demonstrations, and professional display controls - complete through Phase 4H1
+6. medical transfer functions, clipping, adaptive performance, curated demonstrations, and professional display controls - complete through Phase 4H2
 7. production security and V1 qualification
 
 Post-V1 work includes atlas-region interaction, AR/XR, advanced planning workflows, PACS/DICOMweb, and additional anatomical atlases.
@@ -156,3 +156,7 @@ Replace the example paths, labels, and URLs with verified facts for the exact da
 ### Phase 4H1 - Professional medical display controls
 
 Phase 4H1 adds first-class window center/level and width controls to the true patient-volume renderer. CT controls and preset defaults use calibrated HU; MR uses native relative intensity and is never presented as HU. Windowing remains separate from advanced lower/upper intensity boundaries, global opacity remains separate from transfer absorption, and any manual transfer change enters an explicit Custom state. Interactive, Balanced, High, and Maximum quality policies remain workload-bounded and preserve automatic interaction degradation, settling, and measured frame-pressure backoff. All changes are GPU display parameters: canonical voxels, patient-LPS geometry, MPR, clipping, and sample provenance remain unchanged.
+
+### Phase 4H2-R1A - Volume definition and shading
+
+Phase 4H2-R1A adds bounded opacity softness, Patient-LPS gradient-based Edge Definition, and directional depth shading under Advanced rendering. Intensity minimum and maximum now use a stable shared source scale and move independently while preserving a valid interval. Presets provide modality-appropriate display defaults and manual changes enter Custom. The verified patient texture stays resident on the GPU; changes update uniforms and re-render without refetching or modifying medical voxels. Edge Definition remains a display transfer function, not segmentation or a derived surface. R1A also guards transfer-control initialization and advances the browser cache key.

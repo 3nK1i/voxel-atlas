@@ -3,6 +3,110 @@ export const MIN_RAY_SAMPLING_RATE = 48;
 const DEFAULT_SAMPLE_RATE = 384;
 export const TRANSFER_POINT_COUNT = 6;
 
+const OPACITY_FEATHER_FRACTION = 0.30;
+const EDGE_GRADIENT_START = 0.025;
+const EDGE_GRADIENT_FULL = 0.65;
+const EDGE_FLAT_OPACITY = 0.18;
+const EDGE_STRONG_OPACITY = 2.60;
+const SHADING_AMBIENT = 0.24;
+const SHADING_HEADLIGHT = 0.38;
+const SHADING_KEYLIGHT = 0.48;
+const SHADING_SPECULAR = 0.16;
+
+function clampUnit(value) {
+  return Math.min(1, Math.max(0, value));
+}
+
+function smoothstepValue(edge0, edge1, value) {
+  const normalized = clampUnit((value - edge0) / Math.max(edge1 - edge0, 0.000001));
+  return normalized * normalized * (3 - 2 * normalized);
+}
+
+export function evaluateOpacitySoftnessWeight(
+  intensity,
+  rangeLow,
+  rangeHigh,
+  softness,
+) {
+  const span = Math.max(rangeHigh - rangeLow, 0.000001);
+  const boundedSoftness = clampUnit(softness);
+  const fadeWidth = span * boundedSoftness * OPACITY_FEATHER_FRACTION;
+  if (fadeWidth <= 0.000001) return 1;
+  const lower = smoothstepValue(rangeLow, rangeLow + fadeWidth, intensity);
+  const upper = 1 - smoothstepValue(rangeHigh - fadeWidth, rangeHigh, intensity);
+  return lower * upper;
+}
+
+export function evaluateEdgeDefinitionWeight(normalizedGradient, strength) {
+  const response = smoothstepValue(
+    EDGE_GRADIENT_START,
+    EDGE_GRADIENT_FULL,
+    Math.max(0, normalizedGradient),
+  );
+  const definedOpacity = EDGE_FLAT_OPACITY
+    + (EDGE_STRONG_OPACITY - EDGE_FLAT_OPACITY) * response;
+  return 1 + (definedOpacity - 1) * clampUnit(strength);
+}
+
+export function evaluateDepthShadingFactor(
+  headlightAlignment,
+  keylightAlignment,
+  specularAlignment,
+  strength,
+) {
+  const lighting = SHADING_AMBIENT
+    + SHADING_HEADLIGHT * clampUnit(headlightAlignment)
+    + SHADING_KEYLIGHT * clampUnit(keylightAlignment)
+    + SHADING_SPECULAR * clampUnit(specularAlignment);
+  return 1 + (lighting - 1) * clampUnit(strength);
+}
+
+export function constrainMedicalIntensityInterval(
+  sourceRange,
+  requestedMinimum,
+  requestedMaximum,
+  changedBoundary,
+) {
+  if (!Array.isArray(sourceRange) || sourceRange.length !== 2) {
+    throw new TypeError("Patient volume source intensity range is invalid");
+  }
+  const sourceLow = finiteNumber(sourceRange[0], "source intensity minimum");
+  const sourceHigh = finiteNumber(sourceRange[1], "source intensity maximum");
+  if (sourceHigh <= sourceLow) {
+    throw new TypeError("Patient volume source intensity range is invalid");
+  }
+  if (changedBoundary !== "minimum" && changedBoundary !== "maximum") {
+    throw new TypeError("Patient volume intensity boundary selection is invalid");
+  }
+  const minimumGap = Math.max((sourceHigh - sourceLow) / 65535, 0.000001);
+  let minimum = Math.min(sourceHigh, Math.max(
+    sourceLow,
+    finiteNumber(requestedMinimum, "visible intensity minimum"),
+  ));
+  let maximum = Math.min(sourceHigh, Math.max(
+    sourceLow,
+    finiteNumber(requestedMaximum, "visible intensity maximum"),
+  ));
+  if (maximum - minimum < minimumGap) {
+    if (changedBoundary === "minimum") {
+      if (maximum <= sourceLow + minimumGap) {
+        minimum = sourceLow;
+        maximum = sourceLow + minimumGap;
+      } else {
+        minimum = maximum - minimumGap;
+      }
+    } else {
+      if (minimum >= sourceHigh - minimumGap) {
+        minimum = sourceHigh - minimumGap;
+        maximum = sourceHigh;
+      } else {
+        maximum = minimum + minimumGap;
+      }
+    }
+  }
+  return Object.freeze({ minimum, maximum });
+}
+
 export const PATIENT_LPS_TO_VIEWER = Object.freeze([
   -1, 0, 0, 0,
   0, 0, 1, 0,
@@ -45,6 +149,10 @@ uniform vec3 uIntensityBounds;
 uniform float uDensityScale;
 uniform float uGlobalOpacity;
 uniform float uSamplingRate;
+uniform vec3 uTextureTexelSize;
+uniform float uOpacitySoftness;
+uniform float uEdgeDefinition;
+uniform float uShadingStrength;
 uniform mat4 uLocalToPatientLps;
 uniform vec3 uClipPlanePositions;
 uniform vec3 uClipPlaneKeepSigns;
@@ -170,6 +278,82 @@ float windowMedicalIntensity(float intensity) {
   return clamp((intensity - windowMinimum) / max(uWindowWidth, 0.000001), 0.0, 1.0);
 }
 
+float opacityBoundaryWeight(float intensity) {
+  float rangeSpan = max(uIntensityBounds.y - uIntensityBounds.x, 0.000001);
+  float fadeWidth = rangeSpan * uOpacitySoftness * ${OPACITY_FEATHER_FRACTION.toFixed(2)};
+  if (fadeWidth <= 0.000001) return 1.0;
+  float lowerWeight = smoothstep(
+    uIntensityBounds.x,
+    uIntensityBounds.x + fadeWidth,
+    intensity
+  );
+  float upperWeight = 1.0 - smoothstep(
+    uIntensityBounds.y - fadeWidth,
+    uIntensityBounds.y,
+    intensity
+  );
+  return lowerWeight * upperWeight;
+}
+
+vec3 sampleMedicalGradient(vec3 textureCoordinate) {
+  vec3 halfTexel = 0.5 * uTextureTexelSize;
+  vec3 minimumCoordinate = halfTexel;
+  vec3 maximumCoordinate = vec3(1.0) - halfTexel;
+  vec3 xOffset = vec3(uTextureTexelSize.x, 0.0, 0.0);
+  vec3 yOffset = vec3(0.0, uTextureTexelSize.y, 0.0);
+  vec3 zOffset = vec3(0.0, 0.0, uTextureTexelSize.z);
+  float xLow = decodeMedicalIntensity(clamp(textureCoordinate - xOffset, minimumCoordinate, maximumCoordinate));
+  float xHigh = decodeMedicalIntensity(clamp(textureCoordinate + xOffset, minimumCoordinate, maximumCoordinate));
+  float yLow = decodeMedicalIntensity(clamp(textureCoordinate - yOffset, minimumCoordinate, maximumCoordinate));
+  float yHigh = decodeMedicalIntensity(clamp(textureCoordinate + yOffset, minimumCoordinate, maximumCoordinate));
+  float zLow = decodeMedicalIntensity(clamp(textureCoordinate - zOffset, minimumCoordinate, maximumCoordinate));
+  float zHigh = decodeMedicalIntensity(clamp(textureCoordinate + zOffset, minimumCoordinate, maximumCoordinate));
+  return vec3(
+    (xHigh - xLow) / max(2.0 * uTextureTexelSize.x, 0.000001),
+    (yHigh - yLow) / max(2.0 * uTextureTexelSize.y, 0.000001),
+    (zHigh - zLow) / max(2.0 * uTextureTexelSize.z, 0.000001)
+  );
+}
+
+vec3 patientSpaceMedicalGradient(vec3 textureCoordinate) {
+  vec3 textureGradient = sampleMedicalGradient(textureCoordinate);
+  mat3 textureToPatient = mat3(uLocalToPatientLps);
+  return transpose(inverse(textureToPatient)) * textureGradient;
+}
+
+float edgeDefinitionOpacityWeight(vec3 patientGradient) {
+  float normalizedGradient = length(patientGradient) / max(uWindowWidth, 0.000001);
+  float edgeResponse = smoothstep(
+    ${EDGE_GRADIENT_START.toFixed(3)},
+    ${EDGE_GRADIENT_FULL.toFixed(2)},
+    normalizedGradient
+  );
+  float definedOpacity = mix(
+    ${EDGE_FLAT_OPACITY.toFixed(2)},
+    ${EDGE_STRONG_OPACITY.toFixed(2)},
+    edgeResponse
+  );
+  return mix(1.0, definedOpacity, uEdgeDefinition);
+}
+
+vec3 applyMedicalDepthShading(vec3 color, vec3 patientGradient, vec3 rayDirection) {
+  if (uShadingStrength <= 0.0001 || length(patientGradient) <= 0.000001) return color;
+  mat3 localToPatient = mat3(uLocalToPatientLps);
+  vec3 viewDirection = normalize(-(localToPatient * rayDirection));
+  vec3 patientNormal = normalize(patientGradient);
+  if (dot(patientNormal, viewDirection) < 0.0) patientNormal = -patientNormal;
+  vec3 keyDirection = normalize(viewDirection + vec3(-0.46, 0.34, 0.58));
+  vec3 halfwayDirection = normalize(viewDirection + keyDirection);
+  float headlight = max(dot(patientNormal, viewDirection), 0.0);
+  float keylight = max(dot(patientNormal, keyDirection), 0.0);
+  float specular = pow(max(dot(patientNormal, halfwayDirection), 0.0), 20.0);
+  float lighting = ${SHADING_AMBIENT.toFixed(2)}
+    + ${SHADING_HEADLIGHT.toFixed(2)} * headlight
+    + ${SHADING_KEYLIGHT.toFixed(2)} * keylight
+    + ${SHADING_SPECULAR.toFixed(2)} * specular;
+  return color * mix(1.0, lighting, uShadingStrength);
+}
+
 void main() {
   vec3 direction = normalize(vRayDirection);
   vec2 boxIntersection = intersectUnitBox(vRayOrigin, direction);
@@ -198,9 +382,28 @@ void main() {
       windowMedicalIntensity(intensity)
     );
     vec4 transferSample = sampleMedicalTransfer(displayIntensity);
-    vec3 sampleColor = transferSample.rgb;
+    float boundaryWeight = opacityBoundaryWeight(intensity);
+    vec3 patientGradient = vec3(0.0);
+    float edgeOpacityWeight = 1.0;
+    if (
+      transferSample.a * boundaryWeight > 0.002
+      && (uEdgeDefinition > 0.0001 || uShadingStrength > 0.0001)
+    ) {
+      patientGradient = patientSpaceMedicalGradient(textureCoordinate);
+      edgeOpacityWeight = edgeDefinitionOpacityWeight(patientGradient);
+    }
+    vec3 sampleColor = applyMedicalDepthShading(
+      transferSample.rgb,
+      patientGradient,
+      direction
+    );
     float sampleAlpha = 1.0 - exp(
-      -transferSample.a * uDensityScale * uGlobalOpacity * stepLength
+      -transferSample.a
+      * boundaryWeight
+      * edgeOpacityWeight
+      * uDensityScale
+      * uGlobalOpacity
+      * stepLength
     );
     float remaining = 1.0 - accumulated.a;
     accumulated.rgb += remaining * sampleAlpha * sampleColor;
@@ -415,6 +618,9 @@ const CT_TRANSFER_PRESETS = Object.freeze([
     windowMode: "absolute",
     window: Object.freeze([40, 400]),
     densityScale: 12.0,
+    opacitySoftness: 0.30,
+    edgeDefinition: 0.25,
+    shadingStrength: 0.35,
     points: Object.freeze([
       transferPoint(0.00, 0.000, [0.03, 0.05, 0.08]),
       transferPoint(0.18, 0.008, [0.16, 0.22, 0.30]),
@@ -435,6 +641,9 @@ const CT_TRANSFER_PRESETS = Object.freeze([
     windowMode: "absolute",
     window: Object.freeze([40, 400]),
     densityScale: 14.0,
+    opacitySoftness: 0.45,
+    edgeDefinition: 0.30,
+    shadingStrength: 0.35,
     points: Object.freeze([
       transferPoint(0.00, 0.000, [0.12, 0.07, 0.08]),
       transferPoint(0.18, 0.045, [0.42, 0.20, 0.18]),
@@ -455,6 +664,9 @@ const CT_TRANSFER_PRESETS = Object.freeze([
     windowMode: "absolute",
     window: Object.freeze([500, 1500]),
     densityScale: 12.0,
+    opacitySoftness: 0.18,
+    edgeDefinition: 0.60,
+    shadingStrength: 0.55,
     points: Object.freeze([
       transferPoint(0.00, 0.000, [0.18, 0.15, 0.12]),
       transferPoint(0.18, 0.008, [0.42, 0.34, 0.25]),
@@ -475,6 +687,9 @@ const CT_TRANSFER_PRESETS = Object.freeze([
     windowMode: "absolute",
     window: Object.freeze([-600, 1500]),
     densityScale: 10.0,
+    opacitySoftness: 0.40,
+    edgeDefinition: 0.35,
+    shadingStrength: 0.25,
     points: Object.freeze([
       transferPoint(0.00, 0.000, [0.02, 0.05, 0.09]),
       transferPoint(0.18, 0.090, [0.12, 0.32, 0.48]),
@@ -498,6 +713,9 @@ const MR_TRANSFER_PRESETS = Object.freeze([
     windowMode: "relative",
     window: Object.freeze([0.03, 0.98]),
     densityScale: 10.0,
+    opacitySoftness: 0.35,
+    edgeDefinition: 0.25,
+    shadingStrength: 0.30,
     points: Object.freeze([
       transferPoint(0.00, 0.000, [0.02, 0.03, 0.06]),
       transferPoint(0.18, 0.018, [0.12, 0.18, 0.28]),
@@ -518,6 +736,9 @@ const MR_TRANSFER_PRESETS = Object.freeze([
     windowMode: "relative",
     window: Object.freeze([0.02, 0.68]),
     densityScale: 11.0,
+    opacitySoftness: 0.40,
+    edgeDefinition: 0.30,
+    shadingStrength: 0.25,
     points: Object.freeze([
       transferPoint(0.00, 0.000, [0.03, 0.05, 0.10]),
       transferPoint(0.18, 0.110, [0.14, 0.28, 0.48]),
@@ -538,6 +759,9 @@ const MR_TRANSFER_PRESETS = Object.freeze([
     windowMode: "relative",
     window: Object.freeze([0.24, 0.98]),
     densityScale: 10.0,
+    opacitySoftness: 0.30,
+    edgeDefinition: 0.40,
+    shadingStrength: 0.35,
     points: Object.freeze([
       transferPoint(0.00, 0.000, [0.04, 0.04, 0.08]),
       transferPoint(0.18, 0.012, [0.16, 0.20, 0.34]),
@@ -561,6 +785,9 @@ const RELATIVE_TRANSFER_PRESETS = Object.freeze([
     windowMode: "relative",
     window: Object.freeze([0.05, 0.95]),
     densityScale: 9.0,
+    opacitySoftness: 0.35,
+    edgeDefinition: 0.25,
+    shadingStrength: 0.30,
     points: MR_TRANSFER_PRESETS[0].points,
   }),
 ]);
@@ -605,6 +832,15 @@ function resolvedPresetWindow(preset, sourceLow, sourceHigh) {
     return [(low + high) / 2, high - low];
   }
   return [preset.window[0], preset.window[1]];
+}
+
+function normalizedDisplayParameter(value, fallback, field) {
+  if (value === undefined) return fallback;
+  const normalized = finiteNumber(value, `transfer-function ${field}`);
+  if (normalized < 0 || normalized > 1) {
+    throw new TypeError(`Patient volume transfer-function ${field} is invalid`);
+  }
+  return normalized;
 }
 
 export function listMedicalTransferPresets(descriptor) {
@@ -669,6 +905,13 @@ export function createMedicalTransferFunction(descriptor, presetId = null, adjus
     throw new TypeError("Patient volume transfer-function density is invalid");
   }
 
+  const opacitySoftness = normalizedDisplayParameter(adjustments.opacitySoftness,
+    preset.opacitySoftness, "opacity softness");
+  const edgeDefinition = normalizedDisplayParameter(adjustments.edgeDefinition,
+    preset.edgeDefinition, "edge definition");
+  const shadingStrength = normalizedDisplayParameter(adjustments.shadingStrength,
+    preset.shadingStrength, "shading strength");
+
   const rangeSpan = rangeHigh - rangeLow;
   const controlPoints = Object.freeze(preset.points.map((point) => Object.freeze({
     intensity: rangeLow + rangeSpan * point.position,
@@ -690,6 +933,9 @@ export function createMedicalTransferFunction(descriptor, presetId = null, adjus
     windowWidth,
     densityMultiplier,
     densityScale: preset.densityScale * densityMultiplier,
+    opacitySoftness,
+    edgeDefinition,
+    shadingStrength,
     controlPoints,
     intensityLow: rangeLow,
     intensityHigh: rangeHigh,
@@ -722,6 +968,9 @@ function applyTransferUniforms(THREE, material, transfer) {
   material.uniforms.uWindowWidth.value = transfer.windowWidth;
   material.uniforms.uIntensityBounds.value.set(transfer.rangeLow, transfer.rangeHigh, 0);
   material.uniforms.uDensityScale.value = transfer.densityScale;
+  material.uniforms.uOpacitySoftness.value = transfer.opacitySoftness;
+  material.uniforms.uEdgeDefinition.value = transfer.edgeDefinition;
+  material.uniforms.uShadingStrength.value = transfer.shadingStrength;
   material.uniformsNeedUpdate = true;
 }
 
@@ -795,6 +1044,16 @@ export class PatientVolumeRayMarcher {
         uDensityScale: { value: transfer.densityScale },
         uGlobalOpacity: { value: 1 },
         uSamplingRate: { value: Math.min(Math.max(...dimensions), DEFAULT_SAMPLE_RATE) },
+        uTextureTexelSize: {
+          value: new THREE.Vector3(
+            1 / dimensions[0],
+            1 / dimensions[1],
+            1 / dimensions[2],
+          ),
+        },
+        uOpacitySoftness: { value: transfer.opacitySoftness },
+        uEdgeDefinition: { value: transfer.edgeDefinition },
+        uShadingStrength: { value: transfer.shadingStrength },
         uLocalToPatientLps: {
           value: new THREE.Matrix4().set(...presentation.localToPatientLps),
         },

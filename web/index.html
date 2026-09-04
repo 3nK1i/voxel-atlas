@@ -26,7 +26,7 @@
     })();
   </script>
 
-  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4h1-r1">
+  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4h2-r1">
 
   <script type="importmap">
   {
@@ -512,7 +512,7 @@
               <div class="transfer-adjustments">
               <div class="transfer-adjustment">
                 <div class="transfer-adjustment-heading">
-                  <label for="transferRangeLow">Lower intensity</label>
+                  <label for="transferRangeLow">Intensity minimum</label>
                   <strong id="transferRangeLowValue">--</strong>
                 </div>
                 <input
@@ -523,14 +523,14 @@
                   max="1"
                   step="0.01"
                   value="0"
-                  aria-label="Lower medical intensity"
+                  aria-label="Minimum visible medical intensity"
                   disabled
                 >
               </div>
 
               <div class="transfer-adjustment">
                 <div class="transfer-adjustment-heading">
-                  <label for="transferRangeHigh">Upper intensity</label>
+                  <label for="transferRangeHigh">Intensity maximum</label>
                   <strong id="transferRangeHighValue">--</strong>
                 </div>
                 <input
@@ -541,7 +541,7 @@
                   max="1"
                   step="0.01"
                   value="1"
-                  aria-label="Upper medical intensity"
+                  aria-label="Maximum visible medical intensity"
                   disabled
                 >
               </div>
@@ -564,7 +564,7 @@
                 >
               </div>
 
-              <div class="transfer-adjustment">
+              <div class="transfer-adjustment transfer-definition-controls">
                 <div class="transfer-adjustment-heading">
                   <label for="opacitySlider">Overall opacity</label>
                   <strong id="opacityValue" class="control-value">100%</strong>
@@ -580,6 +580,65 @@
                   aria-label="Overall patient volume opacity"
                 >
                 <div class="range-labels"><span>0%</span><span>100%</span></div>
+              </div>
+
+              <p class="advanced-rendering-hint">
+                Intensity controls independently select the visible interval. Opacity softness
+                feathers the selected intensity cutoffs. Source voxel values remain unchanged.
+              </p>
+
+              <div class="transfer-adjustment transfer-definition-controls">
+                <div class="transfer-adjustment-heading">
+                  <label for="transferOpacitySoftness">Opacity softness</label>
+                  <strong id="transferOpacitySoftnessValue">30%</strong>
+                </div>
+                <input
+                  id="transferOpacitySoftness"
+                  class="slider"
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value="30"
+                  aria-label="Volume rendering opacity softness"
+                  disabled
+                >
+              </div>
+
+              <div class="transfer-adjustment transfer-definition-controls">
+                <div class="transfer-adjustment-heading">
+                  <label for="transferEdgeDefinition">Edge definition</label>
+                  <strong id="transferEdgeDefinitionValue">25%</strong>
+                </div>
+                <input
+                  id="transferEdgeDefinition"
+                  class="slider"
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value="25"
+                  aria-label="Volume rendering edge definition"
+                  disabled
+                >
+              </div>
+
+              <div class="transfer-adjustment transfer-definition-controls">
+                <div class="transfer-adjustment-heading">
+                  <label for="transferShadingStrength">Depth shading</label>
+                  <strong id="transferShadingStrengthValue">35%</strong>
+                </div>
+                <input
+                  id="transferShadingStrength"
+                  class="slider"
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value="35"
+                  aria-label="Volume rendering depth shading"
+                  disabled
+                >
               </div>
             </div>
             </details>
@@ -679,6 +738,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h1-r1"></script>
+  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h2-r1a"></script>
 </body>
 </html>

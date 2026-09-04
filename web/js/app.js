@@ -8,8 +8,9 @@ import {
 import { PatientVolumeTextureManager } from "./volume-texture-manager.js?v=phase4c1-r1";
 import {
   PatientVolumeRayMarcher,
+  constrainMedicalIntensityInterval,
   listMedicalTransferPresets,
-} from "./patient-volume-ray-marcher.js?v=phase4h1";
+} from "./patient-volume-ray-marcher.js?v=phase4h2-r1";
 import {
   AdaptiveVolumeRenderingQuality,
 } from "./volume-rendering-quality.js?v=phase4h1";
@@ -55,6 +56,12 @@ const transferRangeHigh = document.getElementById("transferRangeHigh");
 const transferRangeHighValue = document.getElementById("transferRangeHighValue");
 const transferDensity = document.getElementById("transferDensity");
 const transferDensityValue = document.getElementById("transferDensityValue");
+const transferOpacitySoftness = document.getElementById("transferOpacitySoftness");
+const transferOpacitySoftnessValue = document.getElementById("transferOpacitySoftnessValue");
+const transferEdgeDefinition = document.getElementById("transferEdgeDefinition");
+const transferEdgeDefinitionValue = document.getElementById("transferEdgeDefinitionValue");
+const transferShadingStrength = document.getElementById("transferShadingStrength");
+const transferShadingStrengthValue = document.getElementById("transferShadingStrengthValue");
 const transferResetButton = document.getElementById("transferResetButton");
 const transferFunctionNote = document.getElementById("transferFunctionNote");
 const renderQualityPolicy = document.getElementById("renderQualityPolicy");
@@ -225,6 +232,9 @@ state.volumeRendering = {
   transferRangeLow: null,
   transferRangeHigh: null,
   transferDensityMultiplier: 1,
+  opacitySoftness: null,
+  edgeDefinition: null,
+  shadingStrength: null,
 };
 const volumeTextureManager = new PatientVolumeTextureManager({
   three: THREE,
@@ -300,6 +310,9 @@ function setTransferControlsEnabled(enabled) {
     transferRangeLow,
     transferRangeHigh,
     transferDensity,
+    transferOpacitySoftness,
+    transferEdgeDefinition,
+    transferShadingStrength,
     renderQualityPolicy,
     transferResetButton,
   ]) {
@@ -316,6 +329,9 @@ function clearTransferControls() {
   state.volumeRendering.transferRangeLow = null;
   state.volumeRendering.transferRangeHigh = null;
   state.volumeRendering.transferDensityMultiplier = 1;
+  state.volumeRendering.opacitySoftness = null;
+  state.volumeRendering.edgeDefinition = null;
+  state.volumeRendering.shadingStrength = null;
   transferPresetSelect.replaceChildren();
   const placeholder = document.createElement("option");
   placeholder.value = "";
@@ -329,6 +345,12 @@ function clearTransferControls() {
   transferRangeHighValue.textContent = "--";
   transferDensity.value = "100";
   transferDensityValue.textContent = "100%";
+  transferOpacitySoftness.value = "30";
+  transferOpacitySoftnessValue.textContent = "30%";
+  transferEdgeDefinition.value = "25";
+  transferEdgeDefinitionValue.textContent = "25%";
+  transferShadingStrength.value = "35";
+  transferShadingStrengthValue.textContent = "35%";
   transferFunctionNote.textContent = (
     "Medical transfer controls activate with a qualified patient volume."
   );
@@ -351,7 +373,7 @@ function formatTransferIntensity(value, transfer) {
 function syncTransferControls(transfer) {
   const step = transferIntensityStep(transfer);
   const [sourceLow, sourceHigh] = transfer.sourceRange;
-  const minimumGap = Math.max(step, 0.000001);
+  const minimumInterval = Math.max(step, 0.000001);
   state.volumeRendering.transferPresetId = transfer.id;
   state.volumeRendering.transferBasePresetId = transfer.id;
   state.volumeRendering.transferCustomized = false;
@@ -360,25 +382,31 @@ function syncTransferControls(transfer) {
   state.volumeRendering.transferRangeLow = transfer.rangeLow;
   state.volumeRendering.transferRangeHigh = transfer.rangeHigh;
   state.volumeRendering.transferDensityMultiplier = transfer.densityMultiplier;
+  state.volumeRendering.opacitySoftness = transfer.opacitySoftness;
+  state.volumeRendering.edgeDefinition = transfer.edgeDefinition;
+  state.volumeRendering.shadingStrength = transfer.shadingStrength;
 
   transferPresetSelect.value = transfer.id;
   transferWindowCenter.min = String(sourceLow);
   transferWindowCenter.max = String(sourceHigh);
   transferWindowCenter.step = String(step);
   transferWindowCenter.value = String(transfer.windowCenter);
-  transferWindowWidth.min = String(minimumGap);
+  transferWindowWidth.min = String(minimumInterval);
   transferWindowWidth.max = String((sourceHigh - sourceLow) * 2);
   transferWindowWidth.step = String(step);
   transferWindowWidth.value = String(transfer.windowWidth);
   transferRangeLow.min = String(sourceLow);
-  transferRangeLow.max = String(Math.max(sourceLow, transfer.rangeHigh - minimumGap));
+  transferRangeLow.max = String(sourceHigh);
   transferRangeLow.step = String(step);
   transferRangeLow.value = String(transfer.rangeLow);
-  transferRangeHigh.min = String(Math.min(sourceHigh, transfer.rangeLow + minimumGap));
+  transferRangeHigh.min = String(sourceLow);
   transferRangeHigh.max = String(sourceHigh);
   transferRangeHigh.step = String(step);
   transferRangeHigh.value = String(transfer.rangeHigh);
   transferDensity.value = String(Math.round(transfer.densityMultiplier * 100));
+  transferOpacitySoftness.value = String(Math.round(transfer.opacitySoftness * 100));
+  transferEdgeDefinition.value = String(Math.round(transfer.edgeDefinition * 100));
+  transferShadingStrength.value = String(Math.round(transfer.shadingStrength * 100));
 
   const displayUnits = transfer.units === "HU" ? "HU" : "relative";
   transferModality.textContent = `${transfer.modality} · ${displayUnits}`;
@@ -396,6 +424,9 @@ function syncTransferControls(transfer) {
   transferRangeLowValue.textContent = formatTransferIntensity(transfer.rangeLow, transfer);
   transferRangeHighValue.textContent = formatTransferIntensity(transfer.rangeHigh, transfer);
   transferDensityValue.textContent = `${Math.round(transfer.densityMultiplier * 100)}%`;
+  transferOpacitySoftnessValue.textContent = `${Math.round(transfer.opacitySoftness * 100)}%`;
+  transferEdgeDefinitionValue.textContent = `${Math.round(transfer.edgeDefinition * 100)}%`;
+  transferShadingStrengthValue.textContent = `${Math.round(transfer.shadingStrength * 100)}%`;
   transferFunctionNote.textContent = transfer.description;
 }
 
@@ -434,17 +465,15 @@ function applyTransferAdjustments(changedControl = null) {
   if (!volumeRayMarcher.current || !state.volumeRendering.transferBasePresetId) return null;
   const current = volumeRayMarcher.current.transferState.current;
   const [sourceLow, sourceHigh] = current.sourceRange;
-  const minimumGap = Math.max(transferIntensityStep(current), 0.000001);
-  let rangeLow = Math.min(sourceHigh, Math.max(sourceLow, Number(transferRangeLow.value)));
-  let rangeHigh = Math.min(sourceHigh, Math.max(sourceLow, Number(transferRangeHigh.value)));
-
-  if (rangeHigh - rangeLow < minimumGap) {
-    if (changedControl === transferRangeLow) {
-      rangeLow = Math.max(sourceLow, rangeHigh - minimumGap);
-    } else {
-      rangeHigh = Math.min(sourceHigh, rangeLow + minimumGap);
-    }
-  }
+  const changedBoundary = changedControl === transferRangeLow ? "minimum" : "maximum";
+  const interval = constrainMedicalIntensityInterval(
+    [sourceLow, sourceHigh],
+    Number(transferRangeLow.value),
+    Number(transferRangeHigh.value),
+    changedBoundary,
+  );
+  const rangeLow = interval.minimum;
+  const rangeHigh = interval.maximum;
 
   const transfer = volumeRayMarcher.setTransferPreset(
     state.volumeRendering.transferBasePresetId,
@@ -454,6 +483,9 @@ function applyTransferAdjustments(changedControl = null) {
       rangeLow,
       rangeHigh,
       densityMultiplier: Number(transferDensity.value) / 100,
+      opacitySoftness: Number(transferOpacitySoftness.value) / 100,
+      edgeDefinition: Number(transferEdgeDefinition.value) / 100,
+      shadingStrength: Number(transferShadingStrength.value) / 100,
     },
   );
   syncTransferControls(transfer);
@@ -1860,6 +1892,21 @@ transferDensity.addEventListener("input", () => {
   volumeRenderingQuality.pulseInteraction("transfer");
 });
 
+transferOpacitySoftness.addEventListener("input", () => {
+  applyTransferAdjustments(transferOpacitySoftness);
+  volumeRenderingQuality.pulseInteraction("transfer");
+});
+
+transferEdgeDefinition.addEventListener("input", () => {
+  applyTransferAdjustments(transferEdgeDefinition);
+  volumeRenderingQuality.pulseInteraction("transfer");
+});
+
+transferShadingStrength.addEventListener("input", () => {
+  applyTransferAdjustments(transferShadingStrength);
+  volumeRenderingQuality.pulseInteraction("transfer");
+});
+
 transferResetButton.addEventListener("click", () => {
   applyTransferPreset(state.volumeRendering.transferBasePresetId);
   volumeRenderingQuality.pulseInteraction("transfer");
@@ -1883,6 +1930,9 @@ const qualityInteractionControls = [
   transferRangeLow,
   transferRangeHigh,
   transferDensity,
+  transferOpacitySoftness,
+  transferEdgeDefinition,
+  transferShadingStrength,
   opacitySlider,
 ].filter(Boolean);
 

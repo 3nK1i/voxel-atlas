@@ -12,7 +12,7 @@ checks = {
     "volume_pressed": 'class="layer-button is-active" data-layer="volume" disabled aria-pressed="true"' in html,
     "volume_only": html.count('data-layer="') == 1,
     "aria_sync": 'volumeLayerButton.setAttribute("aria-pressed", "true")' in js,
-    "cache": "phase3d-r21-phase4h1-r1" in html,
+    "cache": "phase3d-r21-phase4h2-r1" in html,
 }
 failed = [name for name, ok in checks.items() if not ok]
 if failed:

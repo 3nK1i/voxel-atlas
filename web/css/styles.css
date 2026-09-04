@@ -2821,6 +2821,26 @@ button:disabled {
   color: #f7fbff;
 }
 
+/* Phase 4H2 - professional volume definition */
+.advanced-rendering-hint {
+  margin: 4px 0 1px;
+  padding: 6px 7px;
+  border-left: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  border-radius: 0 6px 6px 0;
+  background: color-mix(in srgb, var(--accent-bg) 42%, transparent);
+  color: var(--muted-2);
+  font-size: var(--ui-readable-small);
+  line-height: 1.35;
+}
+
+.transfer-definition-controls {
+  position: relative;
+}
+
+.transfer-definition-controls + .transfer-definition-controls {
+  padding-top: 2px;
+}
+
 .mpr-panel:fullscreen {
   width: 100vw;
   height: 100vh;
