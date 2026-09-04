@@ -105,10 +105,10 @@ class Phase4H1ProfessionalMedicalDisplayControlTests(unittest.TestCase):
                 self.assertIn(marker, self.quality)
 
     def test_h1_cache_and_validation_entrypoints_are_present(self) -> None:
-        self.assertIn('/css/styles.css?v=phase3d-r21-phase4h2-r1', self.html)
-        self.assertIn('/js/app.js?v=phase3d-r21-phase4h2-r1a', self.html)
+        self.assertIn('/css/styles.css?v=phase3d-r21-phase4h3a', self.html)
+        self.assertIn('/js/app.js?v=phase3d-r21-phase4h3a', self.html)
         self.assertIn(
-            'from "./patient-volume-ray-marcher.js?v=phase4h2-r1"',
+            'from "./patient-volume-ray-marcher.js?v=phase4h3a"',
             self.app,
         )
         self.assertIn(

@@ -26,7 +26,7 @@
     })();
   </script>
 
-  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4h2-r1">
+  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4h3a">
 
   <script type="importmap">
   {
@@ -454,6 +454,24 @@
               <option value="">Load a patient volume</option>
             </select>
 
+            <label class="slider-label rendering-mode-label" for="renderingModeSelect">
+              Rendering mode
+            </label>
+            <select
+              id="renderingModeSelect"
+              class="transfer-preset-select"
+              aria-label="Medical volume rendering mode"
+              disabled
+            >
+              <option value="dvr" selected>Volume / DVR</option>
+              <option value="mip">MIP</option>
+              <option value="minip">MinIP</option>
+              <option value="average">Average Intensity</option>
+            </select>
+            <p id="renderingModeNote" class="rendering-mode-note">
+              DVR compositing accumulates color and opacity through the patient volume.
+            </p>
+
             <div class="transfer-adjustments transfer-primary-controls">
               <div class="transfer-adjustment">
                 <div class="transfer-adjustment-heading">
@@ -546,7 +564,7 @@
                 >
               </div>
 
-              <div class="transfer-adjustment">
+              <div class="transfer-adjustment dvr-only-control">
                 <div class="transfer-adjustment-heading">
                   <label for="transferDensity">Absorption</label>
                   <strong id="transferDensityValue">100%</strong>
@@ -587,7 +605,7 @@
                 feathers the selected intensity cutoffs. Source voxel values remain unchanged.
               </p>
 
-              <div class="transfer-adjustment transfer-definition-controls">
+              <div class="transfer-adjustment transfer-definition-controls dvr-only-control">
                 <div class="transfer-adjustment-heading">
                   <label for="transferOpacitySoftness">Opacity softness</label>
                   <strong id="transferOpacitySoftnessValue">30%</strong>
@@ -605,7 +623,7 @@
                 >
               </div>
 
-              <div class="transfer-adjustment transfer-definition-controls">
+              <div class="transfer-adjustment transfer-definition-controls dvr-only-control">
                 <div class="transfer-adjustment-heading">
                   <label for="transferEdgeDefinition">Edge definition</label>
                   <strong id="transferEdgeDefinitionValue">25%</strong>
@@ -623,7 +641,7 @@
                 >
               </div>
 
-              <div class="transfer-adjustment transfer-definition-controls">
+              <div class="transfer-adjustment transfer-definition-controls dvr-only-control">
                 <div class="transfer-adjustment-heading">
                   <label for="transferShadingStrength">Depth shading</label>
                   <strong id="transferShadingStrengthValue">35%</strong>
@@ -738,6 +756,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h2-r1a"></script>
+  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h3a"></script>
 </body>
 </html>

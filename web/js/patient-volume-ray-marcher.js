@@ -3,6 +3,61 @@ export const MIN_RAY_SAMPLING_RATE = 48;
 const DEFAULT_SAMPLE_RATE = 384;
 export const TRANSFER_POINT_COUNT = 6;
 
+export const MEDICAL_RENDERING_MODES = Object.freeze([
+  Object.freeze({
+    id: "dvr",
+    label: "Volume / DVR",
+    code: 0,
+    usesDvrControls: true,
+    description: "DVR compositing accumulates color and opacity through the patient volume.",
+  }),
+  Object.freeze({
+    id: "mip",
+    label: "MIP",
+    code: 1,
+    usesDvrControls: false,
+    description: "Maximum Intensity Projection shows the highest sampled voxel intensity along each ray.",
+  }),
+  Object.freeze({
+    id: "minip",
+    label: "MinIP",
+    code: 2,
+    usesDvrControls: false,
+    description: "Minimum Intensity Projection shows the lowest sampled voxel intensity along each ray.",
+  }),
+  Object.freeze({
+    id: "average",
+    label: "Average Intensity",
+    code: 3,
+    usesDvrControls: false,
+    description: "Average Intensity displays the arithmetic mean of sampled voxels along each ray.",
+  }),
+]);
+
+function medicalRenderingMode(modeId) {
+  const mode = MEDICAL_RENDERING_MODES.find(({ id }) => id === modeId);
+  if (!mode) throw new TypeError("Patient volume rendering mode is invalid");
+  return mode;
+}
+
+export function listMedicalRenderingModes() {
+  return MEDICAL_RENDERING_MODES;
+}
+
+export function aggregateMedicalProjection(samples, modeId) {
+  const mode = medicalRenderingMode(modeId);
+  if (mode.id === "dvr") {
+    throw new TypeError("DVR uses front-to-back compositing, not scalar projection");
+  }
+  if (!Array.isArray(samples) || samples.length === 0) {
+    throw new TypeError("Medical projection samples are invalid");
+  }
+  const values = samples.map((value) => finiteNumber(value, "projection sample"));
+  if (mode.id === "mip") return Math.max(...values);
+  if (mode.id === "minip") return Math.min(...values);
+  return values.reduce((total, value) => total + value, 0) / values.length;
+}
+
 const OPACITY_FEATHER_FRACTION = 0.30;
 const EDGE_GRADIENT_START = 0.025;
 const EDGE_GRADIENT_FULL = 0.65;
@@ -153,6 +208,7 @@ uniform vec3 uTextureTexelSize;
 uniform float uOpacitySoftness;
 uniform float uEdgeDefinition;
 uniform float uShadingStrength;
+uniform int uRenderingMode;
 uniform mat4 uLocalToPatientLps;
 uniform vec3 uClipPlanePositions;
 uniform vec3 uClipPlaneKeepSigns;
@@ -161,6 +217,11 @@ uniform vec3 uClipPlaneEnabled;
 in vec3 vRayOrigin;
 in vec3 vRayDirection;
 out vec4 outColor;
+
+const int RENDER_MODE_DVR = 0;
+const int RENDER_MODE_MIP = 1;
+const int RENDER_MODE_MINIP = 2;
+const int RENDER_MODE_AVERAGE = 3;
 
 vec2 intersectUnitBox(vec3 origin, vec3 direction) {
   const vec3 boxMinimum = vec3(-0.5);
@@ -367,11 +428,33 @@ void main() {
   vec3 stepVector = direction * stepLength;
   vec3 samplePosition = vRayOrigin + direction * (entry + 0.5 * stepLength);
   vec4 accumulated = vec4(0.0);
+  float projectedIntensity = 0.0;
+  float projectionSampleCount = 0.0;
 
   for (int index = 0; index < ${MAX_RAY_STEPS}; index += 1) {
     if (float(index) >= sampleCount) break;
     vec3 textureCoordinate = samplePosition + vec3(0.5);
     float intensity = decodeMedicalIntensity(textureCoordinate);
+
+    if (uRenderingMode != RENDER_MODE_DVR) {
+      if (intensity < uIntensityBounds.x || intensity > uIntensityBounds.y) {
+        samplePosition += stepVector;
+        continue;
+      }
+      if (projectionSampleCount < 0.5) {
+        projectedIntensity = intensity;
+      } else if (uRenderingMode == RENDER_MODE_MIP) {
+        projectedIntensity = max(projectedIntensity, intensity);
+      } else if (uRenderingMode == RENDER_MODE_MINIP) {
+        projectedIntensity = min(projectedIntensity, intensity);
+      } else if (uRenderingMode == RENDER_MODE_AVERAGE) {
+        projectedIntensity += intensity;
+      }
+      projectionSampleCount += 1.0;
+      samplePosition += stepVector;
+      continue;
+    }
+
     if (intensity < uIntensityBounds.x || intensity > uIntensityBounds.y) {
       samplePosition += stepVector;
       continue;
@@ -410,6 +493,24 @@ void main() {
     accumulated.a += remaining * sampleAlpha;
     if (accumulated.a >= 0.98) break;
     samplePosition += stepVector;
+  }
+
+  if (uRenderingMode != RENDER_MODE_DVR) {
+    if (projectionSampleCount < 0.5) discard;
+    if (uRenderingMode == RENDER_MODE_AVERAGE) {
+      projectedIntensity /= projectionSampleCount;
+    }
+    projectedIntensity = clamp(
+      projectedIntensity,
+      uIntensityBounds.x,
+      uIntensityBounds.y
+    );
+    float projectedDisplayIntensity = windowMedicalIntensity(projectedIntensity);
+    float projectionAlpha = clamp(uGlobalOpacity, 0.0, 1.0);
+    if (projectionAlpha <= 0.001) discard;
+    vec3 projectionColor = vec3(projectedDisplayIntensity);
+    outColor = vec4(projectionColor * projectionAlpha, projectionAlpha);
+    return;
   }
 
   if (accumulated.a <= 0.001) discard;
@@ -1016,6 +1117,7 @@ export class PatientVolumeRayMarcher {
     const THREE = this.three;
     const presentation = buildVolumePresentation(descriptor);
     const transfer = selectBaselineTransferFunction(descriptor);
+    const renderingMode = medicalRenderingMode("dvr");
     const clipping = createPatientClippingState(descriptor);
     const transferUniforms = transferUniformValues(THREE, transfer);
     const texture = textureResource.texture;
@@ -1054,6 +1156,7 @@ export class PatientVolumeRayMarcher {
         uOpacitySoftness: { value: transfer.opacitySoftness },
         uEdgeDefinition: { value: transfer.edgeDefinition },
         uShadingStrength: { value: transfer.shadingStrength },
+        uRenderingMode: { value: renderingMode.code },
         uLocalToPatientLps: {
           value: new THREE.Matrix4().set(...presentation.localToPatientLps),
         },
@@ -1096,6 +1199,7 @@ export class PatientVolumeRayMarcher {
       presentation,
       transfer,
       transferState: { current: transfer },
+      renderingModeState: { current: renderingMode },
       clippingState: { current: clipping },
       qualityState: {
         samplingRate: Math.min(Math.max(...dimensions), DEFAULT_SAMPLE_RATE),
@@ -1134,6 +1238,18 @@ export class PatientVolumeRayMarcher {
     applyTransferUniforms(this.three, this.current.material, transfer);
     this.current.transferState.current = transfer;
     return transfer;
+  }
+
+  setRenderingMode(modeId) {
+    if (!this.current) {
+      throw new TypeError("A patient volume must be active before changing its rendering mode");
+    }
+    const mode = medicalRenderingMode(modeId);
+    const uniforms = this.current.material.uniforms;
+    uniforms.uRenderingMode.value = mode.code;
+    this.current.material.uniformsNeedUpdate = true;
+    this.current.renderingModeState.current = mode;
+    return mode;
   }
 
   setClippingPlanes(planes = {}) {

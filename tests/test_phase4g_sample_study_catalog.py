@@ -256,8 +256,8 @@ class Phase4GSampleStudyCatalogTests(unittest.TestCase):
     def test_phase4g_cache_and_validation_entrypoints_are_present(self) -> None:
         html = (ROOT / "web/index.html").read_text(encoding="utf-8")
         app = (ROOT / "web/js/app.js").read_text(encoding="utf-8")
-        self.assertIn('/css/styles.css?v=phase3d-r21-phase4h2-r1', html)
-        self.assertIn('/js/app.js?v=phase3d-r21-phase4h2-r1a', html)
+        self.assertIn('/css/styles.css?v=phase3d-r21-phase4h3a', html)
+        self.assertIn('/js/app.js?v=phase3d-r21-phase4h3a', html)
         self.assertIn(
             'from "./sample-study-catalog.js?v=phase4g-r1"',
             app,

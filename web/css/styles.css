@@ -1142,6 +1142,22 @@ button:disabled {
   margin-top: 8px;
 }
 
+.rendering-mode-label {
+  display: block;
+  margin-top: 8px;
+}
+
+.rendering-mode-note {
+  margin: 5px 1px 0;
+  color: var(--muted-2);
+  font-size: var(--ui-readable-small);
+  line-height: 1.35;
+}
+
+#volumeRenderingPanel[data-rendering-mode="projection"] .dvr-only-control {
+  opacity: 0.52;
+}
+
 .advanced-rendering-controls {
   margin-top: 8px;
   border: 1px solid var(--line-soft);

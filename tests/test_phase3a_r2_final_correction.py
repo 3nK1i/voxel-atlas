@@ -37,8 +37,8 @@ class Phase3AR2FinalCorrectionTests(unittest.TestCase):
 
     def test_final_correction_has_fresh_cache_version(self) -> None:
         html = (ROOT / "web/index.html").read_text(encoding="utf-8")
-        self.assertRegex(html, r'/css/styles\.css\?v=(?:phase3a-r2-final1|phase3b-geometry1|phase3c-volume1|phase3d-mpr1|phase3d-r1|phase3d-r2|phase3d-r21-phase4h2-r1)')
-        self.assertRegex(html, r'/js/app\.js\?v=(?:phase3a-r2-final1|phase3b-geometry1|phase3c-volume1|phase3d-mpr1|phase3d-r1|phase3d-r2|phase3d-r21-phase4d1|phase3d-r21-phase4h2-r1a)')
+        self.assertRegex(html, r'/css/styles\.css\?v=(?:phase3a-r2-final1|phase3b-geometry1|phase3c-volume1|phase3d-mpr1|phase3d-r1|phase3d-r2|phase3d-r21-phase4h3a)')
+        self.assertRegex(html, r'/js/app\.js\?v=(?:phase3a-r2-final1|phase3b-geometry1|phase3c-volume1|phase3d-mpr1|phase3d-r1|phase3d-r2|phase3d-r21-phase4d1|phase3d-r21-phase4h3a)')
 
 
 if __name__ == "__main__":

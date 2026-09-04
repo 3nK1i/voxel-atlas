@@ -9,8 +9,9 @@ import { PatientVolumeTextureManager } from "./volume-texture-manager.js?v=phase
 import {
   PatientVolumeRayMarcher,
   constrainMedicalIntensityInterval,
+  listMedicalRenderingModes,
   listMedicalTransferPresets,
-} from "./patient-volume-ray-marcher.js?v=phase4h2-r1";
+} from "./patient-volume-ray-marcher.js?v=phase4h3a";
 import {
   AdaptiveVolumeRenderingQuality,
 } from "./volume-rendering-quality.js?v=phase4h1";
@@ -45,6 +46,8 @@ const clippingRegistry = new Map(Object.keys(CLIPPING_PLANES).map((plane) => [
 const volumeRenderingPanel = document.getElementById("volumeRenderingPanel");
 const transferModality = document.getElementById("transferModality");
 const transferPresetSelect = document.getElementById("transferPresetSelect");
+const renderingModeSelect = document.getElementById("renderingModeSelect");
+const renderingModeNote = document.getElementById("renderingModeNote");
 const transferWindowCenter = document.getElementById("transferWindowCenter");
 const transferWindowCenterLabel = document.getElementById("transferWindowCenterLabel");
 const transferWindowCenterValue = document.getElementById("transferWindowCenterValue");
@@ -62,6 +65,12 @@ const transferEdgeDefinition = document.getElementById("transferEdgeDefinition")
 const transferEdgeDefinitionValue = document.getElementById("transferEdgeDefinitionValue");
 const transferShadingStrength = document.getElementById("transferShadingStrength");
 const transferShadingStrengthValue = document.getElementById("transferShadingStrengthValue");
+const dvrOnlyControls = [
+  transferDensity,
+  transferOpacitySoftness,
+  transferEdgeDefinition,
+  transferShadingStrength,
+];
 const transferResetButton = document.getElementById("transferResetButton");
 const transferFunctionNote = document.getElementById("transferFunctionNote");
 const renderQualityPolicy = document.getElementById("renderQualityPolicy");
@@ -227,6 +236,7 @@ state.volumeRendering = {
   transferPresetId: null,
   transferBasePresetId: null,
   transferCustomized: false,
+  renderingMode: "dvr",
   transferWindowCenter: null,
   transferWindowWidth: null,
   transferRangeLow: null,
@@ -305,6 +315,7 @@ function setTransferControlsEnabled(enabled) {
   volumeRenderingPanel.dataset.state = available ? "ready" : "unavailable";
   for (const control of [
     transferPresetSelect,
+    renderingModeSelect,
     transferWindowCenter,
     transferWindowWidth,
     transferRangeLow,
@@ -318,12 +329,21 @@ function setTransferControlsEnabled(enabled) {
   ]) {
     control.disabled = !available;
   }
+  setDvrOnlyControlsEnabled(available && state.volumeRendering.renderingMode === "dvr");
+}
+
+function setDvrOnlyControlsEnabled(enabled) {
+  const available = Boolean(enabled);
+  for (const control of dvrOnlyControls) {
+    control.disabled = !available;
+  }
 }
 
 function clearTransferControls() {
   state.volumeRendering.transferPresetId = null;
   state.volumeRendering.transferBasePresetId = null;
   state.volumeRendering.transferCustomized = false;
+  state.volumeRendering.renderingMode = "dvr";
   state.volumeRendering.transferWindowCenter = null;
   state.volumeRendering.transferWindowWidth = null;
   state.volumeRendering.transferRangeLow = null;
@@ -337,6 +357,11 @@ function clearTransferControls() {
   placeholder.value = "";
   placeholder.textContent = "Load a patient volume";
   transferPresetSelect.appendChild(placeholder);
+  renderingModeSelect.value = "dvr";
+  volumeRenderingPanel.dataset.renderingMode = "dvr";
+  renderingModeNote.textContent = (
+    "DVR compositing accumulates color and opacity through the patient volume."
+  );
   transferModality.textContent = "--";
   transferWindowCenterLabel.textContent = "Window level";
   transferWindowCenterValue.textContent = "--";
@@ -444,8 +469,34 @@ function configureTransferControls(volumeResource) {
   option.textContent = "Custom";
   option.disabled = true;
   transferPresetSelect.appendChild(option);
+  renderingModeSelect.replaceChildren();
+  for (const mode of listMedicalRenderingModes()) {
+    const modeOption = document.createElement("option");
+    modeOption.value = mode.id;
+    modeOption.textContent = mode.label;
+    renderingModeSelect.appendChild(modeOption);
+  }
   syncTransferControls(volumeResource.transferState.current);
+  setMedicalRenderingMode(volumeResource.renderingModeState.current.id);
   setTransferControlsEnabled(true);
+}
+
+function setMedicalRenderingMode(modeId = renderingModeSelect.value) {
+  if (!volumeRayMarcher.current) return null;
+  const mode = volumeRayMarcher.setRenderingMode(modeId);
+  state.volumeRendering.renderingMode = mode.id;
+  volumeRenderingPanel.dataset.renderingMode = mode.usesDvrControls ? "dvr" : "projection";
+  renderingModeSelect.value = mode.id;
+  renderingModeNote.textContent = mode.usesDvrControls
+    ? mode.description
+    : `${mode.description} Projection modes aggregate real patient voxels in the selected intensity interval before window/level.`;
+  setDvrOnlyControlsEnabled(mode.usesDvrControls);
+  modelChip.textContent = `Patient scan - ${mode.label}`;
+  anatomyNote.textContent = mode.usesDvrControls
+    ? "True patient voxel volume active. DVR compositing controls are ready."
+    : "True patient voxel volume active. Projection uses the current Patient LPS clipping volume.";
+  requestViewerRender();
+  return mode;
 }
 
 function applyTransferPreset(presetId = transferPresetSelect.value) {
@@ -500,6 +551,8 @@ function setVolumeAvailability(available) {
   volumeLayerButton.classList.add("is-active");
   volumeLayerButton.setAttribute("aria-pressed", "true");
   modelChip.textContent = "Patient scan - Full Volume";
+  const mode = volumeRayMarcher.current?.renderingModeState.current;
+  if (mode) modelChip.textContent = `Patient scan - ${mode.label}`;
   setClippingControlsEnabled(
     volumeLayer.available
     && Boolean(volumeRayMarcher.current)
@@ -810,6 +863,7 @@ function resetWorkspace() {
   if (state.volumeRendering.transferBasePresetId) {
     applyTransferPreset(state.volumeRendering.transferBasePresetId);
   }
+  if (volumeRayMarcher.current) setMedicalRenderingMode("dvr");
   state.autoRotate = false;
   volumeRenderingQuality.endInteraction("auto-rotate");
   autoRotateButton.classList.remove("is-active");
@@ -1915,6 +1969,11 @@ transferResetButton.addEventListener("click", () => {
 renderQualityPolicy.addEventListener("change", () => {
   volumeRenderingQuality.setPolicy(renderQualityPolicy.value);
   if (state.autoRotate) volumeRenderingQuality.beginInteraction("auto-rotate");
+});
+
+renderingModeSelect.addEventListener("change", () => {
+  setMedicalRenderingMode(renderingModeSelect.value);
+  volumeRenderingQuality.pulseInteraction("rendering-mode");
 });
 
 opacitySlider.addEventListener("input", () => {
