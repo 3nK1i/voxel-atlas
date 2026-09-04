@@ -1130,6 +1130,64 @@ button:disabled {
   margin-top: 7px;
 }
 
+.transfer-primary-controls {
+  padding: 7px 8px 5px;
+  border: 1px solid var(--line-soft);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--panel-soft) 58%, transparent);
+}
+
+.rendering-quality-label {
+  display: block;
+  margin-top: 8px;
+}
+
+.advanced-rendering-controls {
+  margin-top: 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--panel-soft) 46%, transparent);
+  overflow: hidden;
+}
+
+.advanced-rendering-controls summary {
+  min-height: 29px;
+  display: flex;
+  align-items: center;
+  padding: 0 9px;
+  color: var(--text-soft);
+  font-size: 6.8px;
+  font-weight: 740;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.advanced-rendering-controls summary::-webkit-details-marker {
+  display: none;
+}
+
+.advanced-rendering-controls summary::after {
+  content: "+";
+  margin-left: auto;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.advanced-rendering-controls[open] summary {
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.advanced-rendering-controls[open] summary::after {
+  content: "−";
+}
+
+.advanced-rendering-controls > .transfer-adjustments {
+  margin: 0;
+  padding: 6px 8px 8px;
+}
+
 .transfer-adjustment-heading {
   display: flex;
   align-items: center;
@@ -1281,6 +1339,11 @@ button:disabled {
   .anatomy-note { margin-top: 9px; font-size: 8px; }
   .transfer-preset-select { min-height: 36px; font-size: 8.5px; }
   .transfer-adjustments { gap: 5px; margin-top: 9px; }
+  .transfer-primary-controls { padding: 8px 9px 6px; }
+  .rendering-quality-label { margin-top: 10px; }
+  .advanced-rendering-controls { margin-top: 10px; }
+  .advanced-rendering-controls summary { min-height: 34px; font-size: 8.5px; }
+  .advanced-rendering-controls > .transfer-adjustments { padding: 7px 9px 9px; }
   .transfer-adjustment-heading { font-size: 8px; }
   .transfer-adjustment-heading strong { font-size: 8px; }
   .transfer-adjustment .slider { min-height: 24px; }
@@ -2563,4 +2626,244 @@ button:disabled {
 @media (max-width: 500px) {
   .sample-study-card { grid-template-columns: 1fr; }
   .sample-study-preview { min-height: 150px; }
+}
+
+/* Phase 4H1-R1 - ergonomic medical workspace polish */
+:root {
+  --ui-readable: clamp(8px, 0.52vw, 10px);
+  --ui-readable-small: clamp(7.5px, 0.46vw, 9px);
+  --workflow-accent: var(--accent);
+  --medical-button-top: #075db8;
+  --medical-button-bottom: #073a78;
+}
+
+.workflow {
+  min-height: 48px;
+  padding: 5px 12px;
+  border: 1px solid color-mix(in srgb, var(--workflow-accent) 24%, var(--line));
+  border-radius: 999px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--panel-soft) 78%, transparent),
+    color-mix(in srgb, var(--panel-solid) 72%, transparent)
+  );
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 4%, transparent);
+}
+
+.workflow-number {
+  font-size: var(--ui-readable-small);
+}
+
+.workflow-copy strong {
+  font-size: var(--ui-readable);
+}
+
+.workflow-copy small {
+  font-size: var(--ui-readable-small);
+}
+
+.workflow-line {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--workflow-accent) 8%, transparent),
+    color-mix(in srgb, var(--workflow-accent) 54%, transparent),
+    color-mix(in srgb, var(--workflow-accent) 8%, transparent)
+  );
+}
+
+.workflow-step.is-active .workflow-number,
+.workflow-step[data-state="active"] .workflow-number {
+  border-color: color-mix(in srgb, var(--workflow-accent) 82%, white 8%);
+  background: color-mix(in srgb, var(--workflow-accent) 22%, var(--panel-solid));
+  color: #eaf7ff;
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--workflow-accent) 12%, transparent),
+    0 0 18px color-mix(in srgb, var(--workflow-accent) 34%, transparent);
+}
+
+.workflow-step[data-state="complete"] .workflow-number {
+  border-color: color-mix(in srgb, var(--workflow-accent) 48%, var(--line));
+  background: color-mix(in srgb, var(--workflow-accent) 12%, var(--panel-soft));
+  color: var(--workflow-accent);
+}
+
+.workflow-step[data-state="complete"] strong {
+  color: var(--text-soft);
+}
+
+.upload-button:not(:disabled),
+.volume-only-layer-grid .layer-button.is-active {
+  border-color: color-mix(in srgb, var(--accent) 80%, white 7%);
+  background: linear-gradient(180deg, var(--medical-button-top), var(--medical-button-bottom));
+  color: #f7fbff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 0 16px color-mix(in srgb, var(--accent) 12%, transparent),
+    0 8px 20px rgba(0, 41, 91, 0.25);
+}
+
+.upload-icon {
+  border: 0;
+  background: transparent;
+}
+
+.upload-icon-svg,
+.volume-status-icon,
+.readiness-check {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.upload-icon-svg {
+  width: 22px;
+  height: 22px;
+  stroke-width: 1.7;
+}
+
+.volume-status-icon {
+  width: 21px;
+  height: 21px;
+  stroke-width: 1.2;
+}
+
+.status-row {
+  border-color: color-mix(in srgb, var(--accent) 13%, var(--line));
+  background: linear-gradient(
+    120deg,
+    color-mix(in srgb, var(--panel-soft) 94%, var(--accent) 6%),
+    var(--panel-soft)
+  );
+}
+
+.status-row[data-state="ready"] {
+  border-color: color-mix(in srgb, var(--success) 24%, var(--line));
+}
+
+.status-row[data-state="ready"] .status-icon {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.readiness-check {
+  width: 19px;
+  height: 19px;
+  stroke-width: 1.7;
+  opacity: 0.42;
+}
+
+.readiness-check path {
+  opacity: 0;
+}
+
+.status-row[data-state="ready"] .readiness-check {
+  color: #071a16;
+  opacity: 1;
+}
+
+.status-row[data-state="ready"] .readiness-check circle {
+  fill: var(--success);
+  stroke: var(--success);
+}
+
+.status-row[data-state="ready"] .readiness-check path {
+  opacity: 1;
+  stroke: #06231b;
+  stroke-width: 2.2;
+}
+
+.field-label,
+.metadata-list dt,
+.metadata-list dd,
+.status-copy small,
+.upload-status,
+.anatomy-note,
+.render-quality-status,
+.slider-label,
+.transfer-adjustment-heading,
+.transfer-adjustment-heading strong {
+  font-size: var(--ui-readable-small);
+}
+
+.status-copy strong,
+.transfer-preset-select,
+.advanced-rendering-controls summary,
+.transfer-reset-button {
+  font-size: var(--ui-readable);
+}
+
+.mpr-title-block strong {
+  font-size: clamp(10px, 0.65vw, 12px);
+}
+
+.mpr-position,
+.mpr-index,
+.mpr-wl,
+.mpr-image-surface .orientation-label {
+  font-size: var(--ui-readable-small) !important;
+}
+
+.mpr-panel-tools button.is-confirmed {
+  border-color: color-mix(in srgb, var(--accent) 82%, white 7%);
+  background: color-mix(in srgb, var(--accent) 22%, var(--panel-soft));
+  color: #eef9ff;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.mpr-panel-tools button.is-active,
+.mpr-panel-tools button[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--accent) 82%, white 7%);
+  background: linear-gradient(180deg, var(--medical-button-top), var(--medical-button-bottom));
+  color: #f7fbff;
+}
+
+.mpr-panel:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+  grid-template-rows: 64px minmax(0, 1fr) 54px;
+  background: #01060b;
+}
+
+.mpr-panel:fullscreen .mpr-header,
+.mpr-panel:fullscreen .mpr-footer {
+  padding-right: 22px;
+  padding-left: 22px;
+}
+
+.mpr-panel:fullscreen .mpr-title-block strong {
+  font-size: 15px;
+}
+
+.mpr-panel:fullscreen .mpr-position,
+.mpr-panel:fullscreen .mpr-index,
+.mpr-panel:fullscreen .mpr-wl,
+.mpr-panel:fullscreen .mpr-image-surface .orientation-label {
+  font-size: 12px !important;
+}
+
+.mpr-panel:fullscreen .mpr-panel-tools button {
+  width: 34px;
+  height: 34px;
+}
+
+@media (max-width: 1180px) {
+  .workflow {
+    min-height: 43px;
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+}
+
+@media (max-width: 700px) {
+  .workflow {
+    border-radius: 14px;
+  }
 }

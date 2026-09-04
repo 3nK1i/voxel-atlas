@@ -27,7 +27,7 @@ class Phase4D2MedicalTransferFunctionTests(unittest.TestCase):
             'aria-label="Medical volume rendering preset"',
             'aria-label="Lower medical intensity"',
             'aria-label="Upper medical intensity"',
-            'aria-label="Volume rendering density"',
+            'aria-label="Volume rendering absorption"',
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, self.html)
@@ -104,10 +104,10 @@ class Phase4D2MedicalTransferFunctionTests(unittest.TestCase):
         self.assertIn("No segmentation", documentation)
 
     def test_phase4d2_cache_and_validation_entrypoints_are_present(self) -> None:
-        self.assertIn('/css/styles.css?v=phase3d-r21-phase4g', self.html)
-        self.assertIn('/js/app.js?v=phase3d-r21-phase4g', self.html)
+        self.assertIn('/css/styles.css?v=phase3d-r21-phase4h1-r1', self.html)
+        self.assertIn('/js/app.js?v=phase3d-r21-phase4h1-r1', self.html)
         self.assertIn(
-            'from "./patient-volume-ray-marcher.js?v=phase4f"',
+            'from "./patient-volume-ray-marcher.js?v=phase4h1"',
             self.app,
         )
         self.assertTrue((ROOT / "scripts/run_phase4d2_checks.sh").is_file())

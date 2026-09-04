@@ -26,7 +26,7 @@
     })();
   </script>
 
-  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4g">
+  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4h1-r1">
 
   <script type="importmap">
   {
@@ -116,7 +116,13 @@
               type="button"
               title="Select a DICOM study folder"
             >
-              <span class="upload-icon" aria-hidden="true">⇧</span>
+              <span class="upload-icon" aria-hidden="true">
+                <svg class="upload-icon-svg" viewBox="0 0 24 24">
+                  <path d="M12 15V4"></path>
+                  <path d="m7.8 8.2 4.2-4.2 4.2 4.2"></path>
+                  <path d="M5 13.5v4.25A2.25 2.25 0 0 0 7.25 20h9.5A2.25 2.25 0 0 0 19 17.75V13.5"></path>
+                </svg>
+              </span>
               <span id="uploadDicomLabel">Upload DICOM</span>
             </button>
             <button
@@ -169,9 +175,19 @@
             <div class="section-kicker">Reconstruction</div>
             <div class="status-list">
               <div id="volumeStatusRow" class="status-row" data-state="pending">
-                <span class="status-icon" aria-hidden="true">▦</span>
+                <span class="status-icon" aria-hidden="true">
+                  <svg class="volume-status-icon" viewBox="0 0 24 24">
+                    <path d="m12 2.8 7.4 4.1v10.2L12 21.2l-7.4-4.1V6.9L12 2.8Z"></path>
+                    <path d="m4.6 6.9 7.4 4.2 7.4-4.2M12 11.1v10.1M8.2 4.9l7.5 4.2M8.2 19.1V8.9l7.6-4.1M4.7 12l7.3 4.1 7.3-4.1"></path>
+                  </svg>
+                </span>
                 <span class="status-copy"><strong>Volume</strong><small id="volumeStatusText">Awaiting DICOM</small></span>
-                <span class="status-mark" aria-hidden="true">○</span>
+                <span class="status-mark" aria-hidden="true">
+                  <svg class="readiness-check" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="9"></circle>
+                    <path d="m8 12.2 2.5 2.5 5.6-6"></path>
+                  </svg>
+                </span>
               </div>
             </div>
           </section>
@@ -292,8 +308,9 @@
             <footer class="mpr-footer">
               <span id="mprAxialWl" class="mpr-wl">W: -- &nbsp; L: --</span>
               <div class="mpr-panel-tools">
-                <button type="button" data-mpr-center="axial" title="Center crosshair" aria-label="Center axial crosshair"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M12 4v16M4 12h16"></path></svg></button>
-                <button type="button" data-mpr-reset-window="axial" title="Reset window and level" aria-label="Reset axial window and level"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"></circle><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"></path></svg></button>
+                <button type="button" data-mpr-center="axial" title="Center shared crosshair" aria-label="Center shared patient crosshair from axial view"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M12 4v16M4 12h16"></path></svg></button>
+                <button type="button" data-mpr-reset-window="axial" title="Reset MPR window and level" aria-label="Reset MPR window and level from axial view"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"></circle><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"></path></svg></button>
+                <button type="button" data-mpr-fullscreen="axial" title="Expand axial slice" aria-label="Open axial slice fullscreen" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 4H4v4.5M15.5 4H20v4.5M20 15.5V20h-4.5M8.5 20H4v-4.5"></path></svg></button>
               </div>
             </footer>
           </article>
@@ -317,8 +334,9 @@
             <footer class="mpr-footer">
               <span id="mprCoronalWl" class="mpr-wl">W: -- &nbsp; L: --</span>
               <div class="mpr-panel-tools">
-                <button type="button" data-mpr-center="coronal" title="Center crosshair" aria-label="Center coronal crosshair"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M12 4v16M4 12h16"></path></svg></button>
-                <button type="button" data-mpr-reset-window="coronal" title="Reset window and level" aria-label="Reset coronal window and level"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"></circle><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"></path></svg></button>
+                <button type="button" data-mpr-center="coronal" title="Center shared crosshair" aria-label="Center shared patient crosshair from coronal view"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M12 4v16M4 12h16"></path></svg></button>
+                <button type="button" data-mpr-reset-window="coronal" title="Reset MPR window and level" aria-label="Reset MPR window and level from coronal view"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"></circle><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"></path></svg></button>
+                <button type="button" data-mpr-fullscreen="coronal" title="Expand coronal slice" aria-label="Open coronal slice fullscreen" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 4H4v4.5M15.5 4H20v4.5M20 15.5V20h-4.5M8.5 20H4v-4.5"></path></svg></button>
               </div>
             </footer>
           </article>
@@ -342,8 +360,9 @@
             <footer class="mpr-footer">
               <span id="mprSagittalWl" class="mpr-wl">W: -- &nbsp; L: --</span>
               <div class="mpr-panel-tools">
-                <button type="button" data-mpr-center="sagittal" title="Center crosshair" aria-label="Center sagittal crosshair"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M12 4v16M4 12h16"></path></svg></button>
-                <button type="button" data-mpr-reset-window="sagittal" title="Reset window and level" aria-label="Reset sagittal window and level"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"></circle><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"></path></svg></button>
+                <button type="button" data-mpr-center="sagittal" title="Center shared crosshair" aria-label="Center shared patient crosshair from sagittal view"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M12 4v16M4 12h16"></path></svg></button>
+                <button type="button" data-mpr-reset-window="sagittal" title="Reset MPR window and level" aria-label="Reset MPR window and level from sagittal view"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"></circle><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"></path></svg></button>
+                <button type="button" data-mpr-fullscreen="sagittal" title="Expand sagittal slice" aria-label="Open sagittal slice fullscreen" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 4H4v4.5M15.5 4H20v4.5M20 15.5V20h-4.5M8.5 20H4v-4.5"></path></svg></button>
               </div>
             </footer>
           </article>
@@ -435,7 +454,62 @@
               <option value="">Load a patient volume</option>
             </select>
 
-            <div class="transfer-adjustments">
+            <div class="transfer-adjustments transfer-primary-controls">
+              <div class="transfer-adjustment">
+                <div class="transfer-adjustment-heading">
+                  <label id="transferWindowCenterLabel" for="transferWindowCenter">Window level</label>
+                  <strong id="transferWindowCenterValue">--</strong>
+                </div>
+                <input
+                  id="transferWindowCenter"
+                  class="slider"
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0.5"
+                  aria-label="Medical display window center"
+                  disabled
+                >
+              </div>
+
+              <div class="transfer-adjustment">
+                <div class="transfer-adjustment-heading">
+                  <label for="transferWindowWidth">Window width</label>
+                  <strong id="transferWindowWidthValue">--</strong>
+                </div>
+                <input
+                  id="transferWindowWidth"
+                  class="slider"
+                  type="range"
+                  min="0.01"
+                  max="1"
+                  step="0.01"
+                  value="1"
+                  aria-label="Medical display window width"
+                  disabled
+                >
+              </div>
+            </div>
+
+            <label class="slider-label rendering-quality-label" for="renderQualityPolicy">
+              Rendering quality
+            </label>
+            <select
+              id="renderQualityPolicy"
+              class="transfer-preset-select"
+              aria-label="Volume rendering quality policy"
+              disabled
+            >
+              <option value="interactive">Interactive</option>
+              <option value="balanced" selected>Balanced</option>
+              <option value="high">High</option>
+              <option value="maximum">Maximum</option>
+            </select>
+
+            <details id="advancedRenderingControls" class="advanced-rendering-controls">
+              <summary>Advanced rendering</summary>
+              <div class="transfer-adjustments">
               <div class="transfer-adjustment">
                 <div class="transfer-adjustment-heading">
                   <label for="transferRangeLow">Lower intensity</label>
@@ -474,7 +548,7 @@
 
               <div class="transfer-adjustment">
                 <div class="transfer-adjustment-heading">
-                  <label for="transferDensity">Density</label>
+                  <label for="transferDensity">Absorption</label>
                   <strong id="transferDensityValue">100%</strong>
                 </div>
                 <input
@@ -485,11 +559,30 @@
                   max="200"
                   step="5"
                   value="100"
-                  aria-label="Volume rendering density"
+                  aria-label="Volume rendering absorption"
                   disabled
                 >
               </div>
+
+              <div class="transfer-adjustment">
+                <div class="transfer-adjustment-heading">
+                  <label for="opacitySlider">Overall opacity</label>
+                  <strong id="opacityValue" class="control-value">100%</strong>
+                </div>
+                <input
+                  id="opacitySlider"
+                  class="slider"
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value="100"
+                  aria-label="Overall patient volume opacity"
+                >
+                <div class="range-labels"><span>0%</span><span>100%</span></div>
+              </div>
             </div>
+            </details>
 
             <button
               id="transferResetButton"
@@ -510,23 +603,6 @@
             >Rendering quality: waiting for patient volume</p>
           </section>
 
-          <section class="control-section">
-            <div class="control-heading compact-heading">
-              <div class="section-kicker">Opacity</div>
-              <strong id="opacityValue" class="control-value">100%</strong>
-            </div>
-            <input
-              id="opacitySlider"
-              class="slider"
-              type="range"
-              min="0"
-              max="100"
-              step="1"
-              value="100"
-              aria-label="Patient volume opacity"
-            >
-            <div class="range-labels"><span>0%</span><span>100%</span></div>
-          </section>
         </div>
 
         <div class="action-row">
@@ -603,6 +679,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/js/app.js?v=phase3d-r21-phase4g"></script>
+  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h1-r1"></script>
 </body>
 </html>

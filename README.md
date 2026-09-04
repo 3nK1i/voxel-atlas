@@ -60,7 +60,7 @@ Phase 3A adds `pydicom` for DICOM parsing. Phase 3C promotes `numpy` into the ba
 Run the current compact regression from the repository root:
 
 ```bash
-bash scripts/run_phase4g_checks.sh
+bash scripts/run_phase4h1_checks.sh
 ```
 
 ## Locked V1 roadmap
@@ -70,7 +70,7 @@ bash scripts/run_phase4g_checks.sh
 3. DICOM upload, study ingestion, geometry qualification, canonical patient volume, and real MPR - complete through Phase 3D
 4. direct patient-volume rendering foundation and authenticated GPU transport
 5. true GPU ray marching of the actual uploaded CT/MRI voxel volume - complete through Phase 4C2
-6. medical transfer functions, clipping, synchronization, adaptive performance, and curated demonstrations - complete through Phase 4G
+6. medical transfer functions, clipping, adaptive performance, curated demonstrations, and professional display controls - complete through Phase 4H1
 7. production security and V1 qualification
 
 Post-V1 work includes atlas-region interaction, AR/XR, advanced planning workflows, PACS/DICOMweb, and additional anatomical atlases.
@@ -152,3 +152,7 @@ python scripts/install_phase4g_sample_study.py \
 ```
 
 Replace the example paths, labels, and URLs with verified facts for the exact dataset being installed. The confirmation flag is an explicit operator attestation, not an automated deidentification check.
+
+### Phase 4H1 - Professional medical display controls
+
+Phase 4H1 adds first-class window center/level and width controls to the true patient-volume renderer. CT controls and preset defaults use calibrated HU; MR uses native relative intensity and is never presented as HU. Windowing remains separate from advanced lower/upper intensity boundaries, global opacity remains separate from transfer absorption, and any manual transfer change enters an explicit Custom state. Interactive, Balanced, High, and Maximum quality policies remain workload-bounded and preserve automatic interaction degradation, settling, and measured frame-pressure backoff. All changes are GPU display parameters: canonical voxels, patient-LPS geometry, MPR, clipping, and sample provenance remain unchanged.

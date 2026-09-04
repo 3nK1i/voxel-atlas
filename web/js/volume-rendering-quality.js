@@ -2,8 +2,51 @@ const LIGHT_VOLUME_VOXELS = 64 * 1024 * 1024;
 const BALANCED_VOLUME_VOXELS = 192 * 1024 * 1024;
 const DEFAULT_SETTLE_DELAY_MS = 180;
 const DEFAULT_TARGET_FRAME_MS = 1000 / 30;
+const MAX_QUALIFIED_RAY_SAMPLES = 512;
 export const FRAME_PRESSURE_SAMPLE_COUNT = 12;
 export const FRAME_PRESSURE_THRESHOLD = 1.2;
+
+export const RENDERING_QUALITY_POLICIES = Object.freeze([
+  Object.freeze({ id: "interactive", label: "Interactive" }),
+  Object.freeze({ id: "balanced", label: "Balanced" }),
+  Object.freeze({ id: "high", label: "High" }),
+  Object.freeze({ id: "maximum", label: "Maximum" }),
+]);
+
+const QUALITY_POLICY_SETTINGS = Object.freeze({
+  interactive: Object.freeze({
+    settledLimits: Object.freeze([256, 192, 144]),
+    interactiveLimits: Object.freeze([144, 112, 96]),
+    settledPixelRatios: Object.freeze([1, 1, 0.9]),
+    interactivePixelRatios: Object.freeze([0.9, 0.85, 0.8]),
+  }),
+  balanced: Object.freeze({
+    settledLimits: Object.freeze([384, 352, 320]),
+    interactiveLimits: Object.freeze([256, 192, 144]),
+    settledPixelRatios: Object.freeze([2, 1.5, 1.25]),
+    interactivePixelRatios: Object.freeze([1, 1, 0.9]),
+  }),
+  high: Object.freeze({
+    settledLimits: Object.freeze([448, 416, 384]),
+    interactiveLimits: Object.freeze([288, 224, 176]),
+    settledPixelRatios: Object.freeze([2, 1.75, 1.5]),
+    interactivePixelRatios: Object.freeze([1.1, 1, 1]),
+  }),
+  maximum: Object.freeze({
+    settledLimits: Object.freeze([512, 512, 448]),
+    interactiveLimits: Object.freeze([320, 256, 192]),
+    settledPixelRatios: Object.freeze([2, 2, 1.75]),
+    interactivePixelRatios: Object.freeze([1.25, 1.1, 1]),
+  }),
+});
+
+export function normalizeRenderingQualityPolicy(policy = "balanced") {
+  const normalized = String(policy || "balanced").toLowerCase();
+  if (!Object.prototype.hasOwnProperty.call(QUALITY_POLICY_SETTINGS, normalized)) {
+    throw new TypeError("Adaptive rendering quality policy is invalid");
+  }
+  return normalized;
+}
 
 function positiveFinite(value, field) {
   const number = Number(value);
@@ -33,6 +76,7 @@ export function createAdaptiveRenderingProfile(
   descriptor,
   capabilities = {},
   devicePixelRatio = 1,
+  policy = "balanced",
 ) {
   const dimensions = textureDimensions(descriptor);
   const voxelCount = dimensions.reduce((total, value) => total * value, 1);
@@ -46,32 +90,30 @@ export function createAdaptiveRenderingProfile(
   }
 
   let workload;
-  let settledLimit;
-  let interactiveLimit;
-  let settledPixelRatioLimit;
-  let interactivePixelRatioLimit;
+  let workloadIndex;
   if (voxelCount <= LIGHT_VOLUME_VOXELS) {
     workload = "light";
-    settledLimit = 512;
-    interactiveLimit = 256;
-    settledPixelRatioLimit = 2;
-    interactivePixelRatioLimit = 1;
+    workloadIndex = 0;
   } else if (voxelCount <= BALANCED_VOLUME_VOXELS) {
     workload = "balanced";
-    settledLimit = 448;
-    interactiveLimit = 192;
-    settledPixelRatioLimit = 1.5;
-    interactivePixelRatioLimit = 1;
+    workloadIndex = 1;
   } else {
     workload = "heavy";
-    settledLimit = 384;
-    interactiveLimit = 144;
-    settledPixelRatioLimit = 1.25;
-    interactivePixelRatioLimit = 0.9;
+    workloadIndex = 2;
   }
 
+  const normalizedPolicy = normalizeRenderingQualityPolicy(policy);
+  const policySettings = QUALITY_POLICY_SETTINGS[normalizedPolicy];
+  const settledLimit = policySettings.settledLimits[workloadIndex];
+  const interactiveLimit = policySettings.interactiveLimits[workloadIndex];
+  const settledPixelRatioLimit = policySettings.settledPixelRatios[workloadIndex];
+  const interactivePixelRatioLimit = policySettings.interactivePixelRatios[workloadIndex];
   const qualifiedPixelRatio = devicePixelRatioLimit(devicePixelRatio);
-  const settledSamplingRate = Math.min(maximumDimension, settledLimit);
+  const settledSamplingRate = Math.min(
+    maximumDimension,
+    MAX_QUALIFIED_RAY_SAMPLES,
+    settledLimit,
+  );
   const interactiveSamplingRate = Math.min(settledSamplingRate, interactiveLimit);
   const minimumInteractiveSamplingRate = Math.max(
     64,
@@ -79,6 +121,7 @@ export function createAdaptiveRenderingProfile(
   );
 
   return Object.freeze({
+    policy: normalizedPolicy,
     workload,
     textureDimensions: Object.freeze(dimensions),
     voxelCount,
@@ -101,6 +144,7 @@ export class AdaptiveVolumeRenderingQuality {
     now = () => performance.now(),
     requestRender = () => {},
     onStateChange = () => {},
+    policy = "balanced",
   }) {
     if (!renderer?.setPixelRatio || !rayMarcher?.setSamplingRate) {
       throw new TypeError("Adaptive rendering requires renderer and ray marcher controls");
@@ -111,6 +155,9 @@ export class AdaptiveVolumeRenderingQuality {
     this.now = now;
     this.requestRender = requestRender;
     this.onStateChange = onStateChange;
+    this.policy = normalizeRenderingQualityPolicy(policy);
+    this.descriptor = null;
+    this.capabilities = null;
     this.profile = null;
     this.mode = "inactive";
     this.samplingRate = null;
@@ -120,11 +167,15 @@ export class AdaptiveVolumeRenderingQuality {
     this.frameSamples = [];
   }
 
-  activate(descriptor, capabilities) {
+  activate(descriptor, capabilities, policy = this.policy) {
+    this.policy = normalizeRenderingQualityPolicy(policy);
+    this.descriptor = descriptor;
+    this.capabilities = capabilities;
     this.profile = createAdaptiveRenderingProfile(
       descriptor,
       capabilities,
       this.devicePixelRatio,
+      this.policy,
     );
     this.activeInteractions.clear();
     this.settleDeadline = null;
@@ -142,8 +193,19 @@ export class AdaptiveVolumeRenderingQuality {
     this.activeInteractions.clear();
     this.settleDeadline = null;
     this.frameSamples = [];
+    this.descriptor = null;
+    this.capabilities = null;
     this.requestRender();
     this.onStateChange(this.snapshot());
+  }
+
+  setPolicy(policy) {
+    this.policy = normalizeRenderingQualityPolicy(policy);
+    if (!this.descriptor) {
+      this.onStateChange(this.snapshot());
+      return this.snapshot();
+    }
+    return this.activate(this.descriptor, this.capabilities, this.policy);
   }
 
   beginInteraction(source = "viewer") {
@@ -238,6 +300,7 @@ export class AdaptiveVolumeRenderingQuality {
 
   snapshot() {
     return Object.freeze({
+      policy: this.policy,
       mode: this.mode,
       workload: this.profile?.workload || null,
       samplingRate: this.samplingRate,

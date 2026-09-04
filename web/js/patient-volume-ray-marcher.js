@@ -39,6 +39,9 @@ uniform float uDecodeScale;
 uniform float uTransferIntensities[${TRANSFER_POINT_COUNT}];
 uniform float uTransferOpacities[${TRANSFER_POINT_COUNT}];
 uniform vec3 uTransferColors[${TRANSFER_POINT_COUNT}];
+uniform float uWindowCenter;
+uniform float uWindowWidth;
+uniform vec3 uIntensityBounds;
 uniform float uDensityScale;
 uniform float uGlobalOpacity;
 uniform float uSamplingRate;
@@ -162,6 +165,11 @@ vec4 sampleMedicalTransfer(float intensity) {
   );
 }
 
+float windowMedicalIntensity(float intensity) {
+  float windowMinimum = uWindowCenter - 0.5 * uWindowWidth;
+  return clamp((intensity - windowMinimum) / max(uWindowWidth, 0.000001), 0.0, 1.0);
+}
+
 void main() {
   vec3 direction = normalize(vRayDirection);
   vec2 boxIntersection = intersectUnitBox(vRayOrigin, direction);
@@ -180,7 +188,16 @@ void main() {
     if (float(index) >= sampleCount) break;
     vec3 textureCoordinate = samplePosition + vec3(0.5);
     float intensity = decodeMedicalIntensity(textureCoordinate);
-    vec4 transferSample = sampleMedicalTransfer(intensity);
+    if (intensity < uIntensityBounds.x || intensity > uIntensityBounds.y) {
+      samplePosition += stepVector;
+      continue;
+    }
+    float displayIntensity = mix(
+      uIntensityBounds.x,
+      uIntensityBounds.y,
+      windowMedicalIntensity(intensity)
+    );
+    vec4 transferSample = sampleMedicalTransfer(displayIntensity);
     vec3 sampleColor = transferSample.rgb;
     float sampleAlpha = 1.0 - exp(
       -transferSample.a * uDensityScale * uGlobalOpacity * stepLength
@@ -395,6 +412,8 @@ const CT_TRANSFER_PRESETS = Object.freeze([
     units: "HU",
     rangeMode: "absolute",
     range: Object.freeze([-1000, 1200]),
+    windowMode: "absolute",
+    window: Object.freeze([40, 400]),
     densityScale: 12.0,
     points: Object.freeze([
       transferPoint(0.00, 0.000, [0.03, 0.05, 0.08]),
@@ -413,6 +432,8 @@ const CT_TRANSFER_PRESETS = Object.freeze([
     units: "HU",
     rangeMode: "absolute",
     range: Object.freeze([-180, 350]),
+    windowMode: "absolute",
+    window: Object.freeze([40, 400]),
     densityScale: 14.0,
     points: Object.freeze([
       transferPoint(0.00, 0.000, [0.12, 0.07, 0.08]),
@@ -431,6 +452,8 @@ const CT_TRANSFER_PRESETS = Object.freeze([
     units: "HU",
     rangeMode: "absolute",
     range: Object.freeze([150, 1800]),
+    windowMode: "absolute",
+    window: Object.freeze([500, 1500]),
     densityScale: 12.0,
     points: Object.freeze([
       transferPoint(0.00, 0.000, [0.18, 0.15, 0.12]),
@@ -449,6 +472,8 @@ const CT_TRANSFER_PRESETS = Object.freeze([
     units: "HU",
     rangeMode: "absolute",
     range: Object.freeze([-1000, -250]),
+    windowMode: "absolute",
+    window: Object.freeze([-600, 1500]),
     densityScale: 10.0,
     points: Object.freeze([
       transferPoint(0.00, 0.000, [0.02, 0.05, 0.09]),
@@ -470,6 +495,8 @@ const MR_TRANSFER_PRESETS = Object.freeze([
     units: "modality",
     rangeMode: "relative",
     range: Object.freeze([0.03, 0.98]),
+    windowMode: "relative",
+    window: Object.freeze([0.03, 0.98]),
     densityScale: 10.0,
     points: Object.freeze([
       transferPoint(0.00, 0.000, [0.02, 0.03, 0.06]),
@@ -488,6 +515,8 @@ const MR_TRANSFER_PRESETS = Object.freeze([
     units: "modality",
     rangeMode: "relative",
     range: Object.freeze([0.02, 0.68]),
+    windowMode: "relative",
+    window: Object.freeze([0.02, 0.68]),
     densityScale: 11.0,
     points: Object.freeze([
       transferPoint(0.00, 0.000, [0.03, 0.05, 0.10]),
@@ -506,6 +535,8 @@ const MR_TRANSFER_PRESETS = Object.freeze([
     units: "modality",
     rangeMode: "relative",
     range: Object.freeze([0.24, 0.98]),
+    windowMode: "relative",
+    window: Object.freeze([0.24, 0.98]),
     densityScale: 10.0,
     points: Object.freeze([
       transferPoint(0.00, 0.000, [0.04, 0.04, 0.08]),
@@ -527,6 +558,8 @@ const RELATIVE_TRANSFER_PRESETS = Object.freeze([
     units: "modality",
     rangeMode: "relative",
     range: Object.freeze([0.05, 0.95]),
+    windowMode: "relative",
+    window: Object.freeze([0.05, 0.95]),
     densityScale: 9.0,
     points: MR_TRANSFER_PRESETS[0].points,
   }),
@@ -564,6 +597,16 @@ function resolvedPresetRange(preset, sourceLow, sourceHigh) {
   return [low, high];
 }
 
+function resolvedPresetWindow(preset, sourceLow, sourceHigh) {
+  const span = sourceHigh - sourceLow;
+  if (preset.windowMode === "relative") {
+    const low = sourceLow + span * preset.window[0];
+    const high = sourceLow + span * preset.window[1];
+    return [(low + high) / 2, high - low];
+  }
+  return [preset.window[0], preset.window[1]];
+}
+
 export function listMedicalTransferPresets(descriptor) {
   const modality = String(descriptor?.source_modality || "").toUpperCase() || "UNKNOWN";
   const units = String(descriptor?.source_intensity_units || "") || "modality";
@@ -586,6 +629,11 @@ export function createMedicalTransferFunction(descriptor, presetId = null, adjus
 
   const [sourceLow, sourceHigh] = effectiveSourceRange(descriptor);
   const [presetLow, presetHigh] = resolvedPresetRange(preset, sourceLow, sourceHigh);
+  const [presetWindowCenter, presetWindowWidth] = resolvedPresetWindow(
+    preset,
+    sourceLow,
+    sourceHigh,
+  );
   const requestedLow = adjustments.rangeLow === undefined
     ? presetLow
     : finiteNumber(adjustments.rangeLow, "transfer-function lower intensity");
@@ -598,6 +646,21 @@ export function createMedicalTransferFunction(descriptor, presetId = null, adjus
   if (rangeHigh - rangeLow < minimumInterval) {
     throw new TypeError("Patient volume transfer-function intensity range is invalid");
   }
+
+  const requestedWindowCenter = adjustments.windowCenter === undefined
+    ? presetWindowCenter
+    : finiteNumber(adjustments.windowCenter, "transfer-function window center");
+  const requestedWindowWidth = adjustments.windowWidth === undefined
+    ? presetWindowWidth
+    : finiteNumber(adjustments.windowWidth, "transfer-function window width");
+  if (requestedWindowWidth < minimumInterval) {
+    throw new TypeError("Patient volume transfer-function window width is invalid");
+  }
+  const windowCenter = Math.max(sourceLow, Math.min(sourceHigh, requestedWindowCenter));
+  const windowWidth = Math.max(
+    minimumInterval,
+    Math.min((sourceHigh - sourceLow) * 2, requestedWindowWidth),
+  );
 
   const densityMultiplier = adjustments.densityMultiplier === undefined
     ? 1
@@ -623,6 +686,8 @@ export function createMedicalTransferFunction(descriptor, presetId = null, adjus
     sourceRange: Object.freeze([sourceLow, sourceHigh]),
     rangeLow,
     rangeHigh,
+    windowCenter,
+    windowWidth,
     densityMultiplier,
     densityScale: preset.densityScale * densityMultiplier,
     controlPoints,
@@ -653,6 +718,9 @@ function applyTransferUniforms(THREE, material, transfer) {
   material.uniforms.uTransferIntensities.value = values.intensities;
   material.uniforms.uTransferOpacities.value = values.opacities;
   material.uniforms.uTransferColors.value = values.colors;
+  material.uniforms.uWindowCenter.value = transfer.windowCenter;
+  material.uniforms.uWindowWidth.value = transfer.windowWidth;
+  material.uniforms.uIntensityBounds.value.set(transfer.rangeLow, transfer.rangeHigh, 0);
   material.uniforms.uDensityScale.value = transfer.densityScale;
   material.uniformsNeedUpdate = true;
 }
@@ -719,6 +787,11 @@ export class PatientVolumeRayMarcher {
         uTransferIntensities: { value: transferUniforms.intensities },
         uTransferOpacities: { value: transferUniforms.opacities },
         uTransferColors: { value: transferUniforms.colors },
+        uWindowCenter: { value: transfer.windowCenter },
+        uWindowWidth: { value: transfer.windowWidth },
+        uIntensityBounds: {
+          value: new THREE.Vector3(transfer.rangeLow, transfer.rangeHigh, 0),
+        },
         uDensityScale: { value: transfer.densityScale },
         uGlobalOpacity: { value: 1 },
         uSamplingRate: { value: Math.min(Math.max(...dimensions), DEFAULT_SAMPLE_RATE) },

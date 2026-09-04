@@ -9,10 +9,10 @@ import { PatientVolumeTextureManager } from "./volume-texture-manager.js?v=phase
 import {
   PatientVolumeRayMarcher,
   listMedicalTransferPresets,
-} from "./patient-volume-ray-marcher.js?v=phase4f";
+} from "./patient-volume-ray-marcher.js?v=phase4h1";
 import {
   AdaptiveVolumeRenderingQuality,
-} from "./volume-rendering-quality.js?v=phase4f";
+} from "./volume-rendering-quality.js?v=phase4h1";
 import { SampleStudyCatalogClient } from "./sample-study-catalog.js?v=phase4g-r1";
 
 const THEME_KEY = "voxelatlas-theme";
@@ -44,6 +44,11 @@ const clippingRegistry = new Map(Object.keys(CLIPPING_PLANES).map((plane) => [
 const volumeRenderingPanel = document.getElementById("volumeRenderingPanel");
 const transferModality = document.getElementById("transferModality");
 const transferPresetSelect = document.getElementById("transferPresetSelect");
+const transferWindowCenter = document.getElementById("transferWindowCenter");
+const transferWindowCenterLabel = document.getElementById("transferWindowCenterLabel");
+const transferWindowCenterValue = document.getElementById("transferWindowCenterValue");
+const transferWindowWidth = document.getElementById("transferWindowWidth");
+const transferWindowWidthValue = document.getElementById("transferWindowWidthValue");
 const transferRangeLow = document.getElementById("transferRangeLow");
 const transferRangeLowValue = document.getElementById("transferRangeLowValue");
 const transferRangeHigh = document.getElementById("transferRangeHigh");
@@ -52,6 +57,7 @@ const transferDensity = document.getElementById("transferDensity");
 const transferDensityValue = document.getElementById("transferDensityValue");
 const transferResetButton = document.getElementById("transferResetButton");
 const transferFunctionNote = document.getElementById("transferFunctionNote");
+const renderQualityPolicy = document.getElementById("renderQualityPolicy");
 const renderQualityStatus = document.getElementById("renderQualityStatus");
 const opacitySlider = document.getElementById("opacitySlider");
 const opacityValue = document.getElementById("opacityValue");
@@ -212,6 +218,10 @@ state.volumeRendering = {
   descriptor: null,
   textureResource: null,
   transferPresetId: null,
+  transferBasePresetId: null,
+  transferCustomized: false,
+  transferWindowCenter: null,
+  transferWindowWidth: null,
   transferRangeLow: null,
   transferRangeHigh: null,
   transferDensityMultiplier: 1,
@@ -249,8 +259,11 @@ function updateRenderingQualityStatus(quality) {
   }
   renderQualityStatus.dataset.mode = quality.mode;
   const mode = quality.mode === "interactive" ? "Interactive" : "Settled";
+  const policy = quality.policy
+    ? `${quality.policy.charAt(0).toUpperCase()}${quality.policy.slice(1)}`
+    : "Balanced";
   renderQualityStatus.textContent = (
-    `Rendering quality: ${mode} · ${quality.samplingRate} samples · `
+    `Rendering quality: ${policy} / ${mode} · ${quality.samplingRate} samples · `
     + `${quality.pixelRatio.toFixed(2)}x pixel ratio`
   );
 }
@@ -261,6 +274,7 @@ const volumeRenderingQuality = new AdaptiveVolumeRenderingQuality({
   devicePixelRatio: window.devicePixelRatio || 1,
   requestRender: requestViewerRender,
   onStateChange: updateRenderingQualityStatus,
+  policy: renderQualityPolicy?.value || "balanced",
 });
 
 controls.addEventListener("start", () => {
@@ -281,9 +295,12 @@ function setTransferControlsEnabled(enabled) {
   volumeRenderingPanel.dataset.state = available ? "ready" : "unavailable";
   for (const control of [
     transferPresetSelect,
+    transferWindowCenter,
+    transferWindowWidth,
     transferRangeLow,
     transferRangeHigh,
     transferDensity,
+    renderQualityPolicy,
     transferResetButton,
   ]) {
     control.disabled = !available;
@@ -292,6 +309,10 @@ function setTransferControlsEnabled(enabled) {
 
 function clearTransferControls() {
   state.volumeRendering.transferPresetId = null;
+  state.volumeRendering.transferBasePresetId = null;
+  state.volumeRendering.transferCustomized = false;
+  state.volumeRendering.transferWindowCenter = null;
+  state.volumeRendering.transferWindowWidth = null;
   state.volumeRendering.transferRangeLow = null;
   state.volumeRendering.transferRangeHigh = null;
   state.volumeRendering.transferDensityMultiplier = 1;
@@ -301,6 +322,9 @@ function clearTransferControls() {
   placeholder.textContent = "Load a patient volume";
   transferPresetSelect.appendChild(placeholder);
   transferModality.textContent = "--";
+  transferWindowCenterLabel.textContent = "Window level";
+  transferWindowCenterValue.textContent = "--";
+  transferWindowWidthValue.textContent = "--";
   transferRangeLowValue.textContent = "--";
   transferRangeHighValue.textContent = "--";
   transferDensity.value = "100";
@@ -329,11 +353,23 @@ function syncTransferControls(transfer) {
   const [sourceLow, sourceHigh] = transfer.sourceRange;
   const minimumGap = Math.max(step, 0.000001);
   state.volumeRendering.transferPresetId = transfer.id;
+  state.volumeRendering.transferBasePresetId = transfer.id;
+  state.volumeRendering.transferCustomized = false;
+  state.volumeRendering.transferWindowCenter = transfer.windowCenter;
+  state.volumeRendering.transferWindowWidth = transfer.windowWidth;
   state.volumeRendering.transferRangeLow = transfer.rangeLow;
   state.volumeRendering.transferRangeHigh = transfer.rangeHigh;
   state.volumeRendering.transferDensityMultiplier = transfer.densityMultiplier;
 
   transferPresetSelect.value = transfer.id;
+  transferWindowCenter.min = String(sourceLow);
+  transferWindowCenter.max = String(sourceHigh);
+  transferWindowCenter.step = String(step);
+  transferWindowCenter.value = String(transfer.windowCenter);
+  transferWindowWidth.min = String(minimumGap);
+  transferWindowWidth.max = String((sourceHigh - sourceLow) * 2);
+  transferWindowWidth.step = String(step);
+  transferWindowWidth.value = String(transfer.windowWidth);
   transferRangeLow.min = String(sourceLow);
   transferRangeLow.max = String(Math.max(sourceLow, transfer.rangeHigh - minimumGap));
   transferRangeLow.step = String(step);
@@ -344,7 +380,19 @@ function syncTransferControls(transfer) {
   transferRangeHigh.value = String(transfer.rangeHigh);
   transferDensity.value = String(Math.round(transfer.densityMultiplier * 100));
 
-  transferModality.textContent = `${transfer.modality} · ${transfer.units}`;
+  const displayUnits = transfer.units === "HU" ? "HU" : "relative";
+  transferModality.textContent = `${transfer.modality} · ${displayUnits}`;
+  transferWindowCenterLabel.textContent = transfer.units === "HU"
+    ? "Window level"
+    : "Window center";
+  transferWindowCenterValue.textContent = formatTransferIntensity(
+    transfer.windowCenter,
+    transfer,
+  );
+  transferWindowWidthValue.textContent = formatTransferIntensity(
+    transfer.windowWidth,
+    transfer,
+  );
   transferRangeLowValue.textContent = formatTransferIntensity(transfer.rangeLow, transfer);
   transferRangeHighValue.textContent = formatTransferIntensity(transfer.rangeHigh, transfer);
   transferDensityValue.textContent = `${Math.round(transfer.densityMultiplier * 100)}%`;
@@ -360,20 +408,30 @@ function configureTransferControls(volumeResource) {
     option.textContent = preset.label;
     transferPresetSelect.appendChild(option);
   }
+  const option = document.createElement("option");
+  option.value = "custom";
+  option.textContent = "Custom";
+  option.disabled = true;
+  transferPresetSelect.appendChild(option);
   syncTransferControls(volumeResource.transferState.current);
   setTransferControlsEnabled(true);
 }
 
 function applyTransferPreset(presetId = transferPresetSelect.value) {
-  if (!volumeRayMarcher.current || !presetId) return null;
+  if (!volumeRayMarcher.current || !presetId || presetId === "custom") return null;
   const transfer = volumeRayMarcher.setTransferPreset(presetId);
   syncTransferControls(transfer);
   requestViewerRender();
   return transfer;
 }
 
+function markTransferCustomized() {
+  state.volumeRendering.transferCustomized = true;
+  transferPresetSelect.value = "custom";
+}
+
 function applyTransferAdjustments(changedControl = null) {
-  if (!volumeRayMarcher.current || !state.volumeRendering.transferPresetId) return null;
+  if (!volumeRayMarcher.current || !state.volumeRendering.transferBasePresetId) return null;
   const current = volumeRayMarcher.current.transferState.current;
   const [sourceLow, sourceHigh] = current.sourceRange;
   const minimumGap = Math.max(transferIntensityStep(current), 0.000001);
@@ -389,14 +447,17 @@ function applyTransferAdjustments(changedControl = null) {
   }
 
   const transfer = volumeRayMarcher.setTransferPreset(
-    state.volumeRendering.transferPresetId,
+    state.volumeRendering.transferBasePresetId,
     {
+      windowCenter: Number(transferWindowCenter.value),
+      windowWidth: Number(transferWindowWidth.value),
       rangeLow,
       rangeHigh,
       densityMultiplier: Number(transferDensity.value) / 100,
     },
   );
   syncTransferControls(transfer);
+  markTransferCustomized();
   requestViewerRender();
   return transfer;
 }
@@ -684,6 +745,7 @@ async function activatePatientVolumeRendering(textureResource, task) {
   volumeRenderingQuality.activate(
     volumeResource.descriptor,
     state.volumeRendering.capabilities,
+    renderQualityPolicy.value,
   );
   if (state.autoRotate) {
     volumeRenderingQuality.beginInteraction("auto-rotate");
@@ -713,8 +775,8 @@ function resetWorkspace() {
 
   state.opacity = DEFAULT_OPACITY;
   opacitySlider.value = String(Math.round(DEFAULT_OPACITY * 100));
-  if (state.volumeRendering.transferPresetId) {
-    applyTransferPreset(state.volumeRendering.transferPresetId);
+  if (state.volumeRendering.transferBasePresetId) {
+    applyTransferPreset(state.volumeRendering.transferBasePresetId);
   }
   state.autoRotate = false;
   volumeRenderingQuality.endInteraction("auto-rotate");
@@ -1257,12 +1319,44 @@ function resetMprWindowLevel() {
   scheduleMprRender();
 }
 
+function acknowledgeMprTool(button) {
+  button.classList.remove("is-confirmed");
+  window.requestAnimationFrame(() => button.classList.add("is-confirmed"));
+  window.setTimeout(() => button.classList.remove("is-confirmed"), 420);
+}
+
 document.querySelectorAll("[data-mpr-center]").forEach((button) => {
-  button.addEventListener("click", centerMprCrosshair);
+  button.addEventListener("click", () => {
+    centerMprCrosshair();
+    acknowledgeMprTool(button);
+  });
 });
 
 document.querySelectorAll("[data-mpr-reset-window]").forEach((button) => {
-  button.addEventListener("click", resetMprWindowLevel);
+  button.addEventListener("click", () => {
+    resetMprWindowLevel();
+    acknowledgeMprTool(button);
+  });
+});
+
+async function toggleMprFullscreen(plane) {
+  const entry = mprRegistry.get(plane);
+  if (!entry || !state.mpr.descriptor) return;
+  try {
+    if (document.fullscreenElement === entry.panel) {
+      await document.exitFullscreen();
+    } else if (!document.fullscreenElement && entry.panel.requestFullscreen) {
+      await entry.panel.requestFullscreen();
+    }
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+document.querySelectorAll("[data-mpr-fullscreen]").forEach((button) => {
+  button.addEventListener("click", () => {
+    void toggleMprFullscreen(button.dataset.mprFullscreen);
+  });
 });
 
 
@@ -1741,6 +1835,16 @@ transferPresetSelect.addEventListener("change", () => {
   volumeRenderingQuality.pulseInteraction("transfer");
 });
 
+transferWindowCenter.addEventListener("input", () => {
+  applyTransferAdjustments(transferWindowCenter);
+  volumeRenderingQuality.pulseInteraction("transfer");
+});
+
+transferWindowWidth.addEventListener("input", () => {
+  applyTransferAdjustments(transferWindowWidth);
+  volumeRenderingQuality.pulseInteraction("transfer");
+});
+
 transferRangeLow.addEventListener("input", () => {
   applyTransferAdjustments(transferRangeLow);
   volumeRenderingQuality.pulseInteraction("transfer");
@@ -1757,8 +1861,13 @@ transferDensity.addEventListener("input", () => {
 });
 
 transferResetButton.addEventListener("click", () => {
-  applyTransferPreset(state.volumeRendering.transferPresetId);
+  applyTransferPreset(state.volumeRendering.transferBasePresetId);
   volumeRenderingQuality.pulseInteraction("transfer");
+});
+
+renderQualityPolicy.addEventListener("change", () => {
+  volumeRenderingQuality.setPolicy(renderQualityPolicy.value);
+  if (state.autoRotate) volumeRenderingQuality.beginInteraction("auto-rotate");
 });
 
 opacitySlider.addEventListener("input", () => {
@@ -1769,6 +1878,8 @@ opacitySlider.addEventListener("input", () => {
 
 const qualityInteractionControls = [
   ...Array.from(clippingRegistry.values()).map((entry) => entry.slider),
+  transferWindowCenter,
+  transferWindowWidth,
   transferRangeLow,
   transferRangeHigh,
   transferDensity,
@@ -1844,12 +1955,31 @@ fullscreenButton.addEventListener("click", async () => {
   }
 });
 
+function syncFullscreenControls() {
+  const viewerActive = document.fullscreenElement === viewerStage;
+  fullscreenButton.setAttribute("aria-pressed", viewerActive ? "true" : "false");
+  fullscreenButton.classList.toggle("is-active", viewerActive);
+  fullscreenButton.setAttribute("title", viewerActive ? "Exit fullscreen" : "Fullscreen");
+
+  document.querySelectorAll("[data-mpr-fullscreen]").forEach((button) => {
+    const plane = button.dataset.mprFullscreen;
+    const entry = mprRegistry.get(plane);
+    const active = Boolean(entry && document.fullscreenElement === entry.panel);
+    const label = plane.charAt(0).toUpperCase() + plane.slice(1);
+    button.setAttribute("aria-pressed", active ? "true" : "false");
+    button.classList.toggle("is-active", active);
+    button.setAttribute("title", active ? `Exit ${plane} fullscreen` : `Expand ${plane} slice`);
+    button.setAttribute(
+      "aria-label",
+      active ? `Exit ${label} slice fullscreen` : `Open ${label} slice fullscreen`,
+    );
+  });
+}
+
 document.addEventListener("fullscreenchange", () => {
-  const active = document.fullscreenElement === viewerStage;
-  fullscreenButton.setAttribute("aria-pressed", active ? "true" : "false");
-  fullscreenButton.classList.toggle("is-active", active);
-  fullscreenButton.setAttribute("title", active ? "Exit fullscreen" : "Fullscreen");
+  syncFullscreenControls();
   resize();
+  if (state.mpr.descriptor) scheduleMprRender();
 });
 
 logoutButton.addEventListener("click", async () => {
