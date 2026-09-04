@@ -30,9 +30,40 @@ export const MEDICAL_RENDERING_MODES = Object.freeze([
     label: "Average Intensity",
     code: 3,
     usesDvrControls: false,
+    usesPlaneControls: false,
     description: "Average Intensity displays the arithmetic mean of sampled voxels along each ray.",
   }),
+  Object.freeze({
+    id: "slice",
+    label: "Slice",
+    code: 4,
+    usesDvrControls: false,
+    usesPlaneControls: true,
+    usesSlabControls: false,
+    description: "Slice displays one patient-space medical image plane from the canonical voxel volume.",
+  }),
+  Object.freeze({
+    id: "thick-slab",
+    label: "Thick Slab",
+    code: 5,
+    usesDvrControls: false,
+    usesPlaneControls: true,
+    usesSlabControls: true,
+    description: "Thick Slab aggregates real voxels across a physical patient-space thickness.",
+  }),
 ]);
+
+export const SLAB_PROJECTION_METHODS = Object.freeze([
+  Object.freeze({ id: "mip", label: "MIP", code: 1 }),
+  Object.freeze({ id: "minip", label: "MinIP", code: 2 }),
+  Object.freeze({ id: "average", label: "Average", code: 3 }),
+]);
+
+export const PATIENT_SLICE_PLANES = Object.freeze({
+  axial: Object.freeze({ label: "Axial", axis: "z", axisIndex: 2, coordinate: "Z" }),
+  coronal: Object.freeze({ label: "Coronal", axis: "y", axisIndex: 1, coordinate: "Y" }),
+  sagittal: Object.freeze({ label: "Sagittal", axis: "x", axisIndex: 0, coordinate: "X" }),
+});
 
 function medicalRenderingMode(modeId) {
   const mode = MEDICAL_RENDERING_MODES.find(({ id }) => id === modeId);
@@ -42,6 +73,10 @@ function medicalRenderingMode(modeId) {
 
 export function listMedicalRenderingModes() {
   return MEDICAL_RENDERING_MODES;
+}
+
+export function listSlabProjectionMethods() {
+  return SLAB_PROJECTION_METHODS;
 }
 
 export function aggregateMedicalProjection(samples, modeId) {
@@ -210,6 +245,13 @@ uniform float uEdgeDefinition;
 uniform float uShadingStrength;
 uniform int uRenderingMode;
 uniform mat4 uLocalToPatientLps;
+uniform int uSlicePlaneAxis;
+uniform float uSlicePositionLpsMm;
+uniform float uSlabThicknessMm;
+uniform int uSlabProjectionMode;
+uniform float uSliceSampleSpacingMm;
+uniform vec3 uSlicePatientBoundsMinimum;
+uniform vec3 uSlicePatientBoundsMaximum;
 uniform vec3 uClipPlanePositions;
 uniform vec3 uClipPlaneKeepSigns;
 uniform vec3 uClipPlaneEnabled;
@@ -222,6 +264,8 @@ const int RENDER_MODE_DVR = 0;
 const int RENDER_MODE_MIP = 1;
 const int RENDER_MODE_MINIP = 2;
 const int RENDER_MODE_AVERAGE = 3;
+const int RENDER_MODE_SLICE = 4;
+const int RENDER_MODE_THICK_SLAB = 5;
 
 vec2 intersectUnitBox(vec3 origin, vec3 direction) {
   const vec3 boxMinimum = vec3(-0.5);
@@ -300,11 +344,79 @@ vec2 clipPatientRayInterval(vec3 localOrigin, vec3 localDirection, vec2 boxInter
   return vec2(entry, exit);
 }
 
+float selectedAxisValue(vec3 value, int axis) {
+  if (axis == 0) return value.x;
+  if (axis == 1) return value.y;
+  return value.z;
+}
+
+vec3 selectedAxisUnit(int axis) {
+  if (axis == 0) return vec3(1.0, 0.0, 0.0);
+  if (axis == 1) return vec3(0.0, 1.0, 0.0);
+  return vec3(0.0, 0.0, 1.0);
+}
+
+bool patientPointRetained(vec3 patientPoint) {
+  for (int axis = 0; axis < 3; axis += 1) {
+    if (uClipPlaneEnabled[axis] <= 0.5) continue;
+    float retained = uClipPlaneKeepSigns[axis]
+      * (patientPoint[axis] - uClipPlanePositions[axis]);
+    if (retained < 0.0) return false;
+  }
+  return true;
+}
+
+bool patientPointInsideSliceBounds(vec3 patientPoint) {
+  return all(greaterThanEqual(patientPoint, uSlicePatientBoundsMinimum - vec3(0.000001)))
+    && all(lessThanEqual(patientPoint, uSlicePatientBoundsMaximum + vec3(0.000001)));
+}
+
+bool localPointInsideVolume(vec3 localPoint) {
+  return all(greaterThanEqual(localPoint, vec3(-0.500001)))
+    && all(lessThanEqual(localPoint, vec3(0.500001)));
+}
+
 float decodeMedicalIntensity(vec3 textureCoordinate) {
   vec2 encoded = texture(uVolume, textureCoordinate).rg;
   float lowByte = floor(encoded.r * 255.0 + 0.5);
   float highByte = floor(encoded.g * 255.0 + 0.5);
   return uDecodeOffset + uDecodeScale * (lowByte + highByte * 256.0);
+}
+
+float decodeMedicalTexel(ivec3 textureIndex) {
+  vec2 encoded = texelFetch(uVolume, textureIndex, 0).rg;
+  float lowByte = floor(encoded.r * 255.0 + 0.5);
+  float highByte = floor(encoded.g * 255.0 + 0.5);
+  return uDecodeOffset + uDecodeScale * (lowByte + highByte * 256.0);
+}
+
+float decodeMedicalIntensityLinear(vec3 textureCoordinate) {
+  ivec3 dimensions = textureSize(uVolume, 0);
+  vec3 maximumIndex = vec3(dimensions - ivec3(1));
+  vec3 continuousIndex = clamp(
+    textureCoordinate * vec3(dimensions) - vec3(0.5),
+    vec3(0.0),
+    maximumIndex
+  );
+  ivec3 lower = ivec3(floor(continuousIndex));
+  ivec3 upper = min(lower + ivec3(1), dimensions - ivec3(1));
+  vec3 blend = continuousIndex - vec3(lower);
+
+  float c000 = decodeMedicalTexel(ivec3(lower.x, lower.y, lower.z));
+  float c001 = decodeMedicalTexel(ivec3(lower.x, lower.y, upper.z));
+  float c010 = decodeMedicalTexel(ivec3(lower.x, upper.y, lower.z));
+  float c011 = decodeMedicalTexel(ivec3(lower.x, upper.y, upper.z));
+  float c100 = decodeMedicalTexel(ivec3(upper.x, lower.y, lower.z));
+  float c101 = decodeMedicalTexel(ivec3(upper.x, lower.y, upper.z));
+  float c110 = decodeMedicalTexel(ivec3(upper.x, upper.y, lower.z));
+  float c111 = decodeMedicalTexel(ivec3(upper.x, upper.y, upper.z));
+  float c00 = mix(c000, c100, blend.x);
+  float c01 = mix(c001, c101, blend.x);
+  float c10 = mix(c010, c110, blend.x);
+  float c11 = mix(c011, c111, blend.x);
+  float c0 = mix(c00, c10, blend.y);
+  float c1 = mix(c01, c11, blend.y);
+  return mix(c0, c1, blend.z);
 }
 
 vec4 sampleMedicalTransfer(float intensity) {
@@ -337,6 +449,86 @@ vec4 sampleMedicalTransfer(float intensity) {
 float windowMedicalIntensity(float intensity) {
   float windowMinimum = uWindowCenter - 0.5 * uWindowWidth;
   return clamp((intensity - windowMinimum) / max(uWindowWidth, 0.000001), 0.0, 1.0);
+}
+
+bool patientPlaneIntersection(
+  vec3 localOrigin,
+  vec3 localDirection,
+  vec2 interval,
+  out vec3 patientPoint
+) {
+  vec3 patientOrigin = (uLocalToPatientLps * vec4(localOrigin, 1.0)).xyz;
+  vec3 patientDirection = (uLocalToPatientLps * vec4(localDirection, 0.0)).xyz;
+  float normalDirection = selectedAxisValue(patientDirection, uSlicePlaneAxis);
+  if (abs(normalDirection) <= 0.000001) return false;
+  float planeParameter = (
+    uSlicePositionLpsMm - selectedAxisValue(patientOrigin, uSlicePlaneAxis)
+  ) / normalDirection;
+  if (planeParameter < interval.x || planeParameter > interval.y) return false;
+  patientPoint = patientOrigin + planeParameter * patientDirection;
+  return patientPointRetained(patientPoint) && patientPointInsideSliceBounds(patientPoint);
+}
+
+bool samplePatientPlane(
+  vec3 localOrigin,
+  vec3 localDirection,
+  vec2 interval,
+  out float intensity
+) {
+  vec3 patientPoint;
+  if (!patientPlaneIntersection(localOrigin, localDirection, interval, patientPoint)) {
+    return false;
+  }
+  vec3 localPoint = (inverse(uLocalToPatientLps) * vec4(patientPoint, 1.0)).xyz;
+  if (!localPointInsideVolume(localPoint)) return false;
+  intensity = decodeMedicalIntensityLinear(localPoint + vec3(0.5));
+  return true;
+}
+
+bool samplePatientThickSlab(
+  vec3 localOrigin,
+  vec3 localDirection,
+  vec2 interval,
+  out float projectedIntensity
+) {
+  vec3 patientCenter;
+  if (!patientPlaneIntersection(localOrigin, localDirection, interval, patientCenter)) {
+    return false;
+  }
+  vec3 patientAxis = selectedAxisUnit(uSlicePlaneAxis);
+  float thickness = max(uSlabThicknessMm, 0.1);
+  float sampleCount = clamp(
+    ceil(thickness / max(uSliceSampleSpacingMm, 0.01)) + 1.0,
+    1.0,
+    float(${MAX_RAY_STEPS})
+  );
+  float validSampleCount = 0.0;
+  projectedIntensity = 0.0;
+  for (int index = 0; index < ${MAX_RAY_STEPS}; index += 1) {
+    if (float(index) >= sampleCount) break;
+    float fraction = sampleCount <= 1.0 ? 0.5 : float(index) / (sampleCount - 1.0);
+    vec3 patientPoint = patientCenter + patientAxis * ((fraction - 0.5) * thickness);
+    if (!patientPointRetained(patientPoint) || !patientPointInsideSliceBounds(patientPoint)) continue;
+    vec3 localPoint = (inverse(uLocalToPatientLps) * vec4(patientPoint, 1.0)).xyz;
+    if (!localPointInsideVolume(localPoint)) continue;
+    float intensity = decodeMedicalIntensityLinear(localPoint + vec3(0.5));
+    if (intensity < uIntensityBounds.x || intensity > uIntensityBounds.y) continue;
+    if (validSampleCount < 0.5) {
+      projectedIntensity = intensity;
+    } else if (uSlabProjectionMode == RENDER_MODE_MIP) {
+      projectedIntensity = max(projectedIntensity, intensity);
+    } else if (uSlabProjectionMode == RENDER_MODE_MINIP) {
+      projectedIntensity = min(projectedIntensity, intensity);
+    } else {
+      projectedIntensity += intensity;
+    }
+    validSampleCount += 1.0;
+  }
+  if (validSampleCount < 0.5) return false;
+  if (uSlabProjectionMode == RENDER_MODE_AVERAGE) {
+    projectedIntensity /= validSampleCount;
+  }
+  return true;
 }
 
 float opacityBoundaryWeight(float intensity) {
@@ -422,6 +614,33 @@ void main() {
   float entry = intersection.x;
   float rayLength = intersection.y - entry;
   if (rayLength <= 0.0) discard;
+
+  if (uRenderingMode == RENDER_MODE_SLICE || uRenderingMode == RENDER_MODE_THICK_SLAB) {
+    float projectedIntensity = 0.0;
+    bool sampled = false;
+    if (uRenderingMode == RENDER_MODE_SLICE) {
+      sampled = samplePatientPlane(
+        vRayOrigin,
+        direction,
+        intersection,
+        projectedIntensity
+      );
+    } else {
+      sampled = samplePatientThickSlab(
+        vRayOrigin,
+        direction,
+        intersection,
+        projectedIntensity
+      );
+    }
+    if (!sampled) discard;
+    float planeDisplayIntensity = windowMedicalIntensity(projectedIntensity);
+    float planeAlpha = clamp(uGlobalOpacity, 0.0, 1.0);
+    if (planeAlpha <= 0.001) discard;
+    vec3 planeColor = vec3(planeDisplayIntensity);
+    outColor = vec4(planeColor * planeAlpha, planeAlpha);
+    return;
+  }
 
   float sampleCount = clamp(ceil(rayLength * uSamplingRate), 1.0, float(${MAX_RAY_STEPS}));
   float stepLength = rayLength / sampleCount;
@@ -642,6 +861,77 @@ function patientBounds(descriptor) {
     }
   }
   return bounds;
+}
+
+function slabProjectionMethod(methodId) {
+  const method = SLAB_PROJECTION_METHODS.find(({ id }) => id === methodId);
+  if (!method) throw new TypeError("Patient thick slab projection method is invalid");
+  return method;
+}
+
+export function constrainPatientSliceSettings(descriptor, requested = {}) {
+  const planeId = requested.plane || "axial";
+  const plane = PATIENT_SLICE_PLANES[planeId];
+  if (!plane) throw new TypeError("Patient medical plane selection is invalid");
+  const bounds = patientBounds(descriptor);
+  const minimumLpsMm = bounds[plane.axisIndex];
+  const maximumLpsMm = bounds[plane.axisIndex + 3];
+  const requestedPosition = requested.positionLpsMm === undefined
+    ? (minimumLpsMm + maximumLpsMm) / 2
+    : finiteNumber(requested.positionLpsMm, "medical plane position");
+  const positionLpsMm = Math.min(maximumLpsMm, Math.max(minimumLpsMm, requestedPosition));
+  const availableThicknessMm = maximumLpsMm - minimumLpsMm;
+  const requestedThickness = requested.slabThicknessMm === undefined
+    ? Math.min(10, availableThicknessMm)
+    : finiteNumber(requested.slabThicknessMm, "thick slab thickness");
+  const slabThicknessMm = Math.min(
+    availableThicknessMm,
+    Math.max(0.1, requestedThickness),
+  );
+  const sampleSpacingMm = Math.min(
+    availableThicknessMm,
+    Math.max(
+      0.01,
+      requested.sampleSpacingMm === undefined
+        ? availableThicknessMm / 256
+        : finiteNumber(requested.sampleSpacingMm, "medical plane sample spacing"),
+    ),
+  );
+  const slabProjection = slabProjectionMethod(requested.slabProjection || "mip");
+  const requestedBounds = requested.patientBoundsLpsMm;
+  const displayBoundsMinimum = [0, 1, 2].map((axisIndex) => {
+    const axis = ["x", "y", "z"][axisIndex];
+    const range = requestedBounds?.[axis];
+    return Array.isArray(range) && range.length === 2
+      ? finiteNumber(range[0], `${axis} medical plane bound`)
+      : bounds[axisIndex];
+  });
+  const displayBoundsMaximum = [0, 1, 2].map((axisIndex) => {
+    const axis = ["x", "y", "z"][axisIndex];
+    const range = requestedBounds?.[axis];
+    return Array.isArray(range) && range.length === 2
+      ? finiteNumber(range[1], `${axis} medical plane bound`)
+      : bounds[axisIndex + 3];
+  });
+  if (displayBoundsMaximum.some((value, axis) => value <= displayBoundsMinimum[axis])) {
+    throw new TypeError("Patient medical plane display bounds are invalid");
+  }
+  return Object.freeze({
+    patientSpace: "DICOM Patient LPS millimetres",
+    plane: planeId,
+    axis: plane.axis,
+    axisIndex: plane.axisIndex,
+    coordinate: plane.coordinate,
+    minimumLpsMm,
+    maximumLpsMm,
+    positionLpsMm,
+    slabThicknessMm,
+    slabProjection: slabProjection.id,
+    slabProjectionCode: slabProjection.code,
+    sampleSpacingMm,
+    displayBoundsMinimum: Object.freeze(displayBoundsMinimum),
+    displayBoundsMaximum: Object.freeze(displayBoundsMaximum),
+  });
 }
 
 export function createPatientClippingState(descriptor, requestedPlanes = {}) {
@@ -1119,6 +1409,7 @@ export class PatientVolumeRayMarcher {
     const transfer = selectBaselineTransferFunction(descriptor);
     const renderingMode = medicalRenderingMode("dvr");
     const clipping = createPatientClippingState(descriptor);
+    const sliceRendering = constrainPatientSliceSettings(descriptor);
     const transferUniforms = transferUniformValues(THREE, transfer);
     const texture = textureResource.texture;
     texture.minFilter = THREE.NearestFilter;
@@ -1160,6 +1451,17 @@ export class PatientVolumeRayMarcher {
         uLocalToPatientLps: {
           value: new THREE.Matrix4().set(...presentation.localToPatientLps),
         },
+        uSlicePlaneAxis: { value: sliceRendering.axisIndex },
+        uSlicePositionLpsMm: { value: sliceRendering.positionLpsMm },
+        uSlabThicknessMm: { value: sliceRendering.slabThicknessMm },
+        uSlabProjectionMode: { value: sliceRendering.slabProjectionCode },
+        uSliceSampleSpacingMm: { value: sliceRendering.sampleSpacingMm },
+        uSlicePatientBoundsMinimum: {
+          value: new THREE.Vector3(...sliceRendering.displayBoundsMinimum),
+        },
+        uSlicePatientBoundsMaximum: {
+          value: new THREE.Vector3(...sliceRendering.displayBoundsMaximum),
+        },
         uClipPlanePositions: {
           value: new THREE.Vector3(...clipping.positionsLpsMm),
         },
@@ -1200,6 +1502,7 @@ export class PatientVolumeRayMarcher {
       transfer,
       transferState: { current: transfer },
       renderingModeState: { current: renderingMode },
+      sliceRenderingState: { current: sliceRendering },
       clippingState: { current: clipping },
       qualityState: {
         samplingRate: Math.min(Math.max(...dimensions), DEFAULT_SAMPLE_RATE),
@@ -1250,6 +1553,27 @@ export class PatientVolumeRayMarcher {
     this.current.material.uniformsNeedUpdate = true;
     this.current.renderingModeState.current = mode;
     return mode;
+  }
+
+  setSliceRendering(settings = {}) {
+    if (!this.current) {
+      throw new TypeError("A patient volume must be active before changing its medical plane");
+    }
+    const sliceRendering = constrainPatientSliceSettings(
+      this.current.descriptor,
+      settings,
+    );
+    const uniforms = this.current.material.uniforms;
+    uniforms.uSlicePlaneAxis.value = sliceRendering.axisIndex;
+    uniforms.uSlicePositionLpsMm.value = sliceRendering.positionLpsMm;
+    uniforms.uSlabThicknessMm.value = sliceRendering.slabThicknessMm;
+    uniforms.uSlabProjectionMode.value = sliceRendering.slabProjectionCode;
+    uniforms.uSliceSampleSpacingMm.value = sliceRendering.sampleSpacingMm;
+    uniforms.uSlicePatientBoundsMinimum.value.set(...sliceRendering.displayBoundsMinimum);
+    uniforms.uSlicePatientBoundsMaximum.value.set(...sliceRendering.displayBoundsMaximum);
+    this.current.material.uniformsNeedUpdate = true;
+    this.current.sliceRenderingState.current = sliceRendering;
+    return sliceRendering;
   }
 
   setClippingPlanes(planes = {}) {

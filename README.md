@@ -165,3 +165,7 @@ Phase 4H2-R1A adds bounded opacity softness, Patient-LPS gradient-based Edge Def
 ### Phase 4H3A - Medical projection rendering modes
 
 Phase 4H3A adds MIP, MinIP, and Average Intensity beside the default Volume / DVR mode. Every mode samples the existing verified GPU texture inside the current Patient LPS clipping interval. Projection modes aggregate decoded medical intensities before applying window center/level and width, retain CT HU versus MR relative-intensity semantics, and keep Overall opacity available. DVR-only Absorption, Opacity softness, Edge definition, and Depth shading are disabled in projection modes. Switching modes changes a shader uniform and re-renders without refetching, re-uploading, or modifying the canonical patient volume.
+
+### Phase 4H3B - Slice and Thick Slab
+
+Phase 4H3B adds a true grayscale Slice and configurable Thick Slab to the 3D viewport. Axial, Coronal, and Sagittal plane positions follow the synchronized MPR crosshair in DICOM Patient LPS millimetres. Thick Slab provides 1, 5, 10, and 20 mm presets plus a bounded custom thickness, with MIP, MinIP, or Average aggregation along the selected patient-space plane normal. Both modes sample the existing verified GPU texture, preserve CT HU versus MR relative-intensity semantics, respect patient-space clipping, and update only uniforms when their controls change. Slice applies windowing to the full source plane, while Thick Slab can filter its projection with the selected intensity interval. The canonical volume is never modified or replaced.

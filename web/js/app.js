@@ -11,7 +11,7 @@ import {
   constrainMedicalIntensityInterval,
   listMedicalRenderingModes,
   listMedicalTransferPresets,
-} from "./patient-volume-ray-marcher.js?v=phase4h3a";
+} from "./patient-volume-ray-marcher.js?v=phase4h3b";
 import {
   AdaptiveVolumeRenderingQuality,
 } from "./volume-rendering-quality.js?v=phase4h1";
@@ -48,6 +48,15 @@ const transferModality = document.getElementById("transferModality");
 const transferPresetSelect = document.getElementById("transferPresetSelect");
 const renderingModeSelect = document.getElementById("renderingModeSelect");
 const renderingModeNote = document.getElementById("renderingModeNote");
+const sliceRenderingControls = document.getElementById("sliceRenderingControls");
+const slicePlaneSelect = document.getElementById("slicePlaneSelect");
+const slicePosition = document.getElementById("slicePosition");
+const slicePositionValue = document.getElementById("slicePositionValue");
+const slabProjectionSelect = document.getElementById("slabProjectionSelect");
+const slabThicknessSelect = document.getElementById("slabThicknessSelect");
+const slabCustomThicknessControl = document.getElementById("slabCustomThicknessControl");
+const slabCustomThickness = document.getElementById("slabCustomThickness");
+const slabCustomThicknessValue = document.getElementById("slabCustomThicknessValue");
 const transferWindowCenter = document.getElementById("transferWindowCenter");
 const transferWindowCenterLabel = document.getElementById("transferWindowCenterLabel");
 const transferWindowCenterValue = document.getElementById("transferWindowCenterValue");
@@ -71,6 +80,7 @@ const dvrOnlyControls = [
   transferEdgeDefinition,
   transferShadingStrength,
 ];
+const intensityIntervalControls = [transferRangeLow, transferRangeHigh];
 const transferResetButton = document.getElementById("transferResetButton");
 const transferFunctionNote = document.getElementById("transferFunctionNote");
 const renderQualityPolicy = document.getElementById("renderQualityPolicy");
@@ -245,6 +255,10 @@ state.volumeRendering = {
   opacitySoftness: null,
   edgeDefinition: null,
   shadingStrength: null,
+  slicePlane: "axial",
+  slabThicknessMm: 10,
+  slabThicknessPreset: "10",
+  slabProjection: "mip",
 };
 const volumeTextureManager = new PatientVolumeTextureManager({
   three: THREE,
@@ -329,7 +343,10 @@ function setTransferControlsEnabled(enabled) {
   ]) {
     control.disabled = !available;
   }
-  setDvrOnlyControlsEnabled(available && state.volumeRendering.renderingMode === "dvr");
+  const mode = volumeRayMarcher.current?.renderingModeState.current;
+  setDvrOnlyControlsEnabled(available && mode?.usesDvrControls === true);
+  setIntensityIntervalControlsEnabled(available && mode?.id !== "slice");
+  setSliceRenderingControlsEnabled(available && mode?.usesPlaneControls === true, mode);
 }
 
 function setDvrOnlyControlsEnabled(enabled) {
@@ -337,6 +354,23 @@ function setDvrOnlyControlsEnabled(enabled) {
   for (const control of dvrOnlyControls) {
     control.disabled = !available;
   }
+}
+
+function setIntensityIntervalControlsEnabled(enabled) {
+  for (const control of intensityIntervalControls) {
+    control.disabled = !enabled;
+  }
+}
+
+function setSliceRenderingControlsEnabled(enabled, mode = null) {
+  const available = Boolean(enabled && state.mpr.descriptor);
+  slicePlaneSelect.disabled = !available;
+  slicePosition.disabled = !available;
+  const slabAvailable = available && mode?.usesSlabControls === true;
+  slabProjectionSelect.disabled = !slabAvailable;
+  slabThicknessSelect.disabled = !slabAvailable;
+  slabCustomThickness.disabled = !slabAvailable || slabThicknessSelect.value !== "custom";
+  sliceRenderingControls.dataset.state = available ? "ready" : "unavailable";
 }
 
 function clearTransferControls() {
@@ -352,6 +386,10 @@ function clearTransferControls() {
   state.volumeRendering.opacitySoftness = null;
   state.volumeRendering.edgeDefinition = null;
   state.volumeRendering.shadingStrength = null;
+  state.volumeRendering.slicePlane = "axial";
+  state.volumeRendering.slabThicknessMm = 10;
+  state.volumeRendering.slabThicknessPreset = "10";
+  state.volumeRendering.slabProjection = "mip";
   transferPresetSelect.replaceChildren();
   const placeholder = document.createElement("option");
   placeholder.value = "";
@@ -362,6 +400,13 @@ function clearTransferControls() {
   renderingModeNote.textContent = (
     "DVR compositing accumulates color and opacity through the patient volume."
   );
+  slicePlaneSelect.value = "axial";
+  slicePositionValue.textContent = "Z: --";
+  slabProjectionSelect.value = "mip";
+  slabThicknessSelect.value = "10";
+  slabCustomThickness.value = "10";
+  slabCustomThicknessValue.textContent = "10.0 mm";
+  slabCustomThicknessControl.hidden = true;
   transferModality.textContent = "--";
   transferWindowCenterLabel.textContent = "Window level";
   transferWindowCenterValue.textContent = "--";
@@ -485,18 +530,103 @@ function setMedicalRenderingMode(modeId = renderingModeSelect.value) {
   if (!volumeRayMarcher.current) return null;
   const mode = volumeRayMarcher.setRenderingMode(modeId);
   state.volumeRendering.renderingMode = mode.id;
-  volumeRenderingPanel.dataset.renderingMode = mode.usesDvrControls ? "dvr" : "projection";
+  volumeRenderingPanel.dataset.renderingMode = mode.id;
   renderingModeSelect.value = mode.id;
-  renderingModeNote.textContent = mode.usesDvrControls
-    ? mode.description
-    : `${mode.description} Projection modes aggregate real patient voxels in the selected intensity interval before window/level.`;
+  if (mode.id === "slice") {
+    renderingModeNote.textContent = (
+      `${mode.description} Position follows the synchronized MPR crosshair.`
+    );
+  } else if (mode.id === "thick-slab") {
+    renderingModeNote.textContent = (
+      `${mode.description} Thickness is measured in Patient LPS millimetres.`
+    );
+  } else {
+    renderingModeNote.textContent = mode.usesDvrControls
+      ? mode.description
+      : `${mode.description} Projection modes aggregate real patient voxels in the selected intensity interval before window/level.`;
+  }
   setDvrOnlyControlsEnabled(mode.usesDvrControls);
+  setIntensityIntervalControlsEnabled(mode.id !== "slice");
+  setSliceRenderingControlsEnabled(mode.usesPlaneControls, mode);
+  if (mode.usesPlaneControls) syncSliceRenderingControlsFromMpr();
   modelChip.textContent = `Patient scan - ${mode.label}`;
-  anatomyNote.textContent = mode.usesDvrControls
-    ? "True patient voxel volume active. DVR compositing controls are ready."
-    : "True patient voxel volume active. Projection uses the current Patient LPS clipping volume.";
+  anatomyNote.textContent = mode.usesPlaneControls
+    ? "True patient voxel volume active. Medical plane uses the synchronized Patient LPS crosshair."
+    : mode.usesDvrControls
+      ? "True patient voxel volume active. DVR compositing controls are ready."
+      : "True patient voxel volume active. Projection uses the current Patient LPS clipping volume.";
   requestViewerRender();
   return mode;
+}
+
+function selectedSlabThicknessMm() {
+  return slabThicknessSelect.value === "custom"
+    ? Number(slabCustomThickness.value)
+    : Number(slabThicknessSelect.value);
+}
+
+function syncSliceRenderingControlsFromMpr() {
+  const descriptor = state.mpr.descriptor;
+  const resource = volumeRayMarcher.current;
+  const plane = state.volumeRendering.slicePlane;
+  const planeDescriptor = descriptor?.planes?.[plane];
+  if (!descriptor || !resource || !planeDescriptor) {
+    slicePositionValue.textContent = "--";
+    setSliceRenderingControlsEnabled(false);
+    return null;
+  }
+
+  const axisIndex = MPR_AXIS_INDEX[planeDescriptor.normal_axis];
+  const [minimum, maximum] = planeDescriptor.position_range_mm.map(Number);
+  const sampleSpacingMm = Math.max(Number(planeDescriptor.slice_spacing_mm), 0.01);
+  const positionLpsMm = clamp(
+    Number(state.mpr.crosshairLpsMm[axisIndex]),
+    minimum,
+    maximum,
+  );
+  state.mpr.crosshairLpsMm[axisIndex] = positionLpsMm;
+  slicePlaneSelect.value = plane;
+  slicePosition.min = String(minimum);
+  slicePosition.max = String(maximum);
+  slicePosition.step = String(sampleSpacingMm);
+  slicePosition.value = String(positionLpsMm);
+  slicePositionValue.textContent = `${planeDescriptor.coordinate}: ${positionLpsMm.toFixed(2)} mm`;
+
+  const maximumThicknessMm = Math.max(sampleSpacingMm, maximum - minimum);
+  const slabThicknessMm = clamp(
+    Number(state.volumeRendering.slabThicknessMm),
+    Math.min(0.1, maximumThicknessMm),
+    maximumThicknessMm,
+  );
+  state.volumeRendering.slabThicknessMm = slabThicknessMm;
+  slabCustomThickness.min = String(Math.min(0.1, maximumThicknessMm));
+  slabCustomThickness.max = String(maximumThicknessMm);
+  slabCustomThickness.step = String(Math.min(sampleSpacingMm, 0.1));
+  slabCustomThickness.value = String(slabThicknessMm);
+  slabCustomThicknessValue.textContent = `${slabThicknessMm.toFixed(1)} mm`;
+  const presetThickness = Number(state.volumeRendering.slabThicknessPreset);
+  const presetIsAvailable = state.volumeRendering.slabThicknessPreset !== "custom"
+    && Number.isFinite(presetThickness)
+    && Math.abs(presetThickness - slabThicknessMm) < 0.0001;
+  slabThicknessSelect.value = presetIsAvailable
+    ? state.volumeRendering.slabThicknessPreset
+    : "custom";
+  if (!presetIsAvailable) state.volumeRendering.slabThicknessPreset = "custom";
+  slabCustomThicknessControl.hidden = slabThicknessSelect.value !== "custom";
+  slabProjectionSelect.value = state.volumeRendering.slabProjection;
+
+  const settings = volumeRayMarcher.setSliceRendering({
+    plane,
+    positionLpsMm,
+    slabThicknessMm,
+    slabProjection: state.volumeRendering.slabProjection,
+    sampleSpacingMm,
+    patientBoundsLpsMm: descriptor.patient_bounds_lps_mm,
+  });
+  const mode = resource.renderingModeState.current;
+  setSliceRenderingControlsEnabled(mode.usesPlaneControls, mode);
+  requestViewerRender();
+  return settings;
 }
 
 function applyTransferPreset(presetId = transferPresetSelect.value) {
@@ -761,7 +891,9 @@ function syncClippingControlsFromMpr() {
     && Boolean(volumeRayMarcher.current)
     && Boolean(state.mpr.descriptor),
   );
-  return applyPatientClipping();
+  const clipping = applyPatientClipping();
+  syncSliceRenderingControlsFromMpr();
+  return clipping;
 }
 
 function updateClippingFromControl(plane) {
@@ -1976,6 +2108,46 @@ renderingModeSelect.addEventListener("change", () => {
   volumeRenderingQuality.pulseInteraction("rendering-mode");
 });
 
+slicePlaneSelect.addEventListener("change", () => {
+  state.volumeRendering.slicePlane = slicePlaneSelect.value;
+  syncSliceRenderingControlsFromMpr();
+  updateMprCrosshairOverlays();
+  volumeRenderingQuality.pulseInteraction("medical-plane");
+});
+
+slicePosition.addEventListener("input", () => {
+  const planeDescriptor = state.mpr.descriptor?.planes?.[state.volumeRendering.slicePlane];
+  if (!planeDescriptor) return;
+  const axisIndex = MPR_AXIS_INDEX[planeDescriptor.normal_axis];
+  state.mpr.crosshairLpsMm[axisIndex] = Number(slicePosition.value);
+  syncClippingControlsFromMpr();
+  syncSliceRenderingControlsFromMpr();
+  updateMprCrosshairOverlays();
+  scheduleMprRender(35);
+  volumeRenderingQuality.pulseInteraction("medical-plane-position");
+});
+
+slabThicknessSelect.addEventListener("change", () => {
+  state.volumeRendering.slabThicknessPreset = slabThicknessSelect.value;
+  slabCustomThicknessControl.hidden = slabThicknessSelect.value !== "custom";
+  state.volumeRendering.slabThicknessMm = selectedSlabThicknessMm();
+  syncSliceRenderingControlsFromMpr();
+  volumeRenderingQuality.pulseInteraction("slab-thickness");
+});
+
+slabCustomThickness.addEventListener("input", () => {
+  state.volumeRendering.slabThicknessPreset = "custom";
+  state.volumeRendering.slabThicknessMm = Number(slabCustomThickness.value);
+  syncSliceRenderingControlsFromMpr();
+  volumeRenderingQuality.pulseInteraction("slab-thickness");
+});
+
+slabProjectionSelect.addEventListener("change", () => {
+  state.volumeRendering.slabProjection = slabProjectionSelect.value;
+  syncSliceRenderingControlsFromMpr();
+  volumeRenderingQuality.pulseInteraction("slab-projection");
+});
+
 opacitySlider.addEventListener("input", () => {
   state.opacity = Number(opacitySlider.value) / 100;
   applyOpacity();
@@ -1992,6 +2164,8 @@ const qualityInteractionControls = [
   transferOpacitySoftness,
   transferEdgeDefinition,
   transferShadingStrength,
+  slicePosition,
+  slabCustomThickness,
   opacitySlider,
 ].filter(Boolean);
 

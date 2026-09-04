@@ -26,7 +26,7 @@
     })();
   </script>
 
-  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4h3a">
+  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4h3b">
 
   <script type="importmap">
   {
@@ -467,10 +467,97 @@
               <option value="mip">MIP</option>
               <option value="minip">MinIP</option>
               <option value="average">Average Intensity</option>
+              <option value="slice">Slice</option>
+              <option value="thick-slab">Thick Slab</option>
             </select>
             <p id="renderingModeNote" class="rendering-mode-note">
               DVR compositing accumulates color and opacity through the patient volume.
             </p>
+
+            <div id="sliceRenderingControls" class="slice-rendering-controls">
+              <div class="slice-control-grid">
+                <div>
+                  <label class="slider-label" for="slicePlaneSelect">Medical plane</label>
+                  <select
+                    id="slicePlaneSelect"
+                    class="transfer-preset-select"
+                    aria-label="Patient-space medical image plane"
+                    disabled
+                  >
+                    <option value="axial" selected>Axial</option>
+                    <option value="coronal">Coronal</option>
+                    <option value="sagittal">Sagittal</option>
+                  </select>
+                </div>
+                <div class="slab-only-control">
+                  <label class="slider-label" for="slabProjectionSelect">Slab method</label>
+                  <select
+                    id="slabProjectionSelect"
+                    class="transfer-preset-select"
+                    aria-label="Thick slab projection method"
+                    disabled
+                  >
+                    <option value="mip" selected>MIP</option>
+                    <option value="minip">MinIP</option>
+                    <option value="average">Average</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="transfer-adjustment slice-position-control">
+                <div class="transfer-adjustment-heading">
+                  <label for="slicePosition">Plane position</label>
+                  <strong id="slicePositionValue">Z: --</strong>
+                </div>
+                <input
+                  id="slicePosition"
+                  class="slider"
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value="0.5"
+                  aria-label="Medical plane position in DICOM Patient LPS millimetres"
+                  disabled
+                >
+              </div>
+
+              <div class="slab-only-control slab-thickness-controls">
+                <label class="slider-label" for="slabThicknessSelect">Slab thickness</label>
+                <select
+                  id="slabThicknessSelect"
+                  class="transfer-preset-select"
+                  aria-label="Thick slab physical thickness"
+                  disabled
+                >
+                  <option value="1">1 mm</option>
+                  <option value="5">5 mm</option>
+                  <option value="10" selected>10 mm</option>
+                  <option value="20">20 mm</option>
+                  <option value="custom">Custom</option>
+                </select>
+                <div id="slabCustomThicknessControl" class="transfer-adjustment" hidden>
+                  <div class="transfer-adjustment-heading">
+                    <label for="slabCustomThickness">Custom thickness</label>
+                    <strong id="slabCustomThicknessValue">10.0 mm</strong>
+                  </div>
+                  <input
+                    id="slabCustomThickness"
+                    class="slider"
+                    type="range"
+                    min="0.1"
+                    max="100"
+                    step="0.1"
+                    value="10"
+                    aria-label="Custom thick slab thickness in millimetres"
+                    disabled
+                  >
+                </div>
+              </div>
+              <p class="slice-rendering-note">
+                Position follows the synchronized MPR crosshair in DICOM Patient LPS space.
+              </p>
+            </div>
 
             <div class="transfer-adjustments transfer-primary-controls">
               <div class="transfer-adjustment">
@@ -756,6 +843,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h3a"></script>
+  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h3b"></script>
 </body>
 </html>

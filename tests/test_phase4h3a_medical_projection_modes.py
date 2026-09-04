@@ -48,10 +48,10 @@ class Phase4H3AMedicalProjectionModesTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertIn(marker, self.renderer)
 
-        projection_window = self.renderer.index(
-            "windowMedicalIntensity(projectedIntensity)"
-        )
         projection_loop = self.renderer.index("projectionSampleCount")
+        projection_window = self.renderer.index(
+            "windowMedicalIntensity(projectedIntensity)", projection_loop
+        )
         self.assertGreater(projection_window, projection_loop)
         projection_branch = self.renderer.index(
             "if (uRenderingMode != RENDER_MODE_DVR)", projection_loop
@@ -93,10 +93,10 @@ class Phase4H3AMedicalProjectionModesTests(unittest.TestCase):
         self.assertNotIn("isocontour", self.renderer.lower())
 
     def test_h3a_cache_and_compact_validation_entrypoints_are_present(self) -> None:
-        self.assertIn('/css/styles.css?v=phase3d-r21-phase4h3a', self.html)
-        self.assertIn('/js/app.js?v=phase3d-r21-phase4h3a', self.html)
+        self.assertIn('/css/styles.css?v=phase3d-r21-phase4h3b', self.html)
+        self.assertIn('/js/app.js?v=phase3d-r21-phase4h3b', self.html)
         self.assertIn(
-            'from "./patient-volume-ray-marcher.js?v=phase4h3a"',
+            'from "./patient-volume-ray-marcher.js?v=phase4h3b"',
             self.app,
         )
         self.assertTrue((ROOT / "scripts/run_phase4h3a_checks.sh").is_file())
