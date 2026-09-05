@@ -45,7 +45,7 @@ class Phase3DR2FinalSelectionStateTests(unittest.TestCase):
 
     def test_final_cache_bust_is_present(self) -> None:
         self.assertIn('/css/styles.css?v=phase3d-r2', self.html)
-        self.assertIn('/js/app.js?v=phase3d-r21-phase4h5', self.html)
+        self.assertIn('/js/app.js?v=phase3d-r21-phase4h6', self.html)
 
 
 if __name__ == "__main__":

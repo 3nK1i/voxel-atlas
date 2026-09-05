@@ -11,12 +11,13 @@ import {
   constrainMedicalIntensityInterval,
   listMedicalRenderingModes,
   listMedicalTransferPresets,
-} from "./patient-volume-ray-marcher.js?v=phase4h4";
+} from "./patient-volume-ray-marcher.js?v=phase4h6";
 import {
   AdaptiveVolumeRenderingQuality,
 } from "./volume-rendering-quality.js?v=phase4h1";
 import { SampleStudyCatalogClient } from "./sample-study-catalog.js?v=phase4g-r1";
-import { projectMprClipping, renderMprClippingOverlay } from "./mpr-clipping-overlay.js?v=phase4h5";
+import { projectMprClipping, renderMprClippingOverlay } from "./mpr-clipping-overlay.js?v=phase4h6";
+import { installRenderingQualification } from "./rendering-qualification.js?v=phase4h6";
 
 const THEME_KEY = "voxelatlas-theme";
 const DEFAULT_OPACITY = 1.0;
@@ -198,9 +199,9 @@ const volumeLayer = { available: false, root: null };
 
 const state = {
   clipping: {
-    axial: { enabled: false, startPercent: 0, endPercent: 100 },
-    coronal: { enabled: false, startPercent: 0, endPercent: 100 },
-    sagittal: { enabled: false, startPercent: 0, endPercent: 100 },
+    axial: { enabled: true, startPercent: 0, endPercent: 100 },
+    coronal: { enabled: true, startPercent: 0, endPercent: 100 },
+    sagittal: { enabled: true, startPercent: 0, endPercent: 100 },
   },
   opacity: DEFAULT_OPACITY,
   autoRotate: false,
@@ -326,6 +327,28 @@ controls.addEventListener("end", () => {
   volumeRenderingQuality.endInteraction("orbit");
 });
 controls.addEventListener("change", requestViewerRender);
+
+const qualification = installRenderingQualification({
+  window, renderer,
+  readSnapshot: () => {
+    const current = volumeRayMarcher.current;
+    const quality = volumeRenderingQuality.snapshot();
+    return {
+      modality: current?.descriptor.source_modality,
+      dimensions: current?.descriptor.texture_dimensions,
+      ready: volumeLayer.available && Boolean(current),
+      mode: current?.renderingModeState.current.id,
+      qualityPolicy: quality.policy, samplingRate: quality.samplingRate,
+      pixelRatio: renderer.getPixelRatio(),
+      canvasWidth: renderer.domElement.width, canvasHeight: renderer.domElement.height,
+      geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures,
+      programs: renderer.info.programs?.length,
+      shaderErrors: renderer.info.programs?.filter((program) => program.diagnostics?.runnable === false).length,
+      overlayNodes: document.querySelectorAll('.mpr-clipping-overlay, .mpr-clipping-overlay > *, .mpr-clipping-status').length,
+      contextLost: renderer.getContext().isContextLost(),
+    };
+  },
+});
 
 function setStatus(kind, message) {
   modelStatus.dataset.state = kind;
@@ -952,7 +975,7 @@ function updateClippingBoundaryFromControl(plane, boundary) {
 
 function resetPatientClipping() {
   for (const plane of Object.keys(CLIPPING_PLANES)) {
-    state.clipping[plane].enabled = false;
+    state.clipping[plane].enabled = true;
     state.clipping[plane].startPercent = 0;
     state.clipping[plane].endPercent = 100;
   }
@@ -967,6 +990,7 @@ function applyOpacity() {
 }
 
 function clearPatientVolumeRendering() {
+  qualification?.resetWindow();
   volumeRenderingQuality.deactivate();
   volumeRayMarcher.dispose();
   volumeLayer.root = null;
@@ -2161,6 +2185,7 @@ transferResetButton.addEventListener("click", () => {
 });
 
 renderQualityPolicy.addEventListener("change", () => {
+  qualification?.resetWindow();
   volumeRenderingQuality.setPolicy(renderQualityPolicy.value);
   if (state.autoRotate) volumeRenderingQuality.beginInteraction("auto-rotate");
 });
@@ -2376,6 +2401,7 @@ void refreshLatestStudy();
 const timer = new THREE.Timer();
 timer.connect(document);
 window.addEventListener("pagehide", () => {
+  qualification?.dispose();
   volumeRenderingQuality.deactivate();
   volumeRayMarcher.dispose();
   volumeTextureManager.dispose();
@@ -2393,10 +2419,18 @@ function animate(timestamp) {
 
   if (controls.update()) shouldRender = true;
   if (volumeRenderingQuality.update(timestamp)) shouldRender = true;
+  const qualificationContinuous = state.autoRotate || volumeRenderingQuality.isInteractive();
+  if (!shouldRender || !qualificationContinuous) qualification?.pause();
   if (shouldRender) {
     viewerRenderRequested = false;
     updateOrientationGizmo();
+    const qualificationStart = qualification ? performance.now() : 0;
     renderer.render(scene, camera);
+    if (volumeLayer.available && volumeRayMarcher.current) {
+      qualification?.recordFrame(timestamp, performance.now() - qualificationStart,
+        state.volumeRendering.renderingMode, qualificationContinuous,
+        document.visibilityState === 'visible');
+    }
     if (
       volumeRenderingQuality.isInteractive()
       && lastRenderedTimestamp !== null

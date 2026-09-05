@@ -1420,7 +1420,6 @@ export class PatientVolumeRayMarcher {
     const { descriptor, dimensions, decodeOffset, decodeScale } = requireTextureResource(
       textureResource,
     );
-    this.dispose();
     const THREE = this.three;
     const presentation = buildVolumePresentation(descriptor);
     const transfer = selectBaselineTransferFunction(descriptor);
@@ -1428,6 +1427,8 @@ export class PatientVolumeRayMarcher {
     const clipping = createPatientClippingState(descriptor);
     const sliceRendering = constrainPatientSliceSettings(descriptor);
     const transferUniforms = transferUniformValues(THREE, transfer);
+    // Validate the replacement before releasing the last valid presentation.
+    this.dispose();
     const texture = textureResource.texture;
     texture.minFilter = THREE.NearestFilter;
     texture.magFilter = THREE.NearestFilter;

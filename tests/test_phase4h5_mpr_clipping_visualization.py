@@ -19,7 +19,8 @@ class MprClippingVisualizationTests(unittest.TestCase):
         for selector in (".clip-range-summary", ".clip-boundary-labels", ".clip-boundary-values strong", ".clip-plane-heading strong"):
             rules = re.findall(re.escape(selector) + r"\s*\{([^}]+)\}", css)
             sizes = [float(n) for rule in rules for n in re.findall(r"font-size:\s*([\d.]+)px", rule)]
-            self.assertTrue(sizes and sizes[-1] >= 12, selector)
+            # H6: user-requested 1 px reduction; maintain a readable floor.
+            self.assertTrue(sizes and sizes[-1] >= 11, selector)
 
     def test_overlay_integration_and_reference_pixels_preserved(self):
         app = (ROOT / "web/js/app.js").read_text()
@@ -27,8 +28,8 @@ class MprClippingVisualizationTests(unittest.TestCase):
         css = (ROOT / "web/css/styles.css").read_text()
         self.assertIn('id="mprClippingOverlayToggle"', html)
         self.assertIn("Dashed lines: clipping bounds", html)
-        self.assertIn('mpr-clipping-overlay.js?v=phase4h5', app)
-        self.assertIn('phase3d-r21-phase4h5', html)
+        self.assertIn('mpr-clipping-overlay.js?v=phase4h6', app)
+        self.assertIn('phase3d-r21-phase4h6', html)
         self.assertIn("resizeObserver.observe(entry.view)", app)
         for name, next_name in (("applyPatientClipping", "syncClippingControlsFromMpr"), ("updateMprClippingOverlays", "drawGray8")):
             body = app.split(f"function {name}(")[1].split(f"function {next_name}(")[0]

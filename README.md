@@ -62,6 +62,7 @@ Run the current compact regression from the repository root:
 
 ```bash
 bash scripts/run_phase4h5_checks.sh
+bash scripts/run_phase4h6_checks.sh
 ```
 
 ## Locked V1 roadmap
@@ -71,7 +72,7 @@ bash scripts/run_phase4h5_checks.sh
 3. DICOM upload, study ingestion, geometry qualification, canonical patient volume, and real MPR - complete through Phase 3D
 4. direct patient-volume rendering foundation and authenticated GPU transport
 5. true GPU ray marching of the actual uploaded CT/MRI voxel volume - complete through Phase 4C2
-6. medical transfer functions, clipping, adaptive performance, curated demonstrations, professional display controls, medical projection modes, patient-space slices/slabs, and dual-sided six-plane clipping - Phase 4H5 adds MPR clipping overlays and readable boundary labels; acceptance pending local validation
+6. medical transfer functions, clipping, adaptive performance, curated demonstrations, professional display controls, medical projection modes, patient-space slices/slabs, and dual-sided six-plane clipping - H5 MPR overlays accepted; H6 adds repeatable runtime qualification and compact clipping labels; PC qualification remains required before Phase 4 closure
 7. production security and V1 qualification
 
 Post-V1 work includes atlas-region interaction, AR/XR, advanced planning workflows, PACS/DICOMweb, and additional anatomical atlases.
@@ -173,3 +174,14 @@ Phase 4H3B adds a true grayscale Slice and configurable Thick Slab to the 3D vie
 ### Phase 4H4 - Dual-sided six-plane Patient LPS clipping
 
 Phase 4H4 replaces each single retained-side clipping plane with an independent anatomical range: Inferior to Superior, Posterior to Anterior, and Right to Left. The three enabled ranges intersect into six physical Patient LPS boundaries and apply consistently to Volume / DVR, MIP, MinIP, Average Intensity, Slice, and Thick Slab. Clipping no longer moves the MPR crosshair. Both handles expose ergonomic percentages and physical millimetre values, cannot cross, and update only shader uniforms while the verified patient texture remains resident.
+
+### Phase 4H6 - Rendering qualification
+
+H6 reduces clipping labels from 12 to 11 px, starts all clipping axes enabled at
+their no-cut 0-100% ranges, validates replacement descriptors
+before disposing a valid renderer, and adds bounded, localhost-only engineering
+diagnostics. The default workspace does not collect these diagnostics. No source
+voxel, shader algorithm, segmentation, measurement, or production-service change
+is introduced. See [H6 qualification](docs/phase_history/PHASE4H6_RENDERING_QUALIFICATION.md)
+for CT/MR evidence collection and acceptance gates. Production stays on H4 until
+the combined H5/H6 release is accepted.

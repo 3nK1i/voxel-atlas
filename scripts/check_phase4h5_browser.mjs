@@ -27,7 +27,9 @@ const constants = app.slice(app.indexOf("const CLIPPING_PLANES ="), app.indexOf(
 const events = app.slice(app.lastIndexOf("for (const [plane, controlsForPlane] of clippingRegistry.entries()) {"), app.indexOf("mprClippingOverlayToggle.addEventListener"));
 assert.ok(events.includes("clippingResetButton.addEventListener"));
 const out = mkdtempSync(join(tmpdir(), "voxelatlas-h5-browser-"));
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true,
+  ...(process.env.VOXELATLAS_BROWSER_EXECUTABLE ? { executablePath: process.env.VOXELATLAS_BROWSER_EXECUTABLE } : {}),
+});
 try {
   const page = await browser.newPage({ viewport: { width: 1366, height: 900 } });
   const errors = [];
@@ -106,7 +108,7 @@ try {
           return {size:parseFloat(getComputedStyle(el).fontSize), fits:rect.left>=parent.left && rect.right<=parent.right+1};
         }));
       });
-      assert.ok(metrics.every((m) => m.size >= 12 && m.fits), `${width}/${theme} labels`);
+      assert.ok(metrics.every((m) => m.size >= 11 && m.fits), `${width}/${theme} labels`);
       for (const plane of ["axial", "coronal", "sagittal"]) {
         const [a,b] = await page.locator(`[data-mpr-surface="${plane}"]`).evaluate((el)=>[
           el.querySelector('canvas'),el.querySelector('svg'),
