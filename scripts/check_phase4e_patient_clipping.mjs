@@ -27,22 +27,23 @@ const descriptor = {
 };
 
 const clipping = createPatientClippingState(descriptor, {
-  axial: { enabled: true, positionLpsMm: 5, retainedSide: "minimum" },
-  coronal: { enabled: true, positionLpsMm: -7, retainedSide: "maximum" },
-  sagittal: { enabled: true, positionLpsMm: 3, retainedSide: "minimum" },
+  axial: { enabled: true, minimumLpsMm: -15, maximumLpsMm: 5 },
+  coronal: { enabled: true, minimumLpsMm: -7, maximumLpsMm: 12 },
+  sagittal: { enabled: true, minimumLpsMm: 3, maximumLpsMm: 14 },
 });
 
 assert.deepEqual(clipping.enabled, [1, 1, 1]);
-assert.deepEqual(clipping.positionsLpsMm, [3, -7, 5]);
-assert.deepEqual(clipping.keepSigns, [-1, 1, -1]);
+assert.deepEqual(clipping.minimumPositionsLpsMm, [3, -7, -15]);
+assert.deepEqual(clipping.maximumPositionsLpsMm, [14, 12, 5]);
+assert.equal(clipping.sixPlaneCount, 6);
 assert.equal(clipping.planes.axial.axis, "z");
 assert.equal(clipping.planes.coronal.axis, "y");
 assert.equal(clipping.planes.sagittal.axis, "x");
 assert.throws(
   () => createPatientClippingState(descriptor, {
-    axial: { enabled: true, positionLpsMm: 41, retainedSide: "minimum" },
+    axial: { enabled: true, minimumLpsMm: -15, maximumLpsMm: 41 },
   }),
-  /position is outside patient bounds/,
+  /range is outside patient bounds/,
 );
 
 const ctPresets = listMedicalTransferPresets(descriptor);
@@ -90,9 +91,9 @@ const THREE = {
 const manager = new PatientVolumeRayMarcher({ three: THREE });
 const resource = manager.create({ texture: {}, descriptor });
 const applied = manager.setClippingPlanes({
-  axial: { enabled: true, positionLpsMm: 5, retainedSide: "minimum" },
-  coronal: { enabled: true, positionLpsMm: -7, retainedSide: "maximum" },
-  sagittal: { enabled: true, positionLpsMm: 3, retainedSide: "minimum" },
+  axial: { enabled: true, minimumLpsMm: -15, maximumLpsMm: 5 },
+  coronal: { enabled: true, minimumLpsMm: -7, maximumLpsMm: 12 },
+  sagittal: { enabled: true, minimumLpsMm: 3, maximumLpsMm: 14 },
 });
 
 assert.deepEqual(
@@ -100,14 +101,14 @@ assert.deepEqual(
   [1, 1, 1],
 );
 assert.deepEqual(
-  Object.values(resource.material.uniforms.uClipPlanePositions.value),
-  [3, -7, 5],
+  Object.values(resource.material.uniforms.uClipBoundsMinimum.value),
+  [3, -7, -15],
 );
 assert.deepEqual(
-  Object.values(resource.material.uniforms.uClipPlaneKeepSigns.value),
-  [-1, 1, -1],
+  Object.values(resource.material.uniforms.uClipBoundsMaximum.value),
+  [14, 12, 5],
 );
-assert.equal(applied.planes.coronal.retainedSide, "maximum");
+assert.equal(applied.planes.coronal.maximumLpsMm, 12);
 assert.equal(resource.clippingState.current, applied);
 
 manager.setClippingPlanes({});

@@ -252,8 +252,8 @@ uniform int uSlabProjectionMode;
 uniform float uSliceSampleSpacingMm;
 uniform vec3 uSlicePatientBoundsMinimum;
 uniform vec3 uSlicePatientBoundsMaximum;
-uniform vec3 uClipPlanePositions;
-uniform vec3 uClipPlaneKeepSigns;
+uniform vec3 uClipBoundsMinimum;
+uniform vec3 uClipBoundsMaximum;
 uniform vec3 uClipPlaneEnabled;
 
 in vec3 vRayOrigin;
@@ -302,6 +302,18 @@ bool clipAgainstPatientPlane(
   return exit > entry;
 }
 
+bool clipAgainstPatientRange(
+  float rayOrigin,
+  float rayDirection,
+  float minimumPosition,
+  float maximumPosition,
+  inout float entry,
+  inout float exit
+) {
+  return clipAgainstPatientPlane(rayOrigin, rayDirection, minimumPosition, 1.0, entry, exit)
+    && clipAgainstPatientPlane(rayOrigin, rayDirection, maximumPosition, -1.0, entry, exit);
+}
+
 vec2 clipPatientRayInterval(vec3 localOrigin, vec3 localDirection, vec2 boxInterval) {
   float entry = max(boxInterval.x, 0.0);
   float exit = boxInterval.y;
@@ -310,33 +322,33 @@ vec2 clipPatientRayInterval(vec3 localOrigin, vec3 localDirection, vec2 boxInter
 
   if (
     uClipPlaneEnabled.x > 0.5
-    && !clipAgainstPatientPlane(
+    && !clipAgainstPatientRange(
       patientOrigin.x,
       patientDirection.x,
-      uClipPlanePositions.x,
-      uClipPlaneKeepSigns.x,
+      uClipBoundsMinimum.x,
+      uClipBoundsMaximum.x,
       entry,
       exit
     )
   ) return vec2(1.0, -1.0);
   if (
     uClipPlaneEnabled.y > 0.5
-    && !clipAgainstPatientPlane(
+    && !clipAgainstPatientRange(
       patientOrigin.y,
       patientDirection.y,
-      uClipPlanePositions.y,
-      uClipPlaneKeepSigns.y,
+      uClipBoundsMinimum.y,
+      uClipBoundsMaximum.y,
       entry,
       exit
     )
   ) return vec2(1.0, -1.0);
   if (
     uClipPlaneEnabled.z > 0.5
-    && !clipAgainstPatientPlane(
+    && !clipAgainstPatientRange(
       patientOrigin.z,
       patientDirection.z,
-      uClipPlanePositions.z,
-      uClipPlaneKeepSigns.z,
+      uClipBoundsMinimum.z,
+      uClipBoundsMaximum.z,
       entry,
       exit
     )
@@ -359,9 +371,8 @@ vec3 selectedAxisUnit(int axis) {
 bool patientPointRetained(vec3 patientPoint) {
   for (int axis = 0; axis < 3; axis += 1) {
     if (uClipPlaneEnabled[axis] <= 0.5) continue;
-    float retained = uClipPlaneKeepSigns[axis]
-      * (patientPoint[axis] - uClipPlanePositions[axis]);
-    if (retained < 0.0) return false;
+    if (patientPoint[axis] < uClipBoundsMinimum[axis]
+      || patientPoint[axis] > uClipBoundsMaximum[axis]) return false;
   }
   return true;
 }
@@ -938,44 +949,50 @@ export function createPatientClippingState(descriptor, requestedPlanes = {}) {
   const bounds = patientBounds(descriptor);
   const planes = {};
   const enabled = [0, 0, 0];
-  const positionsLpsMm = [0, 0, 0];
-  const keepSigns = [-1, -1, -1];
+  const minimumPositionsLpsMm = [bounds[0], bounds[1], bounds[2]];
+  const maximumPositionsLpsMm = [bounds[3], bounds[4], bounds[5]];
 
   for (const [name, definition] of Object.entries(PATIENT_CLIPPING_PLANES)) {
-    const minimum = bounds[definition.axisIndex];
-    const maximum = bounds[definition.axisIndex + 3];
+    const patientMinimumLpsMm = bounds[definition.axisIndex];
+    const patientMaximumLpsMm = bounds[definition.axisIndex + 3];
     const request = requestedPlanes?.[name] || {};
-    const position = request.positionLpsMm === undefined
-      ? (minimum + maximum) / 2
-      : finiteNumber(request.positionLpsMm, `${name} clipping position`);
-    if (position < minimum || position > maximum) {
-      throw new TypeError(`Patient volume ${name} clipping position is outside patient bounds`);
+    const minimumLpsMm = request.minimumLpsMm === undefined
+      ? patientMinimumLpsMm
+      : finiteNumber(request.minimumLpsMm, `${name} minimum clipping boundary`);
+    const maximumLpsMm = request.maximumLpsMm === undefined
+      ? patientMaximumLpsMm
+      : finiteNumber(request.maximumLpsMm, `${name} maximum clipping boundary`);
+    if (
+      minimumLpsMm < patientMinimumLpsMm
+      || maximumLpsMm > patientMaximumLpsMm
+    ) {
+      throw new TypeError(`Patient volume ${name} clipping range is outside patient bounds`);
     }
-    const retainedSide = request.retainedSide || "minimum";
-    if (retainedSide !== "minimum" && retainedSide !== "maximum") {
-      throw new TypeError(`Patient volume ${name} retained side is invalid`);
+    if (maximumLpsMm <= minimumLpsMm) {
+      throw new TypeError(`Patient volume ${name} clipping range is invalid`);
     }
     const plane = Object.freeze({
       enabled: request.enabled === true,
       axis: definition.axis,
       axisIndex: definition.axisIndex,
-      minimumLpsMm: minimum,
-      maximumLpsMm: maximum,
-      positionLpsMm: position,
-      retainedSide,
+      patientMinimumLpsMm,
+      patientMaximumLpsMm,
+      minimumLpsMm,
+      maximumLpsMm,
     });
     planes[name] = plane;
     enabled[definition.axisIndex] = plane.enabled ? 1 : 0;
-    positionsLpsMm[definition.axisIndex] = position;
-    keepSigns[definition.axisIndex] = retainedSide === "maximum" ? 1 : -1;
+    minimumPositionsLpsMm[definition.axisIndex] = minimumLpsMm;
+    maximumPositionsLpsMm[definition.axisIndex] = maximumLpsMm;
   }
 
   return Object.freeze({
     patientSpace: "DICOM Patient LPS millimetres",
+    sixPlaneCount: 6,
     planes: Object.freeze(planes),
     enabled: Object.freeze(enabled),
-    positionsLpsMm: Object.freeze(positionsLpsMm),
-    keepSigns: Object.freeze(keepSigns),
+    minimumPositionsLpsMm: Object.freeze(minimumPositionsLpsMm),
+    maximumPositionsLpsMm: Object.freeze(maximumPositionsLpsMm),
   });
 }
 
@@ -1462,11 +1479,11 @@ export class PatientVolumeRayMarcher {
         uSlicePatientBoundsMaximum: {
           value: new THREE.Vector3(...sliceRendering.displayBoundsMaximum),
         },
-        uClipPlanePositions: {
-          value: new THREE.Vector3(...clipping.positionsLpsMm),
+        uClipBoundsMinimum: {
+          value: new THREE.Vector3(...clipping.minimumPositionsLpsMm),
         },
-        uClipPlaneKeepSigns: {
-          value: new THREE.Vector3(...clipping.keepSigns),
+        uClipBoundsMaximum: {
+          value: new THREE.Vector3(...clipping.maximumPositionsLpsMm),
         },
         uClipPlaneEnabled: {
           value: new THREE.Vector3(...clipping.enabled),
@@ -1583,8 +1600,8 @@ export class PatientVolumeRayMarcher {
     const clipping = createPatientClippingState(this.current.descriptor, planes);
     const uniforms = this.current.material.uniforms;
     uniforms.uClipPlaneEnabled.value.set(...clipping.enabled);
-    uniforms.uClipPlanePositions.value.set(...clipping.positionsLpsMm);
-    uniforms.uClipPlaneKeepSigns.value.set(...clipping.keepSigns);
+    uniforms.uClipBoundsMinimum.value.set(...clipping.minimumPositionsLpsMm);
+    uniforms.uClipBoundsMaximum.value.set(...clipping.maximumPositionsLpsMm);
     this.current.material.uniformsNeedUpdate = true;
     this.current.clippingState.current = clipping;
     return clipping;

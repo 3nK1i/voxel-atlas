@@ -19,20 +19,21 @@ class Phase4EMultiplanePatientSpaceClippingTests(unittest.TestCase):
         for plane in ("axial", "coronal", "sagittal"):
             for marker in (
                 f'data-clip-enabled="{plane}"',
-                f'data-clip-slider="{plane}"',
-                f'data-clip-side="{plane}"',
-                f'data-clip-position="{plane}"',
+                f'data-clip-start="{plane}"',
+                f'data-clip-end="{plane}"',
+                f'data-clip-start-position="{plane}"',
+                f'data-clip-end-position="{plane}"',
             ):
                 with self.subTest(marker=marker):
                     self.assertIn(marker, self.html)
 
         for side in (
-            "Keep Inferior",
-            "Keep Superior",
-            "Keep Anterior",
-            "Keep Posterior",
-            "Keep Right",
-            "Keep Left",
+            "Inferior",
+            "Superior",
+            "Anterior",
+            "Posterior",
+            "Right",
+            "Left",
         ):
             with self.subTest(side=side):
                 self.assertIn(side, self.html)
@@ -43,8 +44,8 @@ class Phase4EMultiplanePatientSpaceClippingTests(unittest.TestCase):
     def test_ray_interval_is_clipped_in_dicom_patient_lps_space(self) -> None:
         for marker in (
             "uLocalToPatientLps",
-            "uClipPlanePositions",
-            "uClipPlaneKeepSigns",
+            "uClipBoundsMinimum",
+            "uClipBoundsMaximum",
             "uClipPlaneEnabled",
             "clipPatientRayInterval",
             "clipAgainstPatientPlane",
@@ -62,16 +63,16 @@ class Phase4EMultiplanePatientSpaceClippingTests(unittest.TestCase):
         self.assertNotIn("marchingCubes", self.renderer)
         self.assertNotIn("isocontour", self.renderer.lower())
 
-    def test_clipping_and_mpr_share_the_same_patient_coordinates(self) -> None:
+    def test_clipping_and_mpr_use_patient_coordinates_without_shared_state(self) -> None:
         for marker in (
             "CLIPPING_PLANES",
-            "state.mpr.crosshairLpsMm",
+            "clippingBoundaryLpsMm",
             "syncClippingControlsFromMpr",
-            "updateClippingFromControl",
+            "updateClippingBoundaryFromControl",
             "applyPatientClipping",
             "volumeRayMarcher.setClippingPlanes",
-            "updateMprCrosshairOverlays",
-            "scheduleMprRender",
+            "minimumLpsMm",
+            "maximumLpsMm",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, self.app)
@@ -94,10 +95,10 @@ class Phase4EMultiplanePatientSpaceClippingTests(unittest.TestCase):
         self.assertNotIn("lung-range", self.renderer)
 
     def test_phase4e_cache_and_validation_entrypoints_are_present(self) -> None:
-        self.assertIn('/css/styles.css?v=phase3d-r21-phase4h3b', self.html)
-        self.assertIn('/js/app.js?v=phase3d-r21-phase4h3b', self.html)
+        self.assertIn('/css/styles.css?v=phase3d-r21-phase4h4', self.html)
+        self.assertIn('/js/app.js?v=phase3d-r21-phase4h4', self.html)
         self.assertIn(
-            'from "./patient-volume-ray-marcher.js?v=phase4h3b"',
+            'from "./patient-volume-ray-marcher.js?v=phase4h4"',
             self.app,
         )
         self.assertTrue((ROOT / "scripts/run_phase4e_checks.sh").is_file())

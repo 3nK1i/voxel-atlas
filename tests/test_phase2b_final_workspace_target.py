@@ -88,7 +88,7 @@ class Phase2BFinalWorkspaceTargetTests(unittest.TestCase):
             'data-clip-enabled="axial"',
             'data-clip-enabled="coronal"',
             'data-clip-enabled="sagittal"',
-            'data-clip-slider="axial"',
+            'data-clip-start="axial"',
             "volumeRayMarcher.setClippingPlanes",
             'directionalCutPanel.dataset.clippingState',
         ):

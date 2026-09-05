@@ -6,7 +6,7 @@ VoxelAtlas is currently an engineering/research application. It is not a certifi
 
 ## Current status
 
-The accepted foundation includes FastAPI authentication with Argon2id password verification, opaque server-side sessions, the responsive VoxelAtlas login UI, a deployed production service, the Phase 2B final V1 workspace shell, the Phase 3A DICOM study-ingestion foundation, the Phase 3A-R2 clinical viewer polish, Phase 3B DICOM geometry/reconstruction-readiness qualification, Phase 3C canonical patient-volume construction, and Phase 3D-R2.1 real synchronized MPR integration with final professional presentation, image-registered crosshairs, and harmonized clinical action/selection states. Phase 4A defines a reusable patient-specific reconstruction boundary. Phase 4B adds the immutable source-to-GPU volume contract and bounded derived RG8 representation. Phase 4C1 verifies and initializes the authenticated 3D texture. Phase 4C2 ray marches that texture directly so Full Volume presents the actual uploaded patient voxels with physical proportions and patient orientation preserved. Phase 4D1 removes the legacy demo-surface runtime and locks Full Volume as the only V1 3D representation. Phase 4D2 adds medical color and opacity transfer functions with calibrated CT HU presets and truthful relative-intensity MR presets. Phase 4E adds simultaneous Patient LPS clipping, Phase 4F adapts rendering quality between interaction and rest, Phase 4G adds a provenance-first catalog for administrator-installed public demonstration studies, and Phase 4H adds professional medical display, volume-definition, and medical projection rendering controls.
+The accepted foundation includes FastAPI authentication with Argon2id password verification, opaque server-side sessions, the responsive VoxelAtlas login UI, a deployed production service, the Phase 2B final V1 workspace shell, the Phase 3A DICOM study-ingestion foundation, the Phase 3A-R2 clinical viewer polish, Phase 3B DICOM geometry/reconstruction-readiness qualification, Phase 3C canonical patient-volume construction, and Phase 3D-R2.1 real synchronized MPR integration with final professional presentation, image-registered crosshairs, and harmonized clinical action/selection states. Phase 4A defines a reusable patient-specific reconstruction boundary. Phase 4B adds the immutable source-to-GPU volume contract and bounded derived RG8 representation. Phase 4C1 verifies and initializes the authenticated 3D texture. Phase 4C2 ray marches that texture directly so Full Volume presents the actual uploaded patient voxels with physical proportions and patient orientation preserved. Phase 4D1 removes the legacy demo-surface runtime and locks Full Volume as the only V1 3D representation. Phase 4D2 adds medical color and opacity transfer functions with calibrated CT HU presets and truthful relative-intensity MR presets. Phase 4E adds simultaneous Patient LPS clipping, Phase 4F adapts rendering quality between interaction and rest, Phase 4G adds a provenance-first catalog for administrator-installed public demonstration studies, and Phase 4H adds professional medical display, volume-definition, projection, slice/slab, and dual-sided six-plane clipping controls.
 
 ## Locked V1 workspace
 
@@ -20,7 +20,7 @@ The workspace is intentionally focused on medical imaging and anatomical inspect
 - study and reconstruction status panel
 - large Three.js anatomy viewer
 - real Axial / Coronal / Sagittal patient-space MPR with synchronized crosshair, slice navigation, and window/level
-- directional anatomical cut only: Axial, Coronal, Sagittal
+- dual-sided anatomical clipping ranges: Axial, Coronal, Sagittal
 - Clinical rendering only
 - anatomy opacity with direct 0-100% semantics (100% fully opaque)
 - synchronized anatomical orientation gizmo with transparent styling and axis arrows
@@ -61,7 +61,7 @@ Phase 3A adds `pydicom` for DICOM parsing. Phase 3C promotes `numpy` into the ba
 Run the current compact regression from the repository root:
 
 ```bash
-bash scripts/run_phase4h3a_checks.sh
+bash scripts/run_phase4h4_checks.sh
 ```
 
 ## Locked V1 roadmap
@@ -71,7 +71,7 @@ bash scripts/run_phase4h3a_checks.sh
 3. DICOM upload, study ingestion, geometry qualification, canonical patient volume, and real MPR - complete through Phase 3D
 4. direct patient-volume rendering foundation and authenticated GPU transport
 5. true GPU ray marching of the actual uploaded CT/MRI voxel volume - complete through Phase 4C2
-6. medical transfer functions, clipping, adaptive performance, curated demonstrations, professional display controls, and medical projection modes - complete through Phase 4H3A
+6. medical transfer functions, clipping, adaptive performance, curated demonstrations, professional display controls, medical projection modes, patient-space slices/slabs, and dual-sided six-plane clipping - complete through Phase 4H4
 7. production security and V1 qualification
 
 Post-V1 work includes atlas-region interaction, AR/XR, advanced planning workflows, PACS/DICOMweb, and additional anatomical atlases.
@@ -169,3 +169,7 @@ Phase 4H3A adds MIP, MinIP, and Average Intensity beside the default Volume / DV
 ### Phase 4H3B - Slice and Thick Slab
 
 Phase 4H3B adds a true grayscale Slice and configurable Thick Slab to the 3D viewport. Axial, Coronal, and Sagittal plane positions follow the synchronized MPR crosshair in DICOM Patient LPS millimetres. Thick Slab provides 1, 5, 10, and 20 mm presets plus a bounded custom thickness, with MIP, MinIP, or Average aggregation along the selected patient-space plane normal. Both modes sample the existing verified GPU texture, preserve CT HU versus MR relative-intensity semantics, respect patient-space clipping, and update only uniforms when their controls change. Slice applies windowing to the full source plane, while Thick Slab can filter its projection with the selected intensity interval. The canonical volume is never modified or replaced.
+
+### Phase 4H4 - Dual-sided six-plane Patient LPS clipping
+
+Phase 4H4 replaces each single retained-side clipping plane with an independent anatomical range: Inferior to Superior, Posterior to Anterior, and Right to Left. The three enabled ranges intersect into six physical Patient LPS boundaries and apply consistently to Volume / DVR, MIP, MinIP, Average Intensity, Slice, and Thick Slab. Clipping no longer moves the MPR crosshair. Both handles expose ergonomic percentages and physical millimetre values, cannot cross, and update only shader uniforms while the verified patient texture remains resident.

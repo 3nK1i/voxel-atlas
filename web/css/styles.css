@@ -987,6 +987,32 @@ button:disabled {
   font-variant-numeric: tabular-nums;
 }
 
+.clip-range-summary,
+.clip-boundary-values,
+.clip-boundary-labels {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted-2);
+  font-size: 6.2px;
+}
+
+.clip-range-summary {
+  justify-content: flex-end;
+  gap: 3px;
+}
+
+.clip-boundary-labels {
+  margin-top: 4px;
+}
+
+.clip-boundary-values strong {
+  color: var(--text-soft);
+  font-size: 6.3px;
+  font-variant-numeric: tabular-nums;
+}
+
 .clip-plane-toggle {
   display: inline-flex;
   align-items: center;
@@ -1004,24 +1030,82 @@ button:disabled {
   accent-color: var(--accent);
 }
 
-.clip-plane-control .slider {
-  min-height: 19px;
+.clip-dual-range {
+  position: relative;
+  height: 18px;
+  margin: 0 5px;
+  --clip-start-percent: 0%;
+  --clip-end-percent: 100%;
 }
 
-.clip-plane-control select {
+.clip-retained-track {
+  position: absolute;
+  top: 8px;
+  right: 0;
+  left: 0;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(to right,
+    var(--line) 0 var(--clip-start-percent),
+    var(--accent) var(--clip-start-percent) var(--clip-end-percent),
+    var(--line) var(--clip-end-percent) 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.clip-dual-range input[type="range"] {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  min-height: 25px;
-  padding: 0 24px 0 7px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  background: var(--panel);
-  color: var(--muted);
-  font-size: 6.5px;
-  font-weight: 700;
+  height: 18px;
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  pointer-events: none;
 }
 
-.clip-plane-control input:disabled,
-.clip-plane-control select:disabled {
+.clip-dual-range input[type="range"]:focus-visible {
+  z-index: 4;
+  outline: 1px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.clip-dual-range input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  background: transparent;
+}
+
+.clip-dual-range input[type="range"]::-webkit-slider-thumb {
+  width: 12px;
+  height: 12px;
+  margin-top: -4px;
+  border: 2px solid var(--panel);
+  border-radius: 50%;
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--line-strong);
+  pointer-events: auto;
+  cursor: ew-resize;
+}
+
+.clip-dual-range input[type="range"]::-moz-range-track {
+  height: 4px;
+  background: transparent;
+}
+
+.clip-dual-range input[type="range"]::-moz-range-thumb {
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--panel);
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--line-strong);
+  pointer-events: auto;
+  cursor: ew-resize;
+}
+
+.clip-plane-control input:disabled {
   cursor: not-allowed;
   opacity: 0.42;
 }

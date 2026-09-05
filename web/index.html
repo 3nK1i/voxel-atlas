@@ -26,7 +26,7 @@
     })();
   </script>
 
-  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4h3b">
+  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4h4">
 
   <script type="importmap">
   {
@@ -386,13 +386,15 @@
                     <input type="checkbox" data-clip-enabled="axial" aria-label="Enable axial clipping" disabled>
                     <span>Axial</span>
                   </label>
-                  <strong data-clip-position="axial">Z: --</strong>
+                  <span class="clip-range-summary"><strong data-clip-start-percent="axial">0%</strong><span>to</span><strong data-clip-end-percent="axial">100%</strong></span>
                 </div>
-                <input class="slider" type="range" min="0" max="100" step="0.1" value="50" data-clip-slider="axial" aria-label="Axial clipping plane position" disabled>
-                <select data-clip-side="axial" aria-label="Axial retained side" disabled>
-                  <option value="minimum">Keep Inferior</option>
-                  <option value="maximum">Keep Superior</option>
-                </select>
+                <div class="clip-boundary-labels"><span>Inferior</span><span>Superior</span></div>
+                <div class="clip-dual-range" data-clip-range="axial" style="--clip-start-percent: 0%; --clip-end-percent: 100%;">
+                  <div class="clip-retained-track" aria-hidden="true"></div>
+                  <input type="range" min="0" max="100" step="0.1" value="0" data-clip-start="axial" aria-label="Inferior clipping boundary" disabled>
+                  <input type="range" min="0" max="100" step="0.1" value="100" data-clip-end="axial" aria-label="Superior clipping boundary" disabled>
+                </div>
+                <div class="clip-boundary-values"><strong data-clip-start-position="axial">Z: --</strong><strong data-clip-end-position="axial">Z: --</strong></div>
               </div>
 
               <div class="clip-plane-control" data-clip-plane="coronal">
@@ -401,13 +403,15 @@
                     <input type="checkbox" data-clip-enabled="coronal" aria-label="Enable coronal clipping" disabled>
                     <span>Coronal</span>
                   </label>
-                  <strong data-clip-position="coronal">Y: --</strong>
+                  <span class="clip-range-summary"><strong data-clip-start-percent="coronal">0%</strong><span>to</span><strong data-clip-end-percent="coronal">100%</strong></span>
                 </div>
-                <input class="slider" type="range" min="0" max="100" step="0.1" value="50" data-clip-slider="coronal" aria-label="Coronal clipping plane position" disabled>
-                <select data-clip-side="coronal" aria-label="Coronal retained side" disabled>
-                  <option value="minimum">Keep Anterior</option>
-                  <option value="maximum">Keep Posterior</option>
-                </select>
+                <div class="clip-boundary-labels"><span>Posterior</span><span>Anterior</span></div>
+                <div class="clip-dual-range" data-clip-range="coronal" style="--clip-start-percent: 0%; --clip-end-percent: 100%;">
+                  <div class="clip-retained-track" aria-hidden="true"></div>
+                  <input type="range" min="0" max="100" step="0.1" value="0" data-clip-start="coronal" aria-label="Posterior clipping boundary" disabled>
+                  <input type="range" min="0" max="100" step="0.1" value="100" data-clip-end="coronal" aria-label="Anterior clipping boundary" disabled>
+                </div>
+                <div class="clip-boundary-values"><strong data-clip-start-position="coronal">Y: --</strong><strong data-clip-end-position="coronal">Y: --</strong></div>
               </div>
 
               <div class="clip-plane-control" data-clip-plane="sagittal">
@@ -416,16 +420,19 @@
                     <input type="checkbox" data-clip-enabled="sagittal" aria-label="Enable sagittal clipping" disabled>
                     <span>Sagittal</span>
                   </label>
-                  <strong data-clip-position="sagittal">X: --</strong>
+                  <span class="clip-range-summary"><strong data-clip-start-percent="sagittal">0%</strong><span>to</span><strong data-clip-end-percent="sagittal">100%</strong></span>
                 </div>
-                <input class="slider" type="range" min="0" max="100" step="0.1" value="50" data-clip-slider="sagittal" aria-label="Sagittal clipping plane position" disabled>
-                <select data-clip-side="sagittal" aria-label="Sagittal retained side" disabled>
-                  <option value="minimum">Keep Right</option>
-                  <option value="maximum">Keep Left</option>
-                </select>
+                <div class="clip-boundary-labels"><span>Right</span><span>Left</span></div>
+                <div class="clip-dual-range" data-clip-range="sagittal" style="--clip-start-percent: 0%; --clip-end-percent: 100%;">
+                  <div class="clip-retained-track" aria-hidden="true"></div>
+                  <input type="range" min="0" max="100" step="0.1" value="0" data-clip-start="sagittal" aria-label="Right clipping boundary" disabled>
+                  <input type="range" min="0" max="100" step="0.1" value="100" data-clip-end="sagittal" aria-label="Left clipping boundary" disabled>
+                </div>
+                <div class="clip-boundary-values"><strong data-clip-start-position="sagittal">X: --</strong><strong data-clip-end-position="sagittal">X: --</strong></div>
               </div>
             </div>
-            <p class="anatomy-note">Plane positions share the synchronized MPR crosshair.</p>
+            <p class="anatomy-note">Enabled ranges intersect as one Patient LPS region of interest.</p>
+            <button id="clippingResetButton" class="transfer-reset-button" type="button" disabled>Reset clipping</button>
           </section>
 
           <section id="anatomicalLayersPanel" class="control-section">
@@ -843,6 +850,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h3b"></script>
+  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h4"></script>
 </body>
 </html>
