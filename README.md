@@ -61,7 +61,7 @@ Phase 3A adds `pydicom` for DICOM parsing. Phase 3C promotes `numpy` into the ba
 Run the current compact regression from the repository root:
 
 ```bash
-bash scripts/run_phase4h4_checks.sh
+bash scripts/run_phase4h5_checks.sh
 ```
 
 ## Locked V1 roadmap
@@ -71,7 +71,7 @@ bash scripts/run_phase4h4_checks.sh
 3. DICOM upload, study ingestion, geometry qualification, canonical patient volume, and real MPR - complete through Phase 3D
 4. direct patient-volume rendering foundation and authenticated GPU transport
 5. true GPU ray marching of the actual uploaded CT/MRI voxel volume - complete through Phase 4C2
-6. medical transfer functions, clipping, adaptive performance, curated demonstrations, professional display controls, medical projection modes, patient-space slices/slabs, and dual-sided six-plane clipping - complete through Phase 4H4
+6. medical transfer functions, clipping, adaptive performance, curated demonstrations, professional display controls, medical projection modes, patient-space slices/slabs, and dual-sided six-plane clipping - Phase 4H5 adds MPR clipping overlays and readable boundary labels; acceptance pending local validation
 7. production security and V1 qualification
 
 Post-V1 work includes atlas-region interaction, AR/XR, advanced planning workflows, PACS/DICOMweb, and additional anatomical atlases.

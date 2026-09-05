@@ -16,6 +16,7 @@ import {
   AdaptiveVolumeRenderingQuality,
 } from "./volume-rendering-quality.js?v=phase4h1";
 import { SampleStudyCatalogClient } from "./sample-study-catalog.js?v=phase4g-r1";
+import { projectMprClipping, renderMprClippingOverlay } from "./mpr-clipping-overlay.js?v=phase4h5";
 
 const THEME_KEY = "voxelatlas-theme";
 const DEFAULT_OPACITY = 1.0;
@@ -31,6 +32,7 @@ const volumeLayerButton = document.getElementById("volumeLayerButton");
 const anatomyNote = document.getElementById("anatomyNote");
 const directionalCutPanel = document.getElementById("directionalCutPanel");
 const clippingResetButton = document.getElementById("clippingResetButton");
+const mprClippingOverlayToggle = document.getElementById("mprClippingOverlayToggle");
 const CLIPPING_PLANES = Object.freeze({
   axial: Object.freeze({ axis: "z", axisIndex: 2, coordinate: "Z", startLabel: "Inferior", endLabel: "Superior", reversed: false }),
   coronal: Object.freeze({ axis: "y", axisIndex: 1, coordinate: "Y", startLabel: "Posterior", endLabel: "Anterior", reversed: true }),
@@ -879,6 +881,7 @@ function clippingRequest() {
 }
 
 function applyPatientClipping() {
+  updateMprClippingOverlays();
   if (!volumeRayMarcher.current || !state.mpr.descriptor) return null;
   const clipping = volumeRayMarcher.setClippingPlanes(clippingRequest());
   requestViewerRender();
@@ -912,6 +915,8 @@ function syncClippingControlsFromMpr() {
     controlsForPlane.endPercent.textContent = `${Number(clipping.endPercent.toFixed(1))}%`;
     controlsForPlane.startPosition.textContent = `${definition.coordinate}: ${startLpsMm.toFixed(2)} mm`;
     controlsForPlane.endPosition.textContent = `${definition.coordinate}: ${endLpsMm.toFixed(2)} mm`;
+    controlsForPlane.start.setAttribute("aria-valuetext", `${definition.startLabel}: ${startLpsMm.toFixed(2)} mm (${clipping.startPercent}%)`);
+    controlsForPlane.end.setAttribute("aria-valuetext", `${definition.endLabel}: ${endLpsMm.toFixed(2)} mm (${clipping.endPercent}%)`);
     controlsForPlane.range.style.setProperty("--clip-start-percent", `${clipping.startPercent}%`);
     controlsForPlane.range.style.setProperty("--clip-end-percent", `${clipping.endPercent}%`);
   }
@@ -1119,6 +1124,11 @@ function setWorkflowForStudy(study) {
 
 function setMprVolumeState(study) {
   const ready = Boolean(study?.volume_ready);
+  for (const entry of mprRegistry.values()) {
+    entry.renderedPlaneDescriptor = null;
+    entry.renderedPositionLpsMm = null;
+    renderMprClippingOverlay(entry.surface, null);
+  }
   clearPatientVolumeRendering();
   volumeTextureManager.dispose();
   volumeRenderingTask = null;
@@ -1298,6 +1308,7 @@ function configureMprSurface(entry, planeDescriptor) {
     bottom: imageBottom,
   };
   updateMprCrosshairOverlayForEntry(entry, planeDescriptor);
+  updateMprClippingOverlays();
 }
 
 function updateMprCrosshairOverlayForEntry(entry, planeDescriptor) {
@@ -1326,6 +1337,21 @@ function updateMprCrosshairOverlays() {
   if (!descriptor) return;
   for (const [plane, entry] of mprRegistry.entries()) {
     updateMprCrosshairOverlayForEntry(entry, descriptor.planes[plane]);
+  }
+}
+
+function updateMprClippingOverlays() {
+  const descriptor = state.mpr.descriptor;
+  const request = clippingRequest();
+  for (const [plane, entry] of mprRegistry.entries()) {
+    const planeDescriptor = descriptor?.planes?.[plane];
+    // Continuous crosshair motion may lead the asynchronous image request.
+    // Only annotate the accepted image, never a pending or previous study.
+    const geometry = mprClippingOverlayToggle.checked && planeDescriptor
+      && entry.renderedPlaneDescriptor === planeDescriptor
+      ? projectMprClipping(planeDescriptor, request, entry.renderedPositionLpsMm)
+      : null;
+    renderMprClippingOverlay(entry.surface, geometry);
   }
 }
 
@@ -1373,6 +1399,8 @@ async function renderMprPlane(plane, generation, signal) {
   if (!Number.isInteger(width) || !Number.isInteger(height) || buffer.length !== width * height) {
     throw new Error("MPR image payload is invalid");
   }
+  entry.renderedPlaneDescriptor = planeDescriptor;
+  entry.renderedPositionLpsMm = position;
   drawGray8(entry, buffer, width, height, planeDescriptor);
   entry.panel.dataset.volumeState = "ready";
   entry.index.textContent = `${index + 1} / ${planeDescriptor.slice_count}`;
@@ -2080,6 +2108,8 @@ clippingResetButton.addEventListener("click", () => {
   volumeRenderingQuality.pulseInteraction("clipping-reset");
 });
 
+mprClippingOverlayToggle.addEventListener("change", updateMprClippingOverlays);
+
 transferPresetSelect.addEventListener("change", () => {
   applyTransferPreset(transferPresetSelect.value);
   volumeRenderingQuality.pulseInteraction("transfer");
@@ -2332,6 +2362,7 @@ window.addEventListener("resize", resize, { passive: true });
 if (window.ResizeObserver) {
   const resizeObserver = new ResizeObserver(resize);
   resizeObserver.observe(viewport);
+  for (const entry of mprRegistry.values()) resizeObserver.observe(entry.view);
 }
 
 applyTheme(preferredTheme());

@@ -102,8 +102,8 @@ class Phase4H3BSliceAndThickSlabTests(unittest.TestCase):
         self.assertNotIn("screenAxis", self.app)
 
     def test_h3b_cache_and_compact_validation_entrypoints_are_present(self) -> None:
-        self.assertIn('/css/styles.css?v=phase3d-r21-phase4h4', self.html)
-        self.assertIn('/js/app.js?v=phase3d-r21-phase4h4', self.html)
+        self.assertIn('/css/styles.css?v=phase3d-r21-phase4h5', self.html)
+        self.assertIn('/js/app.js?v=phase3d-r21-phase4h5', self.html)
         self.assertIn(
             'from "./patient-volume-ray-marcher.js?v=phase4h4"',
             self.app,
