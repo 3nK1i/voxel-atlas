@@ -6,7 +6,7 @@ VoxelAtlas is currently an engineering/research application. It is not a certifi
 
 ## Current status
 
-The accepted foundation includes FastAPI authentication with Argon2id password verification, opaque server-side sessions, the responsive VoxelAtlas login UI, a deployed production service, the Phase 2B final V1 workspace shell, the Phase 3A DICOM study-ingestion foundation, the Phase 3A-R2 clinical viewer polish, Phase 3B DICOM geometry/reconstruction-readiness qualification, Phase 3C canonical patient-volume construction, and Phase 3D-R2.1 real synchronized MPR integration with final professional presentation, image-registered crosshairs, and harmonized clinical action/selection states. Phase 4A defines a reusable patient-specific reconstruction boundary. Phase 4B adds the immutable source-to-GPU volume contract and bounded derived RG8 representation. Phase 4C1 verifies and initializes the authenticated 3D texture. Phase 4C2 ray marches that texture directly so Full Volume presents the actual uploaded patient voxels with physical proportions and patient orientation preserved. Phase 4D1 removes the legacy demo-surface runtime and locks Full Volume as the only V1 3D representation. Phase 4D2 adds medical color and opacity transfer functions with calibrated CT HU presets and truthful relative-intensity MR presets. Phase 4E adds simultaneous Patient LPS clipping, Phase 4F adapts rendering quality between interaction and rest, Phase 4G adds a provenance-first catalog for administrator-installed public demonstration studies, and Phase 4H adds professional medical display, volume-definition, projection, slice/slab, and dual-sided six-plane clipping controls.
+The accepted foundation includes FastAPI authentication with Argon2id password verification, opaque server-side sessions, the responsive VoxelAtlas login UI, a deployed production service, the Phase 2B final V1 workspace shell, the Phase 3A DICOM study-ingestion foundation, the Phase 3A-R2 clinical viewer polish, Phase 3B DICOM geometry/reconstruction-readiness qualification, Phase 3C canonical patient-volume construction, and Phase 3D-R2.1 real synchronized MPR integration with final professional presentation, image-registered crosshairs, and harmonized clinical action/selection states. Phase 4A defines a reusable patient-specific reconstruction boundary. Phase 4B adds the immutable source-to-GPU volume contract and bounded derived RG8 representation. Phase 4C1 verifies and initializes the authenticated 3D texture. Phase 4C2 ray marches that texture directly so Full Volume presents the actual uploaded patient voxels with physical proportions and patient orientation preserved. Phase 4D1 removes the legacy demo-surface runtime and locks Full Volume as the only V1 3D representation. Phase 4D2 adds medical color and opacity transfer functions with calibrated CT HU presets and truthful relative-intensity MR presets. Phase 4E adds simultaneous Patient LPS clipping, Phase 4F adapts rendering quality between interaction and rest, Phase 4G adds a provenance-first catalog for administrator-installed public demonstration studies, and Phase 4H adds professional medical display, volume-definition, projection, slice/slab, MPR clipping visualization, dual-sided six-plane clipping, and a non-crossing dual intensity range. Phase 4 volume rendering is engineering-qualified and accepted in production at release `ff1b77727dc9b8efc1ba7a66d74861cffddcc5b9`.
 
 ## Locked V1 workspace
 
@@ -72,7 +72,7 @@ bash scripts/run_phase4h6_checks.sh
 3. DICOM upload, study ingestion, geometry qualification, canonical patient volume, and real MPR - complete through Phase 3D
 4. direct patient-volume rendering foundation and authenticated GPU transport
 5. true GPU ray marching of the actual uploaded CT/MRI voxel volume - complete through Phase 4C2
-6. medical transfer functions, clipping, adaptive performance, curated demonstrations, professional display controls, medical projection modes, patient-space slices/slabs, and dual-sided six-plane clipping - H5 MPR overlays accepted; H6 adds repeatable runtime qualification and compact clipping labels; PC qualification remains required before Phase 4 closure
+6. medical transfer functions, clipping, adaptive performance, curated demonstrations, professional display controls, medical projection modes, patient-space slices/slabs, dual-sided six-plane clipping, MPR overlays, and rendering qualification - Phase 4 complete
 7. production security and V1 qualification
 
 Post-V1 work includes atlas-region interaction, AR/XR, advanced planning workflows, PACS/DICOMweb, and additional anatomical atlases.
@@ -175,13 +175,14 @@ Phase 4H3B adds a true grayscale Slice and configurable Thick Slab to the 3D vie
 
 Phase 4H4 replaces each single retained-side clipping plane with an independent anatomical range: Inferior to Superior, Posterior to Anterior, and Right to Left. The three enabled ranges intersect into six physical Patient LPS boundaries and apply consistently to Volume / DVR, MIP, MinIP, Average Intensity, Slice, and Thick Slab. Clipping no longer moves the MPR crosshair. Both handles expose ergonomic percentages and physical millimetre values, cannot cross, and update only shader uniforms while the verified patient texture remains resident.
 
-### Phase 4H6 - Rendering qualification
+### Phase 4H6 - Rendering qualification and Phase 4 closure
 
 H6 reduces clipping labels from 12 to 11 px, starts all clipping axes enabled at
-their no-cut 0-100% ranges, validates replacement descriptors
-before disposing a valid renderer, and adds bounded, localhost-only engineering
-diagnostics. The default workspace does not collect these diagnostics. No source
-voxel, shader algorithm, segmentation, measurement, or production-service change
-is introduced. See [H6 qualification](docs/phase_history/PHASE4H6_RENDERING_QUALIFICATION.md)
-for CT/MR evidence collection and acceptance gates. Production stays on H4 until
-the combined H5/H6 release is accepted.
+their no-cut 0-100% ranges, validates replacement descriptors before disposing a
+valid renderer, and adds bounded, localhost-only engineering diagnostics. The
+default workspace does not collect these diagnostics. The accepted correction
+combines intensity minimum and maximum on one non-crossing dual-handle control
+without changing source voxels or renderer mathematics. Automated regression,
+four target-PC CT/MR captures across all six modes, and final production visual
+acceptance passed. See [H6 qualification](docs/phase_history/PHASE4H6_RENDERING_QUALIFICATION.md)
+and the [Phase 4 closure](docs/phase_history/PHASE4_VOLUME_RENDERING_CLOSURE.md).

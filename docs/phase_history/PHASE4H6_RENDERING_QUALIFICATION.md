@@ -8,8 +8,9 @@
 - Development here uses a separate synthetic Git baseline of the delivered H5
   content, not a claim of access to upstream Git history. The delivery apply
   script checks the real upstream SHA plus the SHA256 of every replaced file.
-- Production remains on H4. Do not deploy, close Phase 4, or start segmentation
-  solely because the automated H6 script passes.
+- This document began as the pre-acceptance qualification plan. The plan was
+  completed on 2026-09-07 and the accepted evidence is recorded in
+  `PHASE4_VOLUME_RENDERING_CLOSURE.md`.
 
 ## Changes
 
@@ -19,6 +20,9 @@
   ranges. This is visually and numerically the full patient volume, while making
   both handles immediately available. Reset clipping restores the same enabled
   full-range state; an individual axis can still be unchecked explicitly.
+- Exact 0%/100% MPR boundaries are display-inset by one CSS pixel so their
+  centered SVG strokes are not clipped at the image edge. Projection geometry
+  and the actual Patient LPS clipping planes remain exact and unchanged.
 - Validate replacement presentation/transfer/clipping/slice descriptors before
   disposing the current ray-marcher resource. Invalid geometry no longer destroys
   a valid resource at the renderer API boundary. This does not promise retaining
@@ -161,7 +165,11 @@ Phase 4 closure require that subsequent evidence, not just this package.
 ## Closure record
 
 - Automated qualification: run by `run_phase4h6_checks.sh`.
-- Target-PC runtime report: PENDING.
-- Target-PC visual acceptance: PENDING.
-- H6 upstream commit/push: PENDING.
-- Combined H5/H6 deployment and public smoke test: PENDING.
+- Target-PC runtime report: PASS.
+- Target-PC visual acceptance: PASS.
+- H6 upstream commit/push: PASS.
+- Final H5/H6 production deployment and public smoke test: PASS.
+- Final deployed release: `ff1b77727dc9b8efc1ba7a66d74861cffddcc5b9`.
+- Runtime evidence SHA256:
+  `415fbcbf3dc636137db775099a4562f6ed623448ceaf9e4053db2e8a4007137f`.
+- Clinical validation: NOT CLAIMED.
