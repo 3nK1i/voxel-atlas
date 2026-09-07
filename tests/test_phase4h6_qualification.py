@@ -26,6 +26,9 @@ class RenderingQualificationTests(unittest.TestCase):
         self.assertIn('installRenderingQualification', app)
         self.assertIn('qualification?.recordFrame', app)
         self.assertIn('qualification?.resetWindow()', app)
+        self.assertIn('const qualificationSampling = Boolean(qualification)', app)
+        self.assertIn('if (qualificationSampling) shouldRender = true', app)
+        self.assertIn('qualificationSampling || state.autoRotate', app)
         handler = app.split('renderQualityPolicy.addEventListener("change", () => {')[1].split('});')[0]
         self.assertIn('qualification?.resetWindow()', handler)
         self.assertIn('phase3d-r21-phase4h6', (ROOT / 'web/index.html').read_text())
@@ -40,6 +43,29 @@ class RenderingQualificationTests(unittest.TestCase):
                 html, rf'data-clip-enabled="{plane}"[^>]*checked[^>]*disabled')
         reset = app.split('function resetPatientClipping()')[1].split('\nfunction ', 1)[0]
         self.assertIn('state.clipping[plane].enabled = true', reset)
+
+    def test_intensity_interval_uses_one_non_crossing_dual_handle_control(self):
+        html = (ROOT / 'web/index.html').read_text()
+        app = (ROOT / 'web/js/app.js').read_text()
+        styles = (ROOT / 'web/css/styles.css').read_text()
+        renderer = (ROOT / 'web/js/patient-volume-ray-marcher.js').read_text()
+
+        self.assertIn('id="transferIntensityRange"', html)
+        self.assertIn('id="transferRangeLow"', html)
+        self.assertIn('id="transferRangeHigh"', html)
+        self.assertIn('class="transfer-dual-range"', html)
+        self.assertIn('class="transfer-retained-track"', html)
+        self.assertIn('--intensity-start-percent', styles)
+        self.assertIn('--intensity-end-percent', styles)
+        intensity_style = styles.split(
+            '.transfer-dual-range input[type="range"]::-webkit-slider-thumb', 1
+        )[1].split('}', 1)[0]
+        self.assertIn('width: 16px', intensity_style)
+        self.assertIn('height: 16px', intensity_style)
+        self.assertIn('border: 0', intensity_style)
+        self.assertIn('syncIntensityRangeTrack(transfer)', app)
+        self.assertIn('constrainMedicalIntensityInterval(', app)
+        self.assertIn('maximum - minimum < minimumGap', renderer)
 
 
 if __name__ == '__main__':

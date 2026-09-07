@@ -624,40 +624,46 @@
             <details id="advancedRenderingControls" class="advanced-rendering-controls">
               <summary>Advanced rendering</summary>
               <div class="transfer-adjustments">
-              <div class="transfer-adjustment">
-                <div class="transfer-adjustment-heading">
-                  <label for="transferRangeLow">Intensity minimum</label>
-                  <strong id="transferRangeLowValue">--</strong>
+              <div class="transfer-adjustment transfer-intensity-adjustment">
+                <div class="transfer-intensity-values">
+                  <div>
+                    <label for="transferRangeLow">Intensity minimum</label>
+                    <strong id="transferRangeLowValue">--</strong>
+                  </div>
+                  <div>
+                    <label for="transferRangeHigh">Intensity maximum</label>
+                    <strong id="transferRangeHighValue">--</strong>
+                  </div>
                 </div>
-                <input
-                  id="transferRangeLow"
-                  class="slider"
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  value="0"
-                  aria-label="Minimum visible medical intensity"
-                  disabled
+                <div
+                  id="transferIntensityRange"
+                  class="transfer-dual-range"
+                  style="--intensity-start-percent: 0%; --intensity-end-percent: 100%;"
                 >
-              </div>
-
-              <div class="transfer-adjustment">
-                <div class="transfer-adjustment-heading">
-                  <label for="transferRangeHigh">Intensity maximum</label>
-                  <strong id="transferRangeHighValue">--</strong>
+                  <div class="transfer-retained-track" aria-hidden="true"></div>
+                  <input
+                    id="transferRangeLow"
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value="0"
+                    aria-label="Minimum visible medical intensity"
+                    aria-describedby="transferRangeLowValue"
+                    disabled
+                  >
+                  <input
+                    id="transferRangeHigh"
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value="1"
+                    aria-label="Maximum visible medical intensity"
+                    aria-describedby="transferRangeHighValue"
+                    disabled
+                  >
                 </div>
-                <input
-                  id="transferRangeHigh"
-                  class="slider"
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  value="1"
-                  aria-label="Maximum visible medical intensity"
-                  disabled
-                >
               </div>
 
               <div class="transfer-adjustment dvr-only-control">

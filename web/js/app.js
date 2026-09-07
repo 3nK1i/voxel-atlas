@@ -75,6 +75,7 @@ const transferRangeLow = document.getElementById("transferRangeLow");
 const transferRangeLowValue = document.getElementById("transferRangeLowValue");
 const transferRangeHigh = document.getElementById("transferRangeHigh");
 const transferRangeHighValue = document.getElementById("transferRangeHighValue");
+const transferIntensityRange = document.getElementById("transferIntensityRange");
 const transferDensity = document.getElementById("transferDensity");
 const transferDensityValue = document.getElementById("transferDensityValue");
 const transferOpacitySoftness = document.getElementById("transferOpacitySoftness");
@@ -444,6 +445,8 @@ function clearTransferControls() {
   transferWindowWidthValue.textContent = "--";
   transferRangeLowValue.textContent = "--";
   transferRangeHighValue.textContent = "--";
+  transferIntensityRange.style.setProperty("--intensity-start-percent", "0%");
+  transferIntensityRange.style.setProperty("--intensity-end-percent", "100%");
   transferDensity.value = "100";
   transferDensityValue.textContent = "100%";
   transferOpacitySoftness.value = "30";
@@ -469,6 +472,25 @@ function formatTransferIntensity(value, transfer) {
   const span = transfer.sourceRange[1] - transfer.sourceRange[0];
   const digits = span >= 100 ? 0 : span >= 10 ? 1 : 2;
   return `${Number(value).toFixed(digits)} rel`;
+}
+
+function syncIntensityRangeTrack(transfer) {
+  const [sourceLow, sourceHigh] = transfer.sourceRange;
+  const span = sourceHigh - sourceLow;
+  const minimumPercent = span > 0
+    ? clamp(((transfer.rangeLow - sourceLow) / span) * 100, 0, 100)
+    : 0;
+  const maximumPercent = span > 0
+    ? clamp(((transfer.rangeHigh - sourceLow) / span) * 100, 0, 100)
+    : 100;
+  transferIntensityRange.style.setProperty(
+    "--intensity-start-percent",
+    `${minimumPercent}%`,
+  );
+  transferIntensityRange.style.setProperty(
+    "--intensity-end-percent",
+    `${maximumPercent}%`,
+  );
 }
 
 function syncTransferControls(transfer) {
@@ -504,6 +526,7 @@ function syncTransferControls(transfer) {
   transferRangeHigh.max = String(sourceHigh);
   transferRangeHigh.step = String(step);
   transferRangeHigh.value = String(transfer.rangeHigh);
+  syncIntensityRangeTrack(transfer);
   transferDensity.value = String(Math.round(transfer.densityMultiplier * 100));
   transferOpacitySoftness.value = String(Math.round(transfer.opacitySoftness * 100));
   transferEdgeDefinition.value = String(Math.round(transfer.edgeDefinition * 100));
@@ -2412,6 +2435,8 @@ function animate(timestamp) {
   const dt = Math.min(timer.getDelta(), 0.05);
 
   let shouldRender = viewerRenderRequested;
+  const qualificationSampling = Boolean(qualification) && volumeLayer.available && Boolean(volumeRayMarcher.current);
+  if (qualificationSampling) shouldRender = true;
   if (state.autoRotate) {
     anatomyGroup.rotation.y += dt * 0.32;
     shouldRender = true;
@@ -2419,7 +2444,7 @@ function animate(timestamp) {
 
   if (controls.update()) shouldRender = true;
   if (volumeRenderingQuality.update(timestamp)) shouldRender = true;
-  const qualificationContinuous = state.autoRotate || volumeRenderingQuality.isInteractive();
+  const qualificationContinuous = qualificationSampling || state.autoRotate || volumeRenderingQuality.isInteractive();
   if (!shouldRender || !qualificationContinuous) qualification?.pause();
   if (shouldRender) {
     viewerRenderRequested = false;
