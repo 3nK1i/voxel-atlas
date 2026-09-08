@@ -237,3 +237,16 @@ selecting a lower-resolution model. The resulting multilabel NIfTI must match th
 input shape and affine and contain only integer labels 0-117. The artifact remains
 private and non-clinical; Phase 5C owns canonical Patient LPS label import and web
 availability. See the [Phase 5B2 execution record](docs/phase_history/PHASE5B2_TOTALSEGMENTATOR_EXECUTION_QUALIFICATION.md).
+
+### Phase 5C - Canonical Patient LPS label-map import
+
+Phase 5C converts only a sealed, succeeded segmentation-job NIfTI into an
+immutable provider-neutral `uint16` label map. It rechecks the source volume,
+terminal job seal, model/task identity, provider-mask hash, shape, label range,
+and Patient LPS affine. The descriptor explicitly preserves source-to-model and
+model-to-source index transforms and rejects silent resampling.
+
+The NIfTI reader remains isolated in the qualified external environment.
+Authenticated no-store APIs expose safe label-map descriptors without patient
+paths or raw label data. Colored MPR overlays remain Phase 5D. See the
+[Phase 5C architecture record](docs/phase_history/PHASE5C_CANONICAL_PATIENT_LPS_LABEL_MAP_IMPORT.md).

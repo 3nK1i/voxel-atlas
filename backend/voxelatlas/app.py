@@ -52,6 +52,7 @@ from .segmentation import (
     SegmentationUnavailableError,
     SegmentationValidationError,
 )
+from .segmentation_label_maps import SegmentationLabelMapService
 from .volume_rendering import (
     RENDERING_MEDIA_TYPE,
     VolumeRenderingDependencyUnavailable,
@@ -119,6 +120,7 @@ def create_app(
     volume_rendering_service: VolumeRenderingService | None = None,
     sample_catalog_service: SampleStudyCatalogService | None = None,
     segmentation_service: SegmentationJobService | None = None,
+    segmentation_label_map_service: SegmentationLabelMapService | None = None,
 ) -> FastAPI:
     runtime_settings = load_settings() if settings is None else settings
     if (
@@ -173,6 +175,14 @@ def create_app(
         if segmentation_service is not None
         else SegmentationJobService(data_dir=runtime_settings.data_dir)
     )
+    patient_segmentation_label_map_service = (
+        segmentation_label_map_service
+        if segmentation_label_map_service is not None
+        else SegmentationLabelMapService(
+            data_dir=runtime_settings.data_dir,
+            job_service=patient_segmentation_service,
+        )
+    )
 
     app = FastAPI(title="VoxelAtlas", docs_url=None, redoc_url=None)
     app.add_middleware(
@@ -188,6 +198,7 @@ def create_app(
     app.state.volume_rendering_service = patient_volume_rendering_service
     app.state.sample_catalog_service = patient_sample_catalog_service
     app.state.segmentation_service = patient_segmentation_service
+    app.state.segmentation_label_map_service = patient_segmentation_label_map_service
 
     app.mount("/assets", StaticFiles(directory=WEB_ROOT / "assets"), name="assets")
     app.mount("/css", StaticFiles(directory=WEB_ROOT / "css"), name="css")
@@ -734,6 +745,46 @@ def create_app(
         except SegmentationError as exc:
             raise_segmentation_http_error(exc)
         return {"job": job}
+
+    @app.get("/api/segmentation/label-maps")
+    def segmentation_label_maps(
+        response: Response,
+        study_id: str | None = Query(
+            default=None,
+            min_length=32,
+            max_length=32,
+            pattern=r"^[0-9a-f]{32}$",
+        ),
+        limit: int = Query(default=50, ge=1, le=100),
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        current_service: SegmentationLabelMapService = (
+            app.state.segmentation_label_map_service
+        )
+        try:
+            label_maps = current_service.list(study_id=study_id)
+        except SegmentationError as exc:
+            raise_segmentation_http_error(exc)
+        return {"label_maps": label_maps[:limit]}
+
+    @app.get("/api/segmentation/label-maps/{label_map_id}")
+    def segmentation_label_map(
+        label_map_id: str,
+        response: Response,
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        current_service: SegmentationLabelMapService = (
+            app.state.segmentation_label_map_service
+        )
+        try:
+            label_map = current_service.get(label_map_id)
+        except SegmentationError as exc:
+            raise_segmentation_http_error(exc)
+        return {"label_map": label_map}
 
     @app.get("/api/protected/ping")
     def protected_ping(username: str = Depends(require_username)) -> dict[str, object]:
