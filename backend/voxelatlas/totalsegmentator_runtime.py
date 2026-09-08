@@ -91,6 +91,7 @@ class TotalSegmentatorInvocation:
     resolution: str
     output_mode: str
     device_selector: str
+    force_split: bool
 
 
 ProbeRunner = Callable[..., object]
@@ -388,6 +389,7 @@ def build_totalsegmentator_invocation(
     output_nifti: Path,
     report_json: Path,
     device_selector: str,
+    force_split: bool = False,
 ) -> TotalSegmentatorInvocation:
     if not isinstance(python_executable, str) or not python_executable.strip():
         raise TotalSegmentatorQualificationError("Python executable is invalid")
@@ -395,6 +397,8 @@ def build_totalsegmentator_invocation(
         raise TotalSegmentatorQualificationError("Python executable is invalid")
     if not CUDA_SELECTOR_PATTERN.fullmatch(device_selector):
         raise TotalSegmentatorQualificationError("An explicit CUDA device is required")
+    if not isinstance(force_split, bool):
+        raise TotalSegmentatorQualificationError("force_split must be boolean")
 
     source = _absolute_path(input_nifti, "TotalSegmentator input", ".nii.gz")
     output = _absolute_path(output_nifti, "TotalSegmentator output", ".nii.gz")
@@ -420,6 +424,8 @@ def build_totalsegmentator_invocation(
         "--report",
         str(report),
     )
+    if force_split:
+        command += ("--force_split",)
     return TotalSegmentatorInvocation(
         command=command,
         task=EXPECTED_TOTAL_TASK,
@@ -427,4 +433,5 @@ def build_totalsegmentator_invocation(
         resolution="full",
         output_mode="multilabel_nifti",
         device_selector=device_selector,
+        force_split=force_split,
     )

@@ -484,6 +484,7 @@ class CanonicalSegmentationSource:
     manifest_path: Path
     study_dir: Path
     volume_path: Path
+    metadata_path: Path
 
 
 class CanonicalSegmentationSourceRepository:
@@ -585,6 +586,7 @@ class CanonicalSegmentationSourceRepository:
             manifest_path=manifest_path,
             study_dir=study_dir,
             volume_path=volume_path,
+            metadata_path=metadata_path,
         )
 
 
@@ -891,13 +893,18 @@ class SegmentationJobService:
         model_id: str,
         device_request: str,
         parameters: dict[str, object],
+        source_study_id: str | None = None,
     ) -> dict[str, object]:
         with self._lock:
             model = self.registry.descriptor(provider_id, model_id)
             provider = self.registry.provider(provider_id, model_id)
             if provider.descriptor.descriptor_sha256 != model.descriptor_sha256:
                 raise SegmentationConflictError("The registered model changed before job creation")
-            source = self.sources.latest()
+            source = (
+                self.sources.latest()
+                if source_study_id is None
+                else self.sources.load(str(source_study_id))
+            )
             if source.modality not in model.supported_modalities:
                 raise SegmentationConflictError(
                     f"Model {model.provider_id}/{model.model_id} does not support "
