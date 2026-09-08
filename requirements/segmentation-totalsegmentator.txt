@@ -1,0 +1,4 @@
+# Phase 5B TotalSegmentator runs in an isolated provider environment.
+# Install PyTorch for the target CUDA platform before installing this manifest.
+# Do not merge these heavyweight dependencies into requirements/backend.txt.
+TotalSegmentator==2.18.0

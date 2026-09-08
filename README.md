@@ -206,3 +206,17 @@ The planned `totalsegmentator/total` CT baseline remains explicitly unavailable
 until Phase 5B qualifies its exact runtime. Phase 5A installs no heavyweight ML
 dependency, runs no inference, creates no label mask, and changes no Phase 4 web
 rendering behavior. See the [Phase 5A architecture record](docs/phase_history/PHASE5A_PROVIDER_NEUTRAL_SEGMENTATION_ARCHITECTURE.md).
+
+### Phase 5B1 - TotalSegmentator runtime qualification
+
+Phase 5B1 pins TotalSegmentator `2.18.0` as an isolated provider runtime and
+adds a non-mutating qualification probe for its Python API, `total` CT task,
+117-class contract, task-definition fingerprint, dependency versions, and CUDA
+inventory. The future invocation is locked to full-resolution, multilabel NIfTI,
+an explicit CUDA index, and no shell. Provider tracebacks and patient paths do
+not enter public qualification output.
+
+The FastAPI environment remains lightweight, the default registry entry remains
+unavailable, and this step downloads no weights or runs inference. The canonical
+NPY-to-NIfTI bridge and supervised worker belong to Phase 5B2; label import into
+Patient LPS remains Phase 5C. See the [Phase 5B1 qualification record](docs/phase_history/PHASE5B1_TOTALSEGMENTATOR_RUNTIME_QUALIFICATION.md).
