@@ -18,6 +18,10 @@ import {
 import { SampleStudyCatalogClient } from "./sample-study-catalog.js?v=phase4g-r1";
 import { projectMprClipping, renderMprClippingOverlay } from "./mpr-clipping-overlay.js?v=phase4h6";
 import { installRenderingQualification } from "./rendering-qualification.js?v=phase4h6";
+import {
+  clearSegmentationOverlay,
+  drawSegmentationRgba,
+} from "./segmentation-overlay.js?v=phase5d-r1";
 
 const THEME_KEY = "voxelatlas-theme";
 const DEFAULT_OPACITY = 1.0;
@@ -34,6 +38,11 @@ const anatomyNote = document.getElementById("anatomyNote");
 const directionalCutPanel = document.getElementById("directionalCutPanel");
 const clippingResetButton = document.getElementById("clippingResetButton");
 const mprClippingOverlayToggle = document.getElementById("mprClippingOverlayToggle");
+const segmentationOverlayPanel = document.getElementById("segmentationOverlayPanel");
+const segmentationOverlayStatus = document.getElementById("segmentationOverlayStatus");
+const segmentationOverlayToggle = document.getElementById("segmentationOverlayToggle");
+const segmentationOverlayOpacity = document.getElementById("segmentationOverlayOpacity");
+const segmentationOverlayOpacityValue = document.getElementById("segmentationOverlayOpacityValue");
 const CLIPPING_PLANES = Object.freeze({
   axial: Object.freeze({ axis: "z", axisIndex: 2, coordinate: "Z", startLabel: "Inferior", endLabel: "Superior", reversed: false }),
   coronal: Object.freeze({ axis: "y", axisIndex: 1, coordinate: "Y", startLabel: "Posterior", endLabel: "Anterior", reversed: true }),
@@ -159,6 +168,7 @@ const mprRegistry = new Map([
     view: document.querySelector('[data-mpr-view="axial"]'),
     surface: document.querySelector('[data-mpr-surface="axial"]'),
     canvas: document.getElementById("mprAxialCanvas"),
+    overlayCanvas: document.getElementById("mprAxialSegmentationCanvas"),
     index: document.getElementById("mprAxialIndex"),
     position: document.getElementById("mprAxialPosition"),
     wl: document.getElementById("mprAxialWl"),
@@ -169,6 +179,7 @@ const mprRegistry = new Map([
     view: document.querySelector('[data-mpr-view="coronal"]'),
     surface: document.querySelector('[data-mpr-surface="coronal"]'),
     canvas: document.getElementById("mprCoronalCanvas"),
+    overlayCanvas: document.getElementById("mprCoronalSegmentationCanvas"),
     index: document.getElementById("mprCoronalIndex"),
     position: document.getElementById("mprCoronalPosition"),
     wl: document.getElementById("mprCoronalWl"),
@@ -179,6 +190,7 @@ const mprRegistry = new Map([
     view: document.querySelector('[data-mpr-view="sagittal"]'),
     surface: document.querySelector('[data-mpr-surface="sagittal"]'),
     canvas: document.getElementById("mprSagittalCanvas"),
+    overlayCanvas: document.getElementById("mprSagittalSegmentationCanvas"),
     index: document.getElementById("mprSagittalIndex"),
     position: document.getElementById("mprSagittalPosition"),
     wl: document.getElementById("mprSagittalWl"),
@@ -214,6 +226,11 @@ const state = {
     window: 400,
     level: 40,
   },
+  segmentationOverlay: {
+    descriptor: null,
+    enabled: true,
+    opacity: 0.45,
+  },
   size: new THREE.Vector3(1, 1, 1),
   cameraPosition: new THREE.Vector3(),
   cameraTarget: new THREE.Vector3(),
@@ -225,6 +242,7 @@ let mprDescriptorPromise = null;
 let mprRenderGeneration = 0;
 let mprRenderTimer = null;
 let mprAbortController = null;
+let segmentationOverlayDescriptorPromise = null;
 let viewerRenderRequested = true;
 let lastRenderedTimestamp = null;
 
@@ -1175,6 +1193,7 @@ function setMprVolumeState(study) {
     entry.renderedPlaneDescriptor = null;
     entry.renderedPositionLpsMm = null;
     renderMprClippingOverlay(entry.surface, null);
+    clearSegmentationOverlay(entry.overlayCanvas);
   }
   clearPatientVolumeRendering();
   volumeTextureManager.dispose();
@@ -1189,6 +1208,7 @@ function setMprVolumeState(study) {
   }
   if (!ready) {
     state.mpr.descriptor = null;
+    setSegmentationOverlayAvailability(null);
     resetPatientClipping();
     for (const entry of mprRegistry.values()) {
       entry.index.textContent = "-- / --";
@@ -1418,6 +1438,122 @@ function drawGray8(entry, pixels, width, height, planeDescriptor) {
   configureMprSurface(entry, planeDescriptor);
 }
 
+function clearAllSegmentationOverlays() {
+  for (const entry of mprRegistry.values()) {
+    clearSegmentationOverlay(entry.overlayCanvas);
+  }
+}
+
+function setSegmentationOverlayAvailability(descriptor) {
+  const ready = Boolean(descriptor?.ready);
+  state.segmentationOverlay.descriptor = ready ? descriptor : null;
+  segmentationOverlayPanel.dataset.state = ready ? "ready" : "unavailable";
+  segmentationOverlayToggle.disabled = !ready;
+  segmentationOverlayOpacity.disabled = !ready;
+  if (ready) {
+    const labelCount = Number(descriptor.present_label_count) || 0;
+    const provider = descriptor.provider_id === "totalsegmentator"
+      ? "TotalSegmentator"
+      : String(descriptor.provider_id || "Segmentation");
+    segmentationOverlayStatus.textContent = `${provider} · ${labelCount} visible labels`;
+  } else {
+    segmentationOverlayStatus.textContent = "No canonical label map for this study.";
+    clearAllSegmentationOverlays();
+  }
+}
+
+async function refreshSegmentationOverlayDescriptor() {
+  if (!state.study?.study_id || !state.mpr.descriptor) {
+    setSegmentationOverlayAvailability(null);
+    return null;
+  }
+  if (segmentationOverlayDescriptorPromise) return segmentationOverlayDescriptorPromise;
+  segmentationOverlayDescriptorPromise = (async () => {
+    const response = await fetch("/api/studies/latest/segmentation-overlay", {
+      credentials: "same-origin",
+      headers: { "Accept": "application/json" },
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.detail || `Segmentation overlay initialization failed (${response.status})`);
+    }
+    const descriptor = payload.overlay;
+    if (!descriptor?.ready) {
+      setSegmentationOverlayAvailability(null);
+      return null;
+    }
+    if (descriptor.source_study_id !== state.study.study_id) {
+      throw new Error("Segmentation overlay study binding is invalid");
+    }
+    setSegmentationOverlayAvailability(descriptor);
+    return descriptor;
+  })();
+  try {
+    return await segmentationOverlayDescriptorPromise;
+  } catch (error) {
+    setSegmentationOverlayAvailability(null);
+    segmentationOverlayPanel.dataset.state = "error";
+    segmentationOverlayStatus.textContent = error instanceof Error
+      ? error.message
+      : "Segmentation overlay unavailable";
+    return null;
+  } finally {
+    segmentationOverlayDescriptorPromise = null;
+  }
+}
+
+async function renderSegmentationOverlayPlane(
+  plane,
+  index,
+  generation,
+  signal,
+  expectedWidth,
+  expectedHeight,
+) {
+  const descriptor = state.segmentationOverlay.descriptor;
+  const entry = mprRegistry.get(plane);
+  if (!entry) return;
+  if (!descriptor || !state.segmentationOverlay.enabled) {
+    clearSegmentationOverlay(entry.overlayCanvas);
+    return;
+  }
+  const params = new URLSearchParams({
+    index: String(index),
+    label_map_id: descriptor.label_map_id,
+  });
+  const response = await fetch(
+    `/api/studies/latest/segmentation-overlay/${plane}?${params}`,
+    {
+      credentials: "same-origin",
+      headers: { "Accept": "application/x-voxelatlas-rgba8" },
+      signal,
+    },
+  );
+  if (!response.ok) {
+    const detail = await response.json().catch(() => ({}));
+    throw new Error(detail.detail || `Segmentation overlay rendering failed (${response.status})`);
+  }
+  const width = Number(response.headers.get("X-VoxelAtlas-Width"));
+  const height = Number(response.headers.get("X-VoxelAtlas-Height"));
+  const labelMapId = response.headers.get("X-VoxelAtlas-Label-Map-Id");
+  const pixels = new Uint8Array(await response.arrayBuffer());
+  if (generation !== mprRenderGeneration) return;
+  if (
+    width !== expectedWidth
+    || height !== expectedHeight
+    || labelMapId !== descriptor.label_map_id
+  ) {
+    throw new Error("Segmentation overlay geometry binding is invalid");
+  }
+  drawSegmentationRgba(
+    entry.overlayCanvas,
+    pixels,
+    width,
+    height,
+    state.segmentationOverlay.opacity,
+  );
+}
+
 async function renderMprPlane(plane, generation, signal) {
   const descriptor = state.mpr.descriptor;
   const entry = mprRegistry.get(plane);
@@ -1449,6 +1585,23 @@ async function renderMprPlane(plane, generation, signal) {
   entry.renderedPlaneDescriptor = planeDescriptor;
   entry.renderedPositionLpsMm = position;
   drawGray8(entry, buffer, width, height, planeDescriptor);
+  try {
+    await renderSegmentationOverlayPlane(
+      plane,
+      index,
+      generation,
+      signal,
+      width,
+      height,
+    );
+  } catch (error) {
+    if (error?.name === "AbortError") throw error;
+    clearSegmentationOverlay(entry.overlayCanvas);
+    segmentationOverlayPanel.dataset.state = "error";
+    segmentationOverlayStatus.textContent = error instanceof Error
+      ? error.message
+      : "Segmentation overlay rendering failed";
+  }
   entry.panel.dataset.volumeState = "ready";
   entry.index.textContent = `${index + 1} / ${planeDescriptor.slice_count}`;
   entry.position.textContent = `${planeDescriptor.coordinate}: ${position.toFixed(2)} mm`;
@@ -1510,6 +1663,7 @@ async function ensureMprReady() {
     state.mpr.window = Number(payload.mpr.default_window.width);
     state.mpr.level = Number(payload.mpr.default_window.level);
     syncClippingControlsFromMpr();
+    await refreshSegmentationOverlayDescriptor();
     for (const entry of mprRegistry.values()) {
       entry.panel.dataset.volumeState = "loading";
       entry.message.textContent = "Rendering patient volume...";
@@ -1921,6 +2075,13 @@ function renderSeriesDialog(study) {
 }
 
 function applyStudy(study) {
+  const previousStudyId = state.study?.study_id || null;
+  const nextStudyId = study?.study_id || null;
+  if (previousStudyId !== nextStudyId) {
+    mprAbortController?.abort();
+    state.mpr.descriptor = null;
+    setSegmentationOverlayAvailability(null);
+  }
   state.study = study;
   setWorkflowForStudy(study);
   setMprVolumeState(study);
@@ -2156,6 +2317,27 @@ clippingResetButton.addEventListener("click", () => {
 });
 
 mprClippingOverlayToggle.addEventListener("change", updateMprClippingOverlays);
+
+segmentationOverlayToggle.addEventListener("change", () => {
+  state.segmentationOverlay.enabled = segmentationOverlayToggle.checked;
+  if (state.segmentationOverlay.enabled) {
+    scheduleMprRender();
+  } else {
+    clearAllSegmentationOverlays();
+  }
+});
+
+segmentationOverlayOpacity.addEventListener("input", () => {
+  state.segmentationOverlay.opacity = clamp(
+    Number(segmentationOverlayOpacity.value) / 100,
+    0,
+    1,
+  );
+  segmentationOverlayOpacityValue.textContent = `${Math.round(state.segmentationOverlay.opacity * 100)}%`;
+  for (const entry of mprRegistry.values()) {
+    entry.overlayCanvas.style.opacity = String(state.segmentationOverlay.opacity);
+  }
+});
 
 transferPresetSelect.addEventListener("change", () => {
   applyTransferPreset(transferPresetSelect.value);

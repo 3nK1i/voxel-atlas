@@ -2015,6 +2015,52 @@ button:disabled {
   background: #000;
 }
 
+.mpr-image-surface canvas.mpr-segmentation-overlay {
+  z-index: 1;
+  background: transparent;
+  pointer-events: none;
+}
+
+.mpr-image-surface canvas.mpr-segmentation-overlay[hidden] {
+  display: none;
+}
+
+.segmentation-overlay-panel[data-state="ready"] {
+  border-top-color: color-mix(in srgb, var(--accent) 46%, var(--line-soft));
+}
+
+.segmentation-overlay-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-soft);
+  font-size: var(--ui-readable-small, 8px);
+  font-weight: 740;
+  white-space: nowrap;
+}
+
+.segmentation-overlay-switch input,
+#segmentationOverlayOpacity {
+  accent-color: var(--accent);
+}
+
+#segmentationOverlayOpacity {
+  width: 100%;
+  margin: 0;
+}
+
+#segmentationOverlayOpacity:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.segmentation-overlay-note {
+  margin: 6px 0 0;
+  color: var(--muted-2);
+  font-size: var(--ui-readable-small, 8px);
+  line-height: 1.4;
+}
+
 .mpr-panel[data-volume-state="ready"] .mpr-empty > p {
   display: none;
 }

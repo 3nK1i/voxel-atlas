@@ -53,6 +53,10 @@ from .segmentation import (
     SegmentationValidationError,
 )
 from .segmentation_label_maps import SegmentationLabelMapService
+from .segmentation_overlays import (
+    OVERLAY_MEDIA_TYPE,
+    SegmentationOverlayService,
+)
 from .volume_rendering import (
     RENDERING_MEDIA_TYPE,
     VolumeRenderingDependencyUnavailable,
@@ -121,6 +125,7 @@ def create_app(
     sample_catalog_service: SampleStudyCatalogService | None = None,
     segmentation_service: SegmentationJobService | None = None,
     segmentation_label_map_service: SegmentationLabelMapService | None = None,
+    segmentation_overlay_service: SegmentationOverlayService | None = None,
 ) -> FastAPI:
     runtime_settings = load_settings() if settings is None else settings
     if (
@@ -183,6 +188,15 @@ def create_app(
             job_service=patient_segmentation_service,
         )
     )
+    patient_segmentation_overlay_service = (
+        segmentation_overlay_service
+        if segmentation_overlay_service is not None
+        else SegmentationOverlayService(
+            data_dir=runtime_settings.data_dir,
+            mpr_service=patient_mpr_service,
+            label_map_service=patient_segmentation_label_map_service,
+        )
+    )
 
     app = FastAPI(title="VoxelAtlas", docs_url=None, redoc_url=None)
     app.add_middleware(
@@ -199,6 +213,7 @@ def create_app(
     app.state.sample_catalog_service = patient_sample_catalog_service
     app.state.segmentation_service = patient_segmentation_service
     app.state.segmentation_label_map_service = patient_segmentation_label_map_service
+    app.state.segmentation_overlay_service = patient_segmentation_overlay_service
 
     app.mount("/assets", StaticFiles(directory=WEB_ROOT / "assets"), name="assets")
     app.mount("/css", StaticFiles(directory=WEB_ROOT / "css"), name="css")
@@ -785,6 +800,66 @@ def create_app(
         except SegmentationError as exc:
             raise_segmentation_http_error(exc)
         return {"label_map": label_map}
+
+    @app.get("/api/studies/latest/segmentation-overlay")
+    def latest_segmentation_overlay_descriptor(
+        response: Response,
+        label_map_id: str | None = Query(
+            default=None,
+            min_length=36,
+            max_length=36,
+            pattern=r"^map-[0-9a-f]{32}$",
+        ),
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        current_service: SegmentationOverlayService = (
+            app.state.segmentation_overlay_service
+        )
+        try:
+            overlay = current_service.descriptor_latest(label_map_id=label_map_id)
+        except SegmentationError as exc:
+            raise_segmentation_http_error(exc)
+        return {"overlay": overlay}
+
+    @app.get("/api/studies/latest/segmentation-overlay/{plane}")
+    def latest_segmentation_overlay_plane(
+        plane: str,
+        index: int = Query(ge=0),
+        label_map_id: str | None = Query(
+            default=None,
+            min_length=36,
+            max_length=36,
+            pattern=r"^map-[0-9a-f]{32}$",
+        ),
+        username: str = Depends(require_username),
+    ) -> Response:
+        del username
+        current_service: SegmentationOverlayService = (
+            app.state.segmentation_overlay_service
+        )
+        try:
+            image = current_service.render_latest(
+                plane,
+                index=index,
+                label_map_id=label_map_id,
+            )
+        except SegmentationError as exc:
+            raise_segmentation_http_error(exc)
+        return Response(
+            content=image.pixels,
+            media_type=OVERLAY_MEDIA_TYPE,
+            headers={
+                "Cache-Control": "no-store",
+                "X-VoxelAtlas-Plane": image.plane,
+                "X-VoxelAtlas-Index": str(image.index),
+                "X-VoxelAtlas-Position-Mm": f"{image.position_mm:.6f}",
+                "X-VoxelAtlas-Width": str(image.width),
+                "X-VoxelAtlas-Height": str(image.height),
+                "X-VoxelAtlas-Label-Map-Id": image.label_map_id,
+            },
+        )
 
     @app.get("/api/protected/ping")
     def protected_ping(username: str = Depends(require_username)) -> dict[str, object]:

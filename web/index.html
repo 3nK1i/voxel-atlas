@@ -26,7 +26,7 @@
     })();
   </script>
 
-  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4h6-r1">
+  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4h6-r1-phase5d-r1">
 
   <script type="importmap">
   {
@@ -297,6 +297,7 @@
             <div class="mpr-empty mpr-view" data-mpr-view="axial" title="Left drag: crosshair - Wheel: slice - Right drag: window/level">
               <div class="mpr-image-surface" data-mpr-surface="axial">
                 <canvas id="mprAxialCanvas" aria-label="Axial patient volume slice"></canvas>
+                <canvas id="mprAxialSegmentationCanvas" class="mpr-segmentation-overlay" aria-label="Axial segmentation overlay" hidden></canvas>
                 <div class="mpr-crosshair" aria-hidden="true"></div>
                 <span class="orientation-label orientation-left">R</span>
                 <span class="orientation-label orientation-right">L</span>
@@ -323,6 +324,7 @@
             <div class="mpr-empty mpr-view" data-mpr-view="coronal" title="Left drag: crosshair - Wheel: slice - Right drag: window/level">
               <div class="mpr-image-surface" data-mpr-surface="coronal">
                 <canvas id="mprCoronalCanvas" aria-label="Coronal patient volume slice"></canvas>
+                <canvas id="mprCoronalSegmentationCanvas" class="mpr-segmentation-overlay" aria-label="Coronal segmentation overlay" hidden></canvas>
                 <div class="mpr-crosshair" aria-hidden="true"></div>
                 <span class="orientation-label orientation-left">R</span>
                 <span class="orientation-label orientation-right">L</span>
@@ -349,6 +351,7 @@
             <div class="mpr-empty mpr-view" data-mpr-view="sagittal" title="Left drag: crosshair - Wheel: slice - Right drag: window/level">
               <div class="mpr-image-surface" data-mpr-surface="sagittal">
                 <canvas id="mprSagittalCanvas" aria-label="Sagittal patient volume slice"></canvas>
+                <canvas id="mprSagittalSegmentationCanvas" class="mpr-segmentation-overlay" aria-label="Sagittal segmentation overlay" hidden></canvas>
                 <div class="mpr-crosshair" aria-hidden="true"></div>
                 <span class="orientation-label orientation-left">A</span>
                 <span class="orientation-label orientation-right">P</span>
@@ -371,6 +374,33 @@
 
       <aside class="right-panel panel" aria-label="3D patient volume controls">
         <div class="panel-scroll">
+          <section id="segmentationOverlayPanel" class="control-section segmentation-overlay-panel" data-state="unavailable">
+            <div class="control-heading compact-heading">
+              <div>
+                <div class="section-kicker">Segmentation Overlay</div>
+                <p id="segmentationOverlayStatus">No canonical label map for this study.</p>
+              </div>
+              <label class="segmentation-overlay-switch">
+                <input id="segmentationOverlayToggle" type="checkbox" checked disabled>
+                <span>Show</span>
+              </label>
+            </div>
+            <label class="slider-label" for="segmentationOverlayOpacity">
+              Overlay opacity
+              <strong id="segmentationOverlayOpacityValue">45%</strong>
+            </label>
+            <input
+              id="segmentationOverlayOpacity"
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value="45"
+              disabled
+            >
+            <p class="segmentation-overlay-note">Patient-LPS label map · nearest-neighbor display · non-clinical visualization</p>
+          </section>
+
           <section id="directionalCutPanel" class="control-section" data-clipping-state="unavailable">
             <div class="control-heading">
               <div>
@@ -858,6 +888,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h6-r1"></script>
+  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h6-r1-phase5d-r1"></script>
 </body>
 </html>
