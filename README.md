@@ -6,7 +6,7 @@ VoxelAtlas is currently an engineering/research application. It is not a certifi
 
 ## Current status
 
-The accepted foundation includes FastAPI authentication with Argon2id password verification, opaque server-side sessions, the responsive VoxelAtlas login UI, a deployed production service, the Phase 2B final V1 workspace shell, the Phase 3A DICOM study-ingestion foundation, the Phase 3A-R2 clinical viewer polish, Phase 3B DICOM geometry/reconstruction-readiness qualification, Phase 3C canonical patient-volume construction, and Phase 3D-R2.1 real synchronized MPR integration with final professional presentation, image-registered crosshairs, and harmonized clinical action/selection states. Phase 4A defines a reusable patient-specific reconstruction boundary. Phase 4B adds the immutable source-to-GPU volume contract and bounded derived RG8 representation. Phase 4C1 verifies and initializes the authenticated 3D texture. Phase 4C2 ray marches that texture directly so Full Volume presents the actual uploaded patient voxels with physical proportions and patient orientation preserved. Phase 4D1 removes the legacy demo-surface runtime and locks Full Volume as the only V1 3D representation. Phase 4D2 adds medical color and opacity transfer functions with calibrated CT HU presets and truthful relative-intensity MR presets. Phase 4E adds simultaneous Patient LPS clipping, Phase 4F adapts rendering quality between interaction and rest, Phase 4G adds a provenance-first catalog for administrator-installed public demonstration studies, and Phase 4H adds professional medical display, volume-definition, projection, slice/slab, MPR clipping visualization, dual-sided six-plane clipping, and a non-crossing dual intensity range. Phase 4 volume rendering is engineering-qualified and accepted in production at release `ff1b77727dc9b8efc1ba7a66d74861cffddcc5b9`. Phase 5A adds the provider-neutral segmentation control plane and durable job lifecycle. Phase 5B1 qualifies an isolated TotalSegmentator 2.18.0 CUDA runtime, Phase 5B2 qualifies supervised full-resolution CT execution, Phase 5C imports immutable canonical Patient-LPS label maps, Phase 5D presents those labels as synchronized colored overlays in all three MPR views, and Phase 5E adds named, grouped per-structure presentation controls.
+The accepted foundation includes FastAPI authentication with Argon2id password verification, opaque server-side sessions, the responsive VoxelAtlas login UI, a deployed production service, the Phase 2B final V1 workspace shell, the Phase 3A DICOM study-ingestion foundation, the Phase 3A-R2 clinical viewer polish, Phase 3B DICOM geometry/reconstruction-readiness qualification, Phase 3C canonical patient-volume construction, and Phase 3D-R2.1 real synchronized MPR integration with final professional presentation, image-registered crosshairs, and harmonized clinical action/selection states. Phase 4A defines a reusable patient-specific reconstruction boundary. Phase 4B adds the immutable source-to-GPU volume contract and bounded derived RG8 representation. Phase 4C1 verifies and initializes the authenticated 3D texture. Phase 4C2 ray marches that texture directly so Full Volume presents the actual uploaded patient voxels with physical proportions and patient orientation preserved. Phase 4D1 removes the legacy demo-surface runtime and locks the patient voxel volume as the V1 rendering foundation. Phase 4D2 adds medical color and opacity transfer functions with calibrated CT HU presets and truthful relative-intensity MR presets. Phase 4E adds simultaneous Patient LPS clipping, Phase 4F adapts rendering quality between interaction and rest, Phase 4G adds a provenance-first catalog for administrator-installed public demonstration studies, and Phase 4H adds professional medical display, volume-definition, projection, slice/slab, MPR clipping visualization, dual-sided six-plane clipping, and a non-crossing dual intensity range. Phase 4 volume rendering is engineering-qualified and accepted in production at release `ff1b77727dc9b8efc1ba7a66d74861cffddcc5b9`. Phase 5A adds the provider-neutral segmentation control plane and durable job lifecycle. Phase 5B1 qualifies an isolated TotalSegmentator 2.18.0 CUDA runtime, Phase 5B2 qualifies supervised full-resolution CT execution, Phase 5C imports immutable canonical Patient-LPS label maps, Phase 5D presents those labels as synchronized colored overlays in all three MPR views, Phase 5E adds named grouped per-structure presentation controls, Phase 5F1 adds bounded segmentation-derived 3D preview surfaces, and Phase 5F2 adds reversible correction-review drafts plus stable live sample switching. Phase 5G closes Phase 5 with real-study provenance, geometry, three-plane overlay, surface, quality, performance, and model-comparison-boundary qualification.
 
 ## Locked V1 workspace
 
@@ -27,7 +27,7 @@ The workspace is intentionally focused on medical imaging and anatomical inspect
 - anatomy opacity with direct 0-100% semantics (100% fully opaque)
 - synchronized anatomical orientation gizmo with transparent styling and axis arrows
 - reset and auto-rotate actions
-- one truthful anatomical layer: **Full Volume**
+- one truthful patient voxel-volume rendering foundation
 - medical transfer presets with adjustable intensity range, absorption, opacity softness, edge definition, and depth shading
 - Volume / DVR, MIP, MinIP, and Average Intensity modes over the same verified patient voxels
 - one focused sample-study gallery for approved public, deidentified CT/MR demonstrations
@@ -70,6 +70,10 @@ bash scripts/run_phase5b1_checks.sh
 bash scripts/run_phase5b2_checks.sh
 bash scripts/run_phase5c_checks.sh
 bash scripts/run_phase5d_checks.sh
+bash scripts/run_phase5e_checks.sh
+bash scripts/run_phase5f1_checks.sh
+bash scripts/run_phase5f2_checks.sh
+bash scripts/run_phase5g_checks.sh
 ```
 
 ## Locked V1 roadmap
@@ -81,7 +85,7 @@ bash scripts/run_phase5d_checks.sh
 5. true GPU ray marching of the actual uploaded CT/MRI voxel volume - complete through Phase 4C2
 6. medical transfer functions, clipping, adaptive performance, curated demonstrations, professional display controls, medical projection modes, patient-space slices/slabs, dual-sided six-plane clipping, MPR overlays, and rendering qualification - Phase 4 complete
 7. provider-neutral segmentation architecture and lifecycle - Phase 5A complete
-8. qualified CT segmentation, canonical Patient LPS labels, overlays, structure controls, and initial derived surfaces - Phases 5B-5G
+8. qualified CT segmentation, canonical Patient LPS labels, overlays, structure controls, initial derived surfaces, reversible review drafts, and real-study closure qualification - Phase 5 complete
 9. production-grade surface fidelity, hybrid visualization, export, and qualification - Phase 6
 10. production security and V1 qualification
 

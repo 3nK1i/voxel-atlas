@@ -26,7 +26,7 @@
     })();
   </script>
 
-  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4h6-r1-phase5f2-r1">
+  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1">
 
   <script type="importmap">
   {
@@ -54,17 +54,6 @@
           </span>
         </a>
 
-        <button
-          id="themeToggle"
-          class="theme-toggle"
-          type="button"
-          aria-label="Switch to light mode"
-          aria-pressed="false"
-        >
-          <span class="theme-icon theme-icon-sun" aria-hidden="true">☀</span>
-          <span class="theme-track" aria-hidden="true"><span class="theme-thumb"></span></span>
-          <span class="theme-icon theme-icon-moon" aria-hidden="true">☾</span>
-        </button>
       </div>
 
       <nav class="workflow" aria-label="VoxelAtlas workflow">
@@ -98,6 +87,22 @@
       </nav>
 
       <div class="account-zone">
+        <button
+          id="themeToggle"
+          class="theme-toggle"
+          type="button"
+          title="Switch to light mode"
+          aria-label="Switch to light mode"
+          aria-pressed="false"
+        >
+          <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="3.5"></circle>
+            <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42"></path>
+          </svg>
+          <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M20.4 15.2A8.5 8.5 0 0 1 8.8 3.6 8.5 8.5 0 1 0 20.4 15.2Z"></path>
+          </svg>
+        </button>
         <div class="account" aria-label="Authenticated account">
           <span class="account-avatar" aria-hidden="true">VA</span>
           <span id="accountName" class="account-name">Authenticated user</span>
@@ -547,16 +552,6 @@
             <button id="clippingResetButton" class="transfer-reset-button" type="button" disabled>Reset clipping</button>
           </section>
 
-          <section id="anatomicalLayersPanel" class="control-section">
-            <div class="section-kicker">Anatomical Layers</div>
-            <div class="layer-grid volume-only-layer-grid" role="group" aria-label="Anatomical layers">
-              <button id="volumeLayerButton" type="button" class="layer-button is-active" data-layer="volume" disabled aria-pressed="true">Full Volume</button>
-            </div>
-            <p id="anatomyNote" class="anatomy-note">
-              Upload a CT or MRI DICOM study to visualize its voxel volume in 3D.
-            </p>
-          </section>
-
           <section id="volumeRenderingPanel" class="control-section" data-state="unavailable">
             <div class="control-heading compact-heading">
               <div class="section-kicker">Volume Rendering</div>
@@ -968,6 +963,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h6-r1-phase5f2-r2"></script>
+  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1"></script>
 </body>
 </html>

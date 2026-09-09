@@ -47,8 +47,6 @@ const viewerStage = document.getElementById("viewerStage");
 const modelStatus = document.getElementById("modelStatus");
 const statusText = document.getElementById("statusText");
 const modelChip = document.getElementById("modelChip");
-const volumeLayerButton = document.getElementById("volumeLayerButton");
-const anatomyNote = document.getElementById("anatomyNote");
 const directionalCutPanel = document.getElementById("directionalCutPanel");
 const clippingResetButton = document.getElementById("clippingResetButton");
 const mprClippingOverlayToggle = document.getElementById("mprClippingOverlayToggle");
@@ -697,11 +695,6 @@ function setMedicalRenderingMode(modeId = renderingModeSelect.value) {
   setSliceRenderingControlsEnabled(mode.usesPlaneControls, mode);
   if (mode.usesPlaneControls) syncSliceRenderingControlsFromMpr();
   modelChip.textContent = `Patient scan - ${mode.label}`;
-  anatomyNote.textContent = mode.usesPlaneControls
-    ? "True patient voxel volume active. Medical plane uses the synchronized Patient LPS crosshair."
-    : mode.usesDvrControls
-      ? "True patient voxel volume active. DVR compositing controls are ready."
-      : "True patient voxel volume active. Projection uses the current Patient LPS clipping volume.";
   requestViewerRender();
   return mode;
 }
@@ -824,9 +817,6 @@ function applyTransferAdjustments(changedControl = null) {
 
 function setVolumeAvailability(available) {
   volumeLayer.available = Boolean(available);
-  volumeLayerButton.disabled = !volumeLayer.available;
-  volumeLayerButton.classList.add("is-active");
-  volumeLayerButton.setAttribute("aria-pressed", "true");
   modelChip.textContent = "Patient scan - Full Volume";
   const mode = volumeRayMarcher.current?.renderingModeState.current;
   if (mode) modelChip.textContent = `Patient scan - ${mode.label}`;
@@ -1154,7 +1144,6 @@ async function activatePatientVolumeRendering(textureResource, task) {
   if (box) fitCamera(box);
   requestViewerRender();
   setStatus("ready", "Patient volume rendering ready");
-  anatomyNote.textContent = "True patient voxel volume active. Medical transfer controls are ready.";
   setWorkflowStep(workflowVisualization, "complete");
   volumeStatusRow.dataset.state = "ready";
   volumeStatusText.textContent = "Patient volume rendered";
@@ -1199,6 +1188,10 @@ function applyTheme(theme, persist = false) {
   themeToggle.setAttribute("aria-pressed", normalized === "light" ? "true" : "false");
   themeToggle.setAttribute(
     "aria-label",
+    normalized === "light" ? "Switch to dark mode" : "Switch to light mode",
+  );
+  themeToggle.setAttribute(
+    "title",
     normalized === "light" ? "Switch to dark mode" : "Switch to light mode",
   );
   if (themeColorMeta) {
@@ -1305,14 +1298,13 @@ async function ensureVolumeRenderingFoundation() {
     state.volumeRendering.capabilities,
   );
   if (!deviceQualification.ready) {
-    anatomyNote.textContent = `${deviceQualification.reason}. Synchronized MPR remains available.`;
-    setStatus("error", "Patient volume rendering unavailable");
+    setStatus("error", `${deviceQualification.reason}. Synchronized MPR remains available.`);
     return null;
   }
 
   const task = { promise: null };
   task.promise = (async () => {
-    anatomyNote.textContent = "Preparing patient volume for GPU rendering...";
+    setStatus("loading", "Preparing patient volume...");
     const response = await fetch("/api/studies/latest/volume-rendering", {
       method: "POST",
       credentials: "same-origin",
@@ -1333,19 +1325,18 @@ async function ensureVolumeRenderingFoundation() {
       state.volumeRendering.capabilities,
     );
     if (!qualification.ready) throw new Error(qualification.reason);
-    anatomyNote.textContent = "Downloading and verifying the patient volume texture...";
+    setStatus("loading", "Loading verified patient volume...");
     const textureResource = await volumeTextureManager.load(descriptor);
     if (volumeRenderingTask !== task) {
       throw new DOMException("Patient volume texture load was superseded", "AbortError");
     }
-    anatomyNote.textContent = "Compiling the true patient-volume ray marcher...";
+    setStatus("loading", "Preparing GPU volume rendering...");
     await activatePatientVolumeRendering(textureResource, task);
     if (volumeRenderingTask !== task) {
       throw new DOMException("Patient volume rendering was superseded", "AbortError");
     }
     state.volumeRendering.descriptor = descriptor;
     state.volumeRendering.textureResource = textureResource;
-    anatomyNote.textContent = "True patient voxel volume active. Medical transfer controls are ready.";
     return descriptor;
   })();
   volumeRenderingTask = task;
@@ -1358,10 +1349,12 @@ async function ensureVolumeRenderingFoundation() {
       volumeTextureManager.dispose();
       state.volumeRendering.descriptor = null;
       state.volumeRendering.textureResource = null;
-      anatomyNote.textContent = error instanceof Error
-        ? `${error.message}. Synchronized MPR remains available.`
-        : "3D volume preparation failed. Synchronized MPR remains available.";
-      setStatus("error", "Patient volume rendering unavailable");
+      setStatus(
+        "error",
+        error instanceof Error
+          ? `${error.message}. Synchronized MPR remains available.`
+          : "3D volume preparation failed. Synchronized MPR remains available.",
+      );
     }
     return null;
   } finally {
@@ -2296,7 +2289,6 @@ function applyStudy(study) {
     seriesButton.disabled = true;
     seriesButtonLabel.textContent = "DICOM series unavailable";
     uploadDicomLabel.textContent = "Upload DICOM";
-    anatomyNote.textContent = "Upload a CT or MRI DICOM study to visualize its voxel volume in 3D.";
     setVolumeAvailability(false);
     return;
   }
@@ -2325,10 +2317,7 @@ function applyStudy(study) {
     : "-";
   seriesButton.disabled = false;
   seriesButtonLabel.textContent = `${study.series_count} DICOM series discovered`;
-  uploadDicomLabel.textContent = "Replace DICOM Study";
-  anatomyNote.textContent = study.volume_ready
-    ? "Patient volume and synchronized MPR are available. Preparing direct 3D volume rendering."
-    : "Canonical patient volume construction is required before direct 3D rendering.";
+  uploadDicomLabel.textContent = "Upload DICOM";
   renderSeriesDialog(study);
   setVolumeAvailability(volumeLayer.available);
 }
@@ -2420,7 +2409,7 @@ async function uploadDicomFiles(files) {
 
   uploadDicomButton.disabled = true;
   uploadDicomButton.dataset.state = "uploading";
-  uploadDicomLabel.textContent = `Uploading ${files.length} file${files.length === 1 ? "" : "s"}...`;
+  uploadDicomLabel.textContent = "Upload DICOM";
   setUploadStatus("uploading", "Validating DICOM headers and grouping Study/Series metadata...");
 
   try {
@@ -2449,8 +2438,8 @@ async function uploadDicomFiles(files) {
     }
   } catch (error) {
     setUploadStatus("error", error instanceof Error ? error.message : "DICOM upload failed");
-    uploadDicomLabel.textContent = state.study ? "Replace DICOM Study" : "Upload DICOM";
   } finally {
+    uploadDicomLabel.textContent = "Upload DICOM";
     uploadDicomButton.disabled = false;
     uploadDicomButton.dataset.state = "idle";
     dicomFileInput.value = "";
