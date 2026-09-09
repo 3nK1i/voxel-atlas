@@ -57,6 +57,10 @@ from .segmentation_overlays import (
     OVERLAY_MEDIA_TYPE,
     SegmentationOverlayService,
 )
+from .segmentation_surfaces import (
+    SURFACE_MEDIA_TYPE,
+    SegmentationSurfaceService,
+)
 from .volume_rendering import (
     RENDERING_MEDIA_TYPE,
     VolumeRenderingDependencyUnavailable,
@@ -126,6 +130,7 @@ def create_app(
     segmentation_service: SegmentationJobService | None = None,
     segmentation_label_map_service: SegmentationLabelMapService | None = None,
     segmentation_overlay_service: SegmentationOverlayService | None = None,
+    segmentation_surface_service: SegmentationSurfaceService | None = None,
 ) -> FastAPI:
     runtime_settings = load_settings() if settings is None else settings
     if (
@@ -197,6 +202,14 @@ def create_app(
             label_map_service=patient_segmentation_label_map_service,
         )
     )
+    patient_segmentation_surface_service = (
+        segmentation_surface_service
+        if segmentation_surface_service is not None
+        else SegmentationSurfaceService(
+            data_dir=runtime_settings.data_dir,
+            label_map_service=patient_segmentation_label_map_service,
+        )
+    )
 
     app = FastAPI(title="VoxelAtlas", docs_url=None, redoc_url=None)
     app.add_middleware(
@@ -214,6 +227,7 @@ def create_app(
     app.state.segmentation_service = patient_segmentation_service
     app.state.segmentation_label_map_service = patient_segmentation_label_map_service
     app.state.segmentation_overlay_service = patient_segmentation_overlay_service
+    app.state.segmentation_surface_service = patient_segmentation_surface_service
 
     app.mount("/assets", StaticFiles(directory=WEB_ROOT / "assets"), name="assets")
     app.mount("/css", StaticFiles(directory=WEB_ROOT / "css"), name="css")
@@ -858,6 +872,70 @@ def create_app(
                 "X-VoxelAtlas-Width": str(image.width),
                 "X-VoxelAtlas-Height": str(image.height),
                 "X-VoxelAtlas-Label-Map-Id": image.label_map_id,
+            },
+        )
+
+    @app.get("/api/studies/latest/segmentation-surfaces")
+    def latest_segmentation_surface_descriptor(
+        response: Response,
+        label_map_id: str | None = Query(
+            default=None,
+            min_length=36,
+            max_length=36,
+            pattern=r"^map-[0-9a-f]{32}$",
+        ),
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        current_service: SegmentationSurfaceService = (
+            app.state.segmentation_surface_service
+        )
+        try:
+            surface = current_service.descriptor_latest(label_map_id=label_map_id)
+        except SegmentationError as exc:
+            raise_segmentation_http_error(exc)
+        return {"surface": surface}
+
+    @app.get("/api/studies/latest/segmentation-surfaces/{label_id}")
+    def latest_segmentation_surface(
+        label_id: int,
+        label_map_id: str = Query(
+            min_length=36,
+            max_length=36,
+            pattern=r"^map-[0-9a-f]{32}$",
+        ),
+        quality: str = Query(default="preview", pattern=r"^(preview|balanced)$"),
+        username: str = Depends(require_username),
+    ) -> Response:
+        del username
+        current_service: SegmentationSurfaceService = (
+            app.state.segmentation_surface_service
+        )
+        try:
+            surface = current_service.surface_latest(
+                label_id=label_id,
+                label_map_id=label_map_id,
+                quality=quality,
+            )
+        except SegmentationError as exc:
+            raise_segmentation_http_error(exc)
+        bounds = ",".join(f"{value:.6f}" for value in surface.bounds_lps_mm)
+        return Response(
+            content=surface.payload,
+            media_type=SURFACE_MEDIA_TYPE,
+            headers={
+                "Cache-Control": "no-store",
+                "X-Content-Type-Options": "nosniff",
+                "X-VoxelAtlas-Label-Map-Id": surface.label_map_id,
+                "X-VoxelAtlas-Label-Id": str(surface.label_id),
+                "X-VoxelAtlas-Surface-Quality": surface.quality,
+                "X-VoxelAtlas-Surface-Extraction": surface.extraction,
+                "X-VoxelAtlas-Surface-SHA256": surface.payload_sha256,
+                "X-VoxelAtlas-Surface-Vertices": str(surface.vertex_count),
+                "X-VoxelAtlas-Surface-Triangles": str(surface.triangle_count),
+                "X-VoxelAtlas-Surface-Stride": str(surface.stride),
+                "X-VoxelAtlas-Surface-Bounds-LPS-Mm": bounds,
             },
         )
 

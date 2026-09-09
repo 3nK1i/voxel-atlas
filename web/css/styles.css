@@ -2029,6 +2029,24 @@ button:disabled {
   border-top-color: color-mix(in srgb, var(--accent) 46%, var(--line-soft));
 }
 
+.segmentation-surface-panel[data-state="ready"],
+.segmentation-surface-panel[data-state="qualified"] {
+  border-color: color-mix(in srgb, var(--success) 38%, var(--line));
+}
+
+.segmentation-surface-panel[data-state="loading"] {
+  border-color: color-mix(in srgb, var(--accent) 46%, var(--line));
+}
+
+.segmentation-surface-panel[data-state="error"] #segmentationSurfaceStatus {
+  color: var(--danger);
+}
+
+.segmentation-surface-panel .control-heading p {
+  max-width: 210px;
+  overflow-wrap: anywhere;
+}
+
 .segmentation-overlay-switch {
   display: inline-flex;
   align-items: center;

@@ -287,3 +287,19 @@ locally across all three synchronized MPR canvases. Interactions do not refetch
 patient images or modify the canonical label map. Segmentation-derived 3D
 surfaces remain Phase 5F1. See the
 [Phase 5E architecture record](docs/phase_history/PHASE5E_ANATOMICAL_STRUCTURE_PANEL.md).
+
+### Phase 5F1 - Segmentation-derived 3D surfaces
+
+Phase 5F1 adds the first segmentation-derived geometry to the actual 3D
+workspace. The backend extracts a deterministic, budget-bounded exposed-boundary
+triangle mesh for the selected nonzero label and transports float32 vertices in
+Patient LPS millimetres with uint32 indices, explicit geometry headers, and a
+SHA-256 seal. Requests remain authenticated, study-bound, no-store, and isolated
+from the TotalSegmentator runtime.
+
+The browser verifies the binary payload before creating a Three.js surface in
+the same normalized patient frame as the true CT volume. Phase 5E selection,
+visibility, isolation, color, and opacity control both the synchronized MPR
+overlay and the selected 3D surface. Phase 5F1 deliberately leaves smoothing,
+topology repair, decimation, multi-surface residency, and export to Phase 6.
+See the [Phase 5F1 architecture record](docs/phase_history/PHASE5F1_SEGMENTATION_DERIVED_3D_SURFACES.md).

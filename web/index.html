@@ -401,6 +401,20 @@
             <p class="segmentation-overlay-note">Patient-LPS label map · nearest-neighbor display · non-clinical visualization</p>
           </section>
 
+          <section id="segmentationSurfacePanel" class="control-section segmentation-surface-panel" data-state="unavailable">
+            <div class="control-heading compact-heading">
+              <div>
+                <div class="section-kicker">3D Segmentation Surface</div>
+                <p id="segmentationSurfaceStatus">No 3D segmentation surface available.</p>
+              </div>
+              <label class="segmentation-overlay-switch">
+                <input id="segmentationSurfaceToggle" type="checkbox" checked disabled>
+                <span>Show</span>
+              </label>
+            </div>
+            <p class="segmentation-overlay-note">Selected structure · Patient LPS preview mesh · combined with the patient volume</p>
+          </section>
+
           <section id="segmentationStructurePanel" class="control-section segmentation-structure-panel" data-state="unavailable" aria-labelledby="segmentationStructureTitle">
             <div class="control-heading compact-heading">
               <div>
@@ -435,7 +449,7 @@
               </label>
               <input id="segmentationStructureOpacity" type="range" min="0" max="100" step="1" value="100" disabled>
             </div>
-            <p class="segmentation-overlay-note">Presentation controls affect synchronized MPR overlays only. Source labels remain immutable.</p>
+            <p class="segmentation-overlay-note">Presentation controls affect synchronized MPR overlays and the selected 3D surface. Source labels remain immutable.</p>
           </section>
 
           <section id="directionalCutPanel" class="control-section" data-clipping-state="unavailable">
@@ -925,6 +939,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h6-r1-phase5e-r1"></script>
+  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h6-r1-phase5f1-r1"></script>
 </body>
 </html>

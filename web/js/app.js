@@ -27,6 +27,9 @@ import {
 import {
   SegmentationStructurePanel,
 } from "./segmentation-structure-panel.js?v=phase5e-r1";
+import {
+  PatientSegmentationSurfaceLayer,
+} from "./segmentation-surface-viewer.js?v=phase5f1-r1";
 
 const THEME_KEY = "voxelatlas-theme";
 const DEFAULT_OPACITY = 1.0;
@@ -48,6 +51,9 @@ const segmentationOverlayStatus = document.getElementById("segmentationOverlaySt
 const segmentationOverlayToggle = document.getElementById("segmentationOverlayToggle");
 const segmentationOverlayOpacity = document.getElementById("segmentationOverlayOpacity");
 const segmentationOverlayOpacityValue = document.getElementById("segmentationOverlayOpacityValue");
+const segmentationSurfacePanel = document.getElementById("segmentationSurfacePanel");
+const segmentationSurfaceToggle = document.getElementById("segmentationSurfaceToggle");
+const segmentationSurfaceStatus = document.getElementById("segmentationSurfaceStatus");
 const segmentationStructurePanelRoot = document.getElementById("segmentationStructurePanel");
 const CLIPPING_PLANES = Object.freeze({
   axial: Object.freeze({ axis: "z", axisIndex: 2, coordinate: "Z", startLabel: "Inferior", endLabel: "Superior", reversed: false }),
@@ -238,6 +244,10 @@ const state = {
     opacity: 0.45,
     presentation: null,
   },
+  segmentationSurface: {
+    descriptor: null,
+    enabled: true,
+  },
   size: new THREE.Vector3(1, 1, 1),
   cameraPosition: new THREE.Vector3(),
   cameraTarget: new THREE.Vector3(),
@@ -250,6 +260,8 @@ let mprRenderGeneration = 0;
 let mprRenderTimer = null;
 let mprAbortController = null;
 let segmentationOverlayDescriptorPromise = null;
+let segmentationSurfaceDescriptorPromise = null;
+let segmentationSurfaceLayer = null;
 let viewerRenderRequested = true;
 let lastRenderedTimestamp = null;
 
@@ -258,6 +270,7 @@ const segmentationStructurePanel = new SegmentationStructurePanel(
   (presentation) => {
     state.segmentationOverlay.presentation = presentation;
     redrawSegmentationOverlays();
+    syncSegmentationSurface();
   },
 );
 segmentationStructurePanel.clear();
@@ -269,6 +282,10 @@ function requestViewerRender() {
 const scene = new THREE.Scene();
 const anatomyGroup = new THREE.Group();
 scene.add(anatomyGroup);
+scene.add(new THREE.HemisphereLight(0xd8efff, 0x182332, 1.35));
+const segmentationSurfaceLight = new THREE.DirectionalLight(0xffffff, 1.15);
+segmentationSurfaceLight.position.set(2.4, 3.2, 4.5);
+scene.add(segmentationSurfaceLight);
 
 const camera = new THREE.PerspectiveCamera(29, 1, 0.005, 40);
 const renderer = new THREE.WebGLRenderer({
@@ -309,6 +326,16 @@ const volumeTextureManager = new PatientVolumeTextureManager({
   initializeTexture: (texture) => renderer.initTexture(texture),
 });
 const volumeRayMarcher = new PatientVolumeRayMarcher({ three: THREE });
+segmentationSurfaceLayer = new PatientSegmentationSurfaceLayer({
+  three: THREE,
+  parent: anatomyGroup,
+  requestRender: requestViewerRender,
+  readVolumePresentation: () => volumeRayMarcher.current?.presentation || null,
+  onStatusChange: ({ state: surfaceState, message }) => {
+    segmentationSurfacePanel.dataset.state = surfaceState;
+    segmentationSurfaceStatus.textContent = message;
+  },
+});
 const sampleStudyCatalogClient = new SampleStudyCatalogClient();
 let sampleReplacementResolver = null;
 let sampleCatalogLoading = false;
@@ -1051,6 +1078,7 @@ function clearPatientVolumeRendering() {
   volumeRenderingQuality.deactivate();
   volumeRayMarcher.dispose();
   volumeLayer.root = null;
+  setSegmentationSurfaceAvailability(null);
   clearTransferControls();
   setVolumeAvailability(false);
   applyVolumeVisibility();
@@ -1098,6 +1126,7 @@ async function activatePatientVolumeRendering(textureResource, task) {
   setWorkflowStep(workflowVisualization, "complete");
   volumeStatusRow.dataset.state = "ready";
   volumeStatusText.textContent = "Patient volume rendered";
+  void syncSegmentationSurface();
   return volumeResource;
 }
 
@@ -1479,6 +1508,76 @@ function redrawSegmentationOverlays() {
   }
 }
 
+function setSegmentationSurfaceAvailability(descriptor) {
+  const ready = Boolean(descriptor?.ready);
+  state.segmentationSurface.descriptor = ready ? descriptor : null;
+  segmentationSurfaceToggle.disabled = !ready;
+  segmentationSurfacePanel.dataset.state = ready ? "ready" : "unavailable";
+  if (ready) {
+    segmentationSurfaceLayer.setDescriptor(descriptor);
+    segmentationSurfaceLayer.setEnabled(state.segmentationSurface.enabled);
+  } else {
+    segmentationSurfaceLayer.clear();
+  }
+}
+
+async function syncSegmentationSurface() {
+  if (!state.segmentationSurface.descriptor || !volumeRayMarcher.current) return null;
+  try {
+    return await segmentationSurfaceLayer.sync(state.segmentationOverlay.presentation);
+  } catch (error) {
+    segmentationSurfacePanel.dataset.state = "error";
+    segmentationSurfaceStatus.textContent = error instanceof Error
+      ? error.message
+      : "Segmentation surface unavailable";
+    return null;
+  }
+}
+
+async function refreshSegmentationSurfaceDescriptor(labelMapId) {
+  if (!labelMapId || !state.study?.study_id) {
+    setSegmentationSurfaceAvailability(null);
+    return null;
+  }
+  if (segmentationSurfaceDescriptorPromise) return segmentationSurfaceDescriptorPromise;
+  segmentationSurfaceDescriptorPromise = (async () => {
+    const params = new URLSearchParams({ label_map_id: labelMapId });
+    const response = await fetch(`/api/studies/latest/segmentation-surfaces?${params}`, {
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { "Accept": "application/json" },
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.detail || `3D segmentation initialization failed (${response.status})`);
+    }
+    const descriptor = payload.surface;
+    if (
+      descriptor?.ready !== true
+      || descriptor.label_map_id !== labelMapId
+      || descriptor.source_study_id !== state.study.study_id
+      || descriptor.coordinate_system !== "patient_lps"
+    ) {
+      throw new Error("3D segmentation study binding is invalid");
+    }
+    setSegmentationSurfaceAvailability(descriptor);
+    void syncSegmentationSurface();
+    return descriptor;
+  })();
+  try {
+    return await segmentationSurfaceDescriptorPromise;
+  } catch (error) {
+    setSegmentationSurfaceAvailability(null);
+    segmentationSurfacePanel.dataset.state = "error";
+    segmentationSurfaceStatus.textContent = error instanceof Error
+      ? error.message
+      : "3D segmentation unavailable";
+    return null;
+  } finally {
+    segmentationSurfaceDescriptorPromise = null;
+  }
+}
+
 function setSegmentationOverlayAvailability(descriptor) {
   const ready = Boolean(descriptor?.ready);
   state.segmentationOverlay.descriptor = ready ? descriptor : null;
@@ -1502,6 +1601,7 @@ function setSegmentationOverlayAvailability(descriptor) {
     segmentationStructurePanel.clear();
     segmentationOverlayStatus.textContent = "No canonical label map for this study.";
     clearAllSegmentationOverlays();
+    setSegmentationSurfaceAvailability(null);
   }
 }
 
@@ -1529,6 +1629,7 @@ async function refreshSegmentationOverlayDescriptor() {
       throw new Error("Segmentation overlay study binding is invalid");
     }
     setSegmentationOverlayAvailability(descriptor);
+    await refreshSegmentationSurfaceDescriptor(descriptor.label_map_id);
     return descriptor;
   })();
   try {
@@ -2391,6 +2492,12 @@ segmentationOverlayOpacity.addEventListener("input", () => {
   }
 });
 
+segmentationSurfaceToggle.addEventListener("change", () => {
+  state.segmentationSurface.enabled = segmentationSurfaceToggle.checked;
+  segmentationSurfaceLayer.setEnabled(state.segmentationSurface.enabled);
+  if (state.segmentationSurface.enabled) void syncSegmentationSurface();
+});
+
 transferPresetSelect.addEventListener("change", () => {
   applyTransferPreset(transferPresetSelect.value);
   volumeRenderingQuality.pulseInteraction("transfer");
@@ -2661,6 +2768,7 @@ window.addEventListener("pagehide", () => {
   qualification?.dispose();
   volumeRenderingQuality.deactivate();
   volumeRayMarcher.dispose();
+  segmentationSurfaceLayer.dispose();
   volumeTextureManager.dispose();
   timer.dispose();
 }, { once: true });
