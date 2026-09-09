@@ -30,6 +30,7 @@ class AppSettings(NamedTuple):
     auth_username: str | None
     auth_password_hash: str | None
     session_ttl_minutes: int
+    surface_worker_python: str | None = None
 
 
 def _parse_bool(name: str, raw_value: str) -> bool:
@@ -133,6 +134,11 @@ def load_settings(environ: dict[str, str] | None = None) -> AppSettings:
             f"VOXELATLAS_SESSION_TTL_MINUTES must not exceed {MAX_SESSION_TTL_MINUTES}"
         )
 
+    raw_surface_worker_python = env.get("VOXELATLAS_SURFACE_PYTHON", "").strip()
+    if any(ord(character) < 32 for character in raw_surface_worker_python):
+        raise ConfigurationError("VOXELATLAS_SURFACE_PYTHON contains invalid characters")
+    surface_worker_python = raw_surface_worker_python or None
+
     return AppSettings(
         environment=environment,
         session_secret=session_secret,
@@ -144,4 +150,5 @@ def load_settings(environ: dict[str, str] | None = None) -> AppSettings:
         auth_username=auth_username,
         auth_password_hash=auth_password_hash,
         session_ttl_minutes=session_ttl_minutes,
+        surface_worker_python=surface_worker_python,
     )

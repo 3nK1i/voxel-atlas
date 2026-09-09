@@ -1,6 +1,8 @@
-const SURFACE_MEDIA_TYPE = "application/x-voxelatlas-surface-v1";
+const LEGACY_SURFACE_MEDIA_TYPE = "application/x-voxelatlas-surface-v1";
+const ACCURATE_SURFACE_MEDIA_TYPE = "application/x-voxelatlas-surface-v2";
 const SURFACE_MAGIC = "VXSF";
-const SURFACE_HEADER_BYTES = 32;
+const LEGACY_SURFACE_HEADER_BYTES = 32;
+const ACCURATE_SURFACE_HEADER_BYTES = 36;
 
 
 function headerValue(response, name) {
@@ -20,7 +22,7 @@ async function sha256Hex(buffer, cryptoImpl) {
 
 
 export function decodeSegmentationSurface(buffer, expected = {}) {
-  if (!(buffer instanceof ArrayBuffer) || buffer.byteLength < SURFACE_HEADER_BYTES) {
+  if (!(buffer instanceof ArrayBuffer) || buffer.byteLength < LEGACY_SURFACE_HEADER_BYTES) {
     throw new Error("Segmentation surface payload is truncated");
   }
   const view = new DataView(buffer);
@@ -29,37 +31,80 @@ export function decodeSegmentationSurface(buffer, expected = {}) {
   const labelId = view.getUint32(8, true);
   const vertexCount = view.getUint32(12, true);
   const indexCount = view.getUint32(16, true);
-  const stride = view.getUint32(20, true);
-  const positionBytes = view.getUint32(24, true);
-  const indexBytes = view.getUint32(28, true);
   if (
     magic !== SURFACE_MAGIC
-    || version !== 1
     || labelId !== Number(expected.labelId)
     || vertexCount <= 0
     || indexCount <= 0
     || indexCount % 3 !== 0
-    || stride <= 0
-    || positionBytes !== vertexCount * 3 * 4
-    || indexBytes !== indexCount * 4
-    || buffer.byteLength !== SURFACE_HEADER_BYTES + positionBytes + indexBytes
   ) {
     throw new Error("Segmentation surface payload contract is invalid");
   }
-  const positions = new Float32Array(
-    buffer.slice(SURFACE_HEADER_BYTES, SURFACE_HEADER_BYTES + positionBytes),
-  );
-  const indices = new Uint32Array(
-    buffer.slice(SURFACE_HEADER_BYTES + positionBytes),
-  );
-  return Object.freeze({
-    labelId,
-    vertexCount,
-    triangleCount: indexCount / 3,
-    stride,
-    positions,
-    indices,
-  });
+
+  if (version === 1) {
+    const stride = view.getUint32(20, true);
+    const positionBytes = view.getUint32(24, true);
+    const indexBytes = view.getUint32(28, true);
+    if (
+      stride <= 0
+      || positionBytes !== vertexCount * 3 * 4
+      || indexBytes !== indexCount * 4
+      || buffer.byteLength !== LEGACY_SURFACE_HEADER_BYTES + positionBytes + indexBytes
+    ) {
+      throw new Error("Segmentation surface payload contract is invalid");
+    }
+    const positions = new Float32Array(
+      buffer.slice(LEGACY_SURFACE_HEADER_BYTES, LEGACY_SURFACE_HEADER_BYTES + positionBytes),
+    );
+    const indices = new Uint32Array(
+      buffer.slice(LEGACY_SURFACE_HEADER_BYTES + positionBytes),
+    );
+    return Object.freeze({
+      version,
+      labelId,
+      vertexCount,
+      triangleCount: indexCount / 3,
+      stride,
+      positions,
+      normals: null,
+      indices,
+    });
+  }
+
+  if (version === 2 && buffer.byteLength >= ACCURATE_SURFACE_HEADER_BYTES) {
+    const positionBytes = view.getUint32(20, true);
+    const normalBytes = view.getUint32(24, true);
+    const indexBytes = view.getUint32(28, true);
+    const flags = view.getUint32(32, true);
+    if (
+      positionBytes !== vertexCount * 3 * 4
+      || normalBytes !== vertexCount * 3 * 4
+      || indexBytes !== indexCount * 4
+      || flags !== 1
+      || buffer.byteLength !== ACCURATE_SURFACE_HEADER_BYTES
+        + positionBytes + normalBytes + indexBytes
+    ) {
+      throw new Error("Segmentation surface payload contract is invalid");
+    }
+    let offset = ACCURATE_SURFACE_HEADER_BYTES;
+    const positions = new Float32Array(buffer.slice(offset, offset + positionBytes));
+    offset += positionBytes;
+    const normals = new Float32Array(buffer.slice(offset, offset + normalBytes));
+    offset += normalBytes;
+    const indices = new Uint32Array(buffer.slice(offset));
+    return Object.freeze({
+      version,
+      labelId,
+      vertexCount,
+      triangleCount: indexCount / 3,
+      stride: 1,
+      positions,
+      normals,
+      indices,
+    });
+  }
+
+  throw new Error("Segmentation surface payload contract is invalid");
 }
 
 
@@ -201,7 +246,7 @@ export class PatientSegmentationSurfaceLayer {
     this._status("loading", `Building ${selected.displayName} surface...`);
     const params = new URLSearchParams({
       label_map_id: this.descriptor.label_map_id,
-      quality: this.descriptor.default_quality || "preview",
+      quality: this.descriptor.default_quality || "accurate",
     });
     try {
       const response = await this.fetchImpl(
@@ -209,7 +254,11 @@ export class PatientSegmentationSurfaceLayer {
         {
           credentials: "same-origin",
           cache: "no-store",
-          headers: { "Accept": SURFACE_MEDIA_TYPE },
+          headers: {
+            "Accept": (this.descriptor.default_quality || "accurate") === "accurate"
+              ? ACCURATE_SURFACE_MEDIA_TYPE
+              : LEGACY_SURFACE_MEDIA_TYPE,
+          },
           signal: controller.signal,
         },
       );
@@ -218,12 +267,17 @@ export class PatientSegmentationSurfaceLayer {
         throw new Error(detail.detail || `Segmentation surface failed (${response.status})`);
       }
       const mediaType = headerValue(response, "Content-Type").split(";", 1)[0].toLowerCase();
+      const requestedQuality = this.descriptor.default_quality || "accurate";
+      const expectedMediaType = requestedQuality === "accurate"
+        ? ACCURATE_SURFACE_MEDIA_TYPE
+        : LEGACY_SURFACE_MEDIA_TYPE;
       if (
-        mediaType !== SURFACE_MEDIA_TYPE
+        mediaType !== expectedMediaType
         || headerValue(response, "X-Content-Type-Options").toLowerCase() !== "nosniff"
         || !headerValue(response, "Cache-Control").toLowerCase().includes("no-store")
         || headerValue(response, "X-VoxelAtlas-Label-Map-Id") !== this.descriptor.label_map_id
         || Number(headerValue(response, "X-VoxelAtlas-Label-Id")) !== selected.labelId
+        || headerValue(response, "X-VoxelAtlas-Surface-Quality") !== requestedQuality
       ) {
         throw new Error("Segmentation surface response binding is invalid");
       }
@@ -240,16 +294,31 @@ export class PatientSegmentationSurfaceLayer {
       if (
         decoded.vertexCount !== Number(headerValue(response, "X-VoxelAtlas-Surface-Vertices"))
         || decoded.triangleCount !== Number(headerValue(response, "X-VoxelAtlas-Surface-Triangles"))
+        || decoded.version !== Number(headerValue(response, "X-VoxelAtlas-Surface-Schema"))
       ) {
         throw new Error("Segmentation surface count headers do not match");
+      }
+      const surfaceId = headerValue(response, "X-VoxelAtlas-Surface-Id");
+      const provenanceSha256 = headerValue(response, "X-VoxelAtlas-Surface-Provenance-SHA256");
+      if (requestedQuality === "accurate" && (
+        !/^surf-[0-9a-f]{32}$/.test(surfaceId)
+        || !/^[0-9a-f]{64}$/.test(provenanceSha256)
+        || headerValue(response, "X-VoxelAtlas-Surface-Extraction")
+          !== this.descriptor.accurate_surface?.extraction
+        || decoded.normals === null
+      )) {
+        throw new Error("Accurate segmentation surface provenance binding is invalid");
       }
       if (generation !== this.generation || controller.signal.aborted) return null;
 
       const geometry = new this.three.BufferGeometry();
       geometry.setAttribute("position", new this.three.BufferAttribute(decoded.positions, 3));
+      if (decoded.normals) {
+        geometry.setAttribute("normal", new this.three.BufferAttribute(decoded.normals, 3));
+      }
       geometry.setIndex(new this.three.BufferAttribute(decoded.indices, 1));
       geometry.applyMatrix4(presentationTransform);
-      geometry.computeVertexNormals();
+      if (!decoded.normals) geometry.computeVertexNormals();
       geometry.computeBoundingSphere();
       const material = new this.three.MeshPhongMaterial({
         color: selected.colorHex,
@@ -266,6 +335,9 @@ export class PatientSegmentationSurfaceLayer {
       mesh.userData.labelMapId = this.descriptor.label_map_id;
       mesh.userData.labelId = selected.labelId;
       mesh.userData.coordinateSystem = "patient_lps";
+      mesh.userData.surfaceId = surfaceId;
+      mesh.userData.provenanceSha256 = provenanceSha256;
+      mesh.userData.surfaceSchemaVersion = decoded.version;
       this._disposeMesh();
       this.group.add(mesh);
       this.current = {

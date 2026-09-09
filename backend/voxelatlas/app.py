@@ -223,6 +223,7 @@ def create_app(
         else SegmentationSurfaceService(
             data_dir=runtime_settings.data_dir,
             label_map_service=patient_segmentation_label_map_service,
+            worker_python=runtime_settings.surface_worker_python,
         )
     )
     patient_segmentation_correction_service = (
@@ -929,7 +930,7 @@ def create_app(
             max_length=36,
             pattern=r"^map-[0-9a-f]{32}$",
         ),
-        quality: str = Query(default="preview", pattern=r"^(preview|balanced)$"),
+        quality: str = Query(default="accurate", pattern=r"^(accurate|preview|balanced)$"),
         username: str = Depends(require_username),
     ) -> Response:
         del username
@@ -947,7 +948,7 @@ def create_app(
         bounds = ",".join(f"{value:.6f}" for value in surface.bounds_lps_mm)
         return Response(
             content=surface.payload,
-            media_type=SURFACE_MEDIA_TYPE,
+            media_type=surface.media_type,
             headers={
                 "Cache-Control": "no-store",
                 "X-Content-Type-Options": "nosniff",
@@ -959,6 +960,9 @@ def create_app(
                 "X-VoxelAtlas-Surface-Vertices": str(surface.vertex_count),
                 "X-VoxelAtlas-Surface-Triangles": str(surface.triangle_count),
                 "X-VoxelAtlas-Surface-Stride": str(surface.stride),
+                "X-VoxelAtlas-Surface-Schema": str(surface.schema_version),
+                "X-VoxelAtlas-Surface-Id": surface.surface_id,
+                "X-VoxelAtlas-Surface-Provenance-SHA256": surface.provenance_sha256,
                 "X-VoxelAtlas-Surface-Bounds-LPS-Mm": bounds,
             },
         )
