@@ -401,6 +401,43 @@
             <p class="segmentation-overlay-note">Patient-LPS label map · nearest-neighbor display · non-clinical visualization</p>
           </section>
 
+          <section id="segmentationStructurePanel" class="control-section segmentation-structure-panel" data-state="unavailable" aria-labelledby="segmentationStructureTitle">
+            <div class="control-heading compact-heading">
+              <div>
+                <div class="section-kicker">Anatomical Structures</div>
+                <p id="segmentationStructureSummary">Available after a canonical label map is loaded.</p>
+              </div>
+            </div>
+            <label class="structure-search" for="segmentationStructureSearch">
+              <span id="segmentationStructureTitle">Find a structure</span>
+              <input id="segmentationStructureSearch" type="search" placeholder="Search anatomy or label" autocomplete="off" disabled>
+            </label>
+            <div class="structure-bulk-actions" aria-label="Structure visibility controls">
+              <button id="segmentationStructureShowAll" type="button" data-structure-action="show-all" disabled>Show all</button>
+              <button id="segmentationStructureHideAll" type="button" data-structure-action="hide-all" disabled>Hide all</button>
+              <button id="segmentationStructureReset" type="button" data-structure-action="reset" disabled>Reset</button>
+            </div>
+            <div id="segmentationStructureGroups" class="structure-groups" aria-live="polite"></div>
+            <div class="structure-inspector" aria-live="polite">
+              <div class="structure-inspector-heading">
+                <div>
+                  <strong id="segmentationStructureSelectedName">No structure selected</strong>
+                  <span id="segmentationStructureSelectedMetadata">Select a visible structure to edit its presentation.</span>
+                </div>
+                <label class="structure-color-control" title="Selected structure color">
+                  <span class="sr-only">Selected structure color</span>
+                  <input id="segmentationStructureColor" type="color" value="#ffffff" disabled>
+                </label>
+              </div>
+              <label class="slider-label" for="segmentationStructureOpacity">
+                Structure opacity
+                <strong id="segmentationStructureOpacityValue">100%</strong>
+              </label>
+              <input id="segmentationStructureOpacity" type="range" min="0" max="100" step="1" value="100" disabled>
+            </div>
+            <p class="segmentation-overlay-note">Presentation controls affect synchronized MPR overlays only. Source labels remain immutable.</p>
+          </section>
+
           <section id="directionalCutPanel" class="control-section" data-clipping-state="unavailable">
             <div class="control-heading">
               <div>
@@ -888,6 +925,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h6-r1-phase5d-r1"></script>
+  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h6-r1-phase5e-r1"></script>
 </body>
 </html>

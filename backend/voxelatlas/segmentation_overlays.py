@@ -14,6 +14,7 @@ from .dicom_ingestion import DicomStudyRepository
 from .dicom_mpr import CanonicalMprService
 from .segmentation import SegmentationValidationError
 from .segmentation_label_maps import SegmentationLabelMapService
+from .segmentation_structures import build_structure_catalog
 
 
 OVERLAY_SCHEMA_VERSION = 1
@@ -210,6 +211,21 @@ class SegmentationOverlayService:
             }
         _, _, labels = self._validate_descriptor(descriptor, study_id=study_id)
         visible_labels = [label for label in labels if label != 0]
+        palette = {
+            label: color_for_label(label)
+            for label in visible_labels
+        }
+        try:
+            structure_catalog = build_structure_catalog(
+                provider_id=str(descriptor["provider_id"]),
+                model_id=str(descriptor["model_id"]),
+                present_labels=visible_labels,
+                palette=palette,
+            )
+        except ValueError as exc:
+            raise SegmentationValidationError(
+                "Segmentation structure catalog is invalid"
+            ) from exc
         return {
             "schema_version": OVERLAY_SCHEMA_VERSION,
             "ready": True,
@@ -225,9 +241,10 @@ class SegmentationOverlayService:
             "present_label_count": len(visible_labels),
             "present_labels": visible_labels,
             "palette": [
-                {"label_id": label, "color_hex": color_for_label(label)}
+                {"label_id": label, "color_hex": palette[label]}
                 for label in visible_labels
             ],
+            "structure_catalog": structure_catalog,
             "label_map_sha256": descriptor["artifact_sha256"],
             "clinical_validation": descriptor["clinical_validation"],
         }

@@ -20,8 +20,13 @@ import { projectMprClipping, renderMprClippingOverlay } from "./mpr-clipping-ove
 import { installRenderingQualification } from "./rendering-qualification.js?v=phase4h6";
 import {
   clearSegmentationOverlay,
+  decodeSegmentationLabels,
+  drawSegmentationLabels,
   drawSegmentationRgba,
-} from "./segmentation-overlay.js?v=phase5d-r1";
+} from "./segmentation-overlay.js?v=phase5e-r1";
+import {
+  SegmentationStructurePanel,
+} from "./segmentation-structure-panel.js?v=phase5e-r1";
 
 const THEME_KEY = "voxelatlas-theme";
 const DEFAULT_OPACITY = 1.0;
@@ -43,6 +48,7 @@ const segmentationOverlayStatus = document.getElementById("segmentationOverlaySt
 const segmentationOverlayToggle = document.getElementById("segmentationOverlayToggle");
 const segmentationOverlayOpacity = document.getElementById("segmentationOverlayOpacity");
 const segmentationOverlayOpacityValue = document.getElementById("segmentationOverlayOpacityValue");
+const segmentationStructurePanelRoot = document.getElementById("segmentationStructurePanel");
 const CLIPPING_PLANES = Object.freeze({
   axial: Object.freeze({ axis: "z", axisIndex: 2, coordinate: "Z", startLabel: "Inferior", endLabel: "Superior", reversed: false }),
   coronal: Object.freeze({ axis: "y", axisIndex: 1, coordinate: "Y", startLabel: "Posterior", endLabel: "Anterior", reversed: true }),
@@ -230,6 +236,7 @@ const state = {
     descriptor: null,
     enabled: true,
     opacity: 0.45,
+    presentation: null,
   },
   size: new THREE.Vector3(1, 1, 1),
   cameraPosition: new THREE.Vector3(),
@@ -245,6 +252,15 @@ let mprAbortController = null;
 let segmentationOverlayDescriptorPromise = null;
 let viewerRenderRequested = true;
 let lastRenderedTimestamp = null;
+
+const segmentationStructurePanel = new SegmentationStructurePanel(
+  segmentationStructurePanelRoot,
+  (presentation) => {
+    state.segmentationOverlay.presentation = presentation;
+    redrawSegmentationOverlays();
+  },
+);
+segmentationStructurePanel.clear();
 
 function requestViewerRender() {
   viewerRenderRequested = true;
@@ -1444,19 +1460,46 @@ function clearAllSegmentationOverlays() {
   }
 }
 
+function redrawSegmentationOverlays() {
+  const presentation = state.segmentationOverlay.presentation;
+  if (!state.segmentationOverlay.enabled || !presentation) {
+    clearAllSegmentationOverlays();
+    return;
+  }
+  for (const entry of mprRegistry.values()) {
+    if (!(entry.segmentationLabels instanceof Uint16Array)) continue;
+    drawSegmentationLabels(
+      entry.overlayCanvas,
+      entry.segmentationLabels,
+      entry.segmentationWidth,
+      entry.segmentationHeight,
+      presentation,
+      state.segmentationOverlay.opacity,
+    );
+  }
+}
+
 function setSegmentationOverlayAvailability(descriptor) {
   const ready = Boolean(descriptor?.ready);
   state.segmentationOverlay.descriptor = ready ? descriptor : null;
+  state.segmentationOverlay.presentation = null;
   segmentationOverlayPanel.dataset.state = ready ? "ready" : "unavailable";
   segmentationOverlayToggle.disabled = !ready;
   segmentationOverlayOpacity.disabled = !ready;
+  for (const entry of mprRegistry.values()) {
+    entry.segmentationLabels = null;
+    entry.segmentationWidth = null;
+    entry.segmentationHeight = null;
+  }
   if (ready) {
+    state.segmentationOverlay.presentation = segmentationStructurePanel.load(descriptor);
     const labelCount = Number(descriptor.present_label_count) || 0;
     const provider = descriptor.provider_id === "totalsegmentator"
       ? "TotalSegmentator"
       : String(descriptor.provider_id || "Segmentation");
     segmentationOverlayStatus.textContent = `${provider} · ${labelCount} visible labels`;
   } else {
+    segmentationStructurePanel.clear();
     segmentationOverlayStatus.textContent = "No canonical label map for this study.";
     clearAllSegmentationOverlays();
   }
@@ -1545,11 +1588,20 @@ async function renderSegmentationOverlayPlane(
   ) {
     throw new Error("Segmentation overlay geometry binding is invalid");
   }
-  drawSegmentationRgba(
-    entry.overlayCanvas,
+  entry.segmentationLabels = decodeSegmentationLabels(
     pixels,
     width,
     height,
+    descriptor.palette,
+  );
+  entry.segmentationWidth = width;
+  entry.segmentationHeight = height;
+  drawSegmentationLabels(
+    entry.overlayCanvas,
+    entry.segmentationLabels,
+    width,
+    height,
+    state.segmentationOverlay.presentation,
     state.segmentationOverlay.opacity,
   );
 }
