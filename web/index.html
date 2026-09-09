@@ -26,7 +26,7 @@
     })();
   </script>
 
-  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4h6-r1-phase5d-r1">
+  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4h6-r1-phase5f2-r1">
 
   <script type="importmap">
   {
@@ -450,6 +450,35 @@
               <input id="segmentationStructureOpacity" type="range" min="0" max="100" step="1" value="100" disabled>
             </div>
             <p class="segmentation-overlay-note">Presentation controls affect synchronized MPR overlays and the selected 3D surface. Source labels remain immutable.</p>
+          </section>
+
+          <section id="segmentationCorrectionPanel" class="control-section segmentation-correction-panel" data-state="unavailable" aria-labelledby="segmentationCorrectionTitle">
+            <div class="control-heading compact-heading">
+              <div>
+                <div id="segmentationCorrectionTitle" class="section-kicker">Segmentation Review</div>
+                <p id="segmentationCorrectionStatus">Select a segmented structure to begin review.</p>
+              </div>
+              <button id="segmentationCorrectionStart" class="correction-start" type="button" disabled>Start review</button>
+            </div>
+            <div class="correction-controls">
+              <label>Action
+                <select id="segmentationCorrectionKind" disabled>
+                  <option value="review">Review mark</option>
+                  <option value="include">Include intent</option>
+                  <option value="exclude">Exclude intent</option>
+                </select>
+              </label>
+              <label class="slider-label" for="segmentationCorrectionRadius">Radius <strong id="segmentationCorrectionRadiusValue">3.0 mm</strong></label>
+              <input id="segmentationCorrectionRadius" type="range" min="0.5" max="25" step="0.5" value="3" disabled>
+              <button id="segmentationCorrectionApply" class="correction-apply" type="button" disabled>Apply at MPR crosshair</button>
+              <div class="correction-history" aria-label="Correction history controls">
+                <button id="segmentationCorrectionUndo" type="button" disabled>Undo</button>
+                <button id="segmentationCorrectionRedo" type="button" disabled>Redo</button>
+                <button id="segmentationCorrectionDiscard" type="button" disabled>Discard</button>
+              </div>
+            </div>
+            <ul id="segmentationQualityWarnings" class="segmentation-quality-warnings" aria-live="polite"></ul>
+            <p class="segmentation-overlay-note">Reversible Patient-LPS draft. The sealed source label map remains unchanged.</p>
           </section>
 
           <section id="directionalCutPanel" class="control-section" data-clipping-state="unavailable">
@@ -939,6 +968,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h6-r1-phase5f1-r1"></script>
+  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h6-r1-phase5f2-r2"></script>
 </body>
 </html>

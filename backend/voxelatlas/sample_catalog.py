@@ -97,9 +97,17 @@ def _payload_files(dicom_root: Path) -> list[Path]:
 
 
 def compute_sample_payload_digest(dicom_root: Path) -> tuple[str, int, int]:
+    digest, file_count, total_bytes, _ = compute_sample_payload_contract(dicom_root)
+    return digest, file_count, total_bytes
+
+
+def compute_sample_payload_contract(
+    dicom_root: Path,
+) -> tuple[str, int, int, tuple[tuple[str, int], ...]]:
     root = Path(dicom_root)
     digest = sha256()
     total_bytes = 0
+    inventory: list[tuple[str, int]] = []
     files = _payload_files(root)
     for path in files:
         relative = path.relative_to(root).as_posix().encode("utf-8")
@@ -110,10 +118,13 @@ def compute_sample_payload_digest(dicom_root: Path) -> tuple[str, int, int]:
         digest.update(len(relative).to_bytes(4, "big"))
         digest.update(relative)
         digest.update(size.to_bytes(8, "big"))
+        instance_digest = sha256()
         with path.open("rb") as stream:
             while chunk := stream.read(1024 * 1024):
                 digest.update(chunk)
-    return digest.hexdigest(), len(files), total_bytes
+                instance_digest.update(chunk)
+        inventory.append((instance_digest.hexdigest(), size))
+    return digest.hexdigest(), len(files), total_bytes, tuple(sorted(inventory))
 
 
 @dataclass(frozen=True)
@@ -231,9 +242,16 @@ def _load_record(root: Path) -> SampleStudyRecord:
 
 
 class SampleStudyCatalogService:
-    def __init__(self, *, data_dir: Path, dicom_service: DicomIngestionService):
+    def __init__(
+        self,
+        *,
+        data_dir: Path,
+        dicom_service: DicomIngestionService,
+        label_map_service: object | None = None,
+    ):
         self.catalog_root = Path(data_dir) / "sample_studies"
         self.dicom_service = dicom_service
+        self.label_map_service = label_map_service
         self._load_lock = Lock()
 
     def _records(self) -> list[SampleStudyRecord]:
@@ -274,11 +292,23 @@ class SampleStudyCatalogService:
     def load_sample(self, sample_id: str) -> dict[str, object]:
         with self._load_lock:
             record = self._record(sample_id)
-            digest, file_count, size_bytes = compute_sample_payload_digest(record.dicom_root)
+            digest, file_count, size_bytes, instance_inventory = compute_sample_payload_contract(
+                record.dicom_root
+            )
             if digest != record.payload_sha256 or file_count != record.file_count or size_bytes != record.size_bytes:
                 raise SampleStudyIntegrityError(
                     "Sample study integrity verification failed; reinstall this sample"
                 )
+            matching = self._matching_studies(record, instance_inventory)
+            if matching:
+                activate = getattr(self.dicom_service, "activate_study", None)
+                if callable(activate):
+                    public_study = activate(matching[0])
+                    return {
+                        "study": public_study,
+                        "sample": record.public_dict(),
+                        "reused": True,
+                    }
             paths = _payload_files(record.dicom_root)
             with ExitStack() as stack:
                 parts = [
@@ -296,4 +326,32 @@ class SampleStudyCatalogService:
                 if callable(annotate)
                 else descriptor.public_dict() | {"origin": origin}
             )
-            return {"study": public_study, "sample": record.public_dict()}
+            return {"study": public_study, "sample": record.public_dict(), "reused": False}
+
+    def _matching_studies(
+        self,
+        record: SampleStudyRecord,
+        instance_inventory: tuple[tuple[str, int], ...],
+    ) -> list[str]:
+        find = getattr(self.dicom_service, "find_matching_sample_studies", None)
+        if not callable(find):
+            return []
+        candidates = list(
+            find(sample_id=record.sample_id, instance_inventory=instance_inventory)
+        )
+        valid = [
+            value
+            for value in candidates
+            if isinstance(value, str) and re.fullmatch(r"[0-9a-f]{32}", value)
+        ]
+        if self.label_map_service is None:
+            return valid
+        with_maps: list[str] = []
+        for study_id in valid:
+            try:
+                maps = self.label_map_service.list(study_id=study_id)
+            except (AttributeError, ValueError):
+                maps = []
+            if maps:
+                with_maps.append(study_id)
+        return with_maps + [study_id for study_id in valid if study_id not in with_maps]

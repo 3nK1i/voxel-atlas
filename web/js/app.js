@@ -16,6 +16,9 @@ import {
   AdaptiveVolumeRenderingQuality,
 } from "./volume-rendering-quality.js?v=phase4h1";
 import { SampleStudyCatalogClient } from "./sample-study-catalog.js?v=phase4g-r1";
+import {
+  classifySampleStudyActivation,
+} from "./sample-study-activation.js?v=phase5f2-switch-r1";
 import { projectMprClipping, renderMprClippingOverlay } from "./mpr-clipping-overlay.js?v=phase4h6";
 import { installRenderingQualification } from "./rendering-qualification.js?v=phase4h6";
 import {
@@ -30,6 +33,9 @@ import {
 import {
   PatientSegmentationSurfaceLayer,
 } from "./segmentation-surface-viewer.js?v=phase5f1-r1";
+import {
+  SegmentationCorrectionPanel,
+} from "./segmentation-correction-panel.js?v=phase5f2-r1";
 
 const THEME_KEY = "voxelatlas-theme";
 const DEFAULT_OPACITY = 1.0;
@@ -55,6 +61,7 @@ const segmentationSurfacePanel = document.getElementById("segmentationSurfacePan
 const segmentationSurfaceToggle = document.getElementById("segmentationSurfaceToggle");
 const segmentationSurfaceStatus = document.getElementById("segmentationSurfaceStatus");
 const segmentationStructurePanelRoot = document.getElementById("segmentationStructurePanel");
+const segmentationCorrectionPanelRoot = document.getElementById("segmentationCorrectionPanel");
 const CLIPPING_PLANES = Object.freeze({
   axial: Object.freeze({ axis: "z", axisIndex: 2, coordinate: "Z", startLabel: "Inferior", endLabel: "Superior", reversed: false }),
   coronal: Object.freeze({ axis: "y", axisIndex: 1, coordinate: "Y", startLabel: "Posterior", endLabel: "Anterior", reversed: true }),
@@ -235,6 +242,7 @@ const state = {
   mpr: {
     descriptor: null,
     crosshairLpsMm: [0, 0, 0],
+    activePlane: "axial",
     window: 400,
     level: 40,
   },
@@ -264,6 +272,22 @@ let segmentationSurfaceDescriptorPromise = null;
 let segmentationSurfaceLayer = null;
 let viewerRenderRequested = true;
 let lastRenderedTimestamp = null;
+let segmentationCorrectionPanel = null;
+
+function syncSegmentationCorrectionContext(presentation) {
+  const descriptor = state.segmentationOverlay.descriptor;
+  const structure = presentation?.structures?.get(presentation.selectedLabelId);
+  if (!descriptor || !state.study?.study_id || !structure) {
+    segmentationCorrectionPanel?.clear();
+    return;
+  }
+  segmentationCorrectionPanel?.setContext({
+    labelMapId: descriptor.label_map_id,
+    studyId: state.study.study_id,
+    labelId: structure.labelId,
+    displayName: structure.displayName,
+  });
+}
 
 const segmentationStructurePanel = new SegmentationStructurePanel(
   segmentationStructurePanelRoot,
@@ -271,9 +295,17 @@ const segmentationStructurePanel = new SegmentationStructurePanel(
     state.segmentationOverlay.presentation = presentation;
     redrawSegmentationOverlays();
     syncSegmentationSurface();
+    syncSegmentationCorrectionContext(presentation);
   },
 );
 segmentationStructurePanel.clear();
+segmentationCorrectionPanel = new SegmentationCorrectionPanel(
+  segmentationCorrectionPanelRoot,
+  {
+    getCrosshair: () => [...state.mpr.crosshairLpsMm],
+    getPlane: () => state.mpr.activePlane,
+  },
+);
 
 function requestViewerRender() {
   viewerRenderRequested = true;
@@ -1592,6 +1624,7 @@ function setSegmentationOverlayAvailability(descriptor) {
   }
   if (ready) {
     state.segmentationOverlay.presentation = segmentationStructurePanel.load(descriptor);
+    syncSegmentationCorrectionContext(state.segmentationOverlay.presentation);
     const labelCount = Number(descriptor.present_label_count) || 0;
     const provider = descriptor.provider_id === "totalsegmentator"
       ? "TotalSegmentator"
@@ -1599,6 +1632,7 @@ function setSegmentationOverlayAvailability(descriptor) {
     segmentationOverlayStatus.textContent = `${provider} · ${labelCount} visible labels`;
   } else {
     segmentationStructurePanel.clear();
+    segmentationCorrectionPanel.clear();
     segmentationOverlayStatus.textContent = "No canonical label map for this study.";
     clearAllSegmentationOverlays();
     setSegmentationSurfaceAvailability(null);
@@ -1897,6 +1931,7 @@ for (const [plane, entry] of mprRegistry.entries()) {
       entry.view.dataset.interaction = "window-level";
     } else if (event.button === 0) {
       pointerMode = "crosshair";
+      state.mpr.activePlane = plane;
       setMprCrosshairFromPointer(plane, event);
     } else {
       return;
@@ -2172,14 +2207,18 @@ async function requestSampleLoad(sample) {
   );
   try {
     const payload = await sampleStudyCatalogClient.load(sample.sampleId);
-    if (!payload?.study) throw new Error("The sample study response was incomplete");
+    const activation = classifySampleStudyActivation(payload);
     applyStudy(payload.study);
     sampleCatalogDialog.close();
-    setUploadStatus(
-      "uploading",
-      `${sample.title} verified. Building its canonical patient volume...`,
-    );
-    if (payload.study.reconstruction_ready) {
+    if (activation === "restore") {
+      await restoreReadyPatientVolume(
+        `${sample.title} restored. Loading its synchronized patient volume...`,
+      );
+    } else if (activation === "construct") {
+      setUploadStatus(
+        "uploading",
+        `${sample.title} verified. Building its canonical patient volume...`,
+      );
       await ensureCanonicalVolume(payload.study);
     } else {
       setUploadStatus("warning", "Demonstration study loaded, but its geometry needs review.");
@@ -2338,6 +2377,13 @@ async function ensureCanonicalVolume(study) {
   }
 }
 
+async function restoreReadyPatientVolume(message) {
+  setUploadStatus("ready", message);
+  await ensureMprReady();
+  setPatientVolumeReadyStatus();
+  await ensureVolumeRenderingFoundation();
+}
+
 async function refreshLatestStudy() {
   try {
     const response = await fetch("/api/studies/latest", {
@@ -2349,10 +2395,9 @@ async function refreshLatestStudy() {
     applyStudy(payload.study || null);
     if (payload.study) {
       if (payload.study.volume_ready) {
-        setUploadStatus("ready", "Stored canonical patient volume restored. Loading MPR views...");
-        await ensureMprReady();
-        setPatientVolumeReadyStatus();
-        await ensureVolumeRenderingFoundation();
+        await restoreReadyPatientVolume(
+          "Stored canonical patient volume restored. Loading MPR views...",
+        );
       } else if (payload.study.reconstruction_ready) {
         setUploadStatus("uploading", "Stored DICOM geometry restored. Building patient volume...");
         await ensureCanonicalVolume(payload.study);

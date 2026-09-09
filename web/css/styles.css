@@ -2334,6 +2334,116 @@ button:disabled {
   accent-color: var(--accent);
 }
 
+.segmentation-correction-panel {
+  display: grid;
+  gap: 7px;
+}
+
+.segmentation-correction-panel[data-state="ready"] {
+  border-top-color: color-mix(in srgb, var(--accent) 46%, var(--line-soft));
+}
+
+.segmentation-correction-panel[data-state="error"] #segmentationCorrectionStatus {
+  color: var(--danger);
+}
+
+.correction-start,
+.correction-controls button {
+  min-height: 25px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-soft);
+  color: var(--text-soft);
+  font-size: var(--ui-readable-small, 8px);
+  font-weight: 740;
+  cursor: pointer;
+}
+
+.correction-start {
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.correction-controls {
+  display: grid;
+  gap: 6px;
+}
+
+.correction-controls > label:first-child {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  color: var(--muted);
+  font-size: var(--ui-readable-small, 8px);
+  font-weight: 720;
+}
+
+.correction-controls select {
+  min-height: 27px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-soft);
+  color: var(--text);
+  font: inherit;
+}
+
+#segmentationCorrectionRadius {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.correction-apply {
+  border-color: color-mix(in srgb, var(--accent) 64%, var(--line)) !important;
+  background: color-mix(in srgb, var(--accent) 18%, var(--panel-soft)) !important;
+}
+
+.correction-history {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.segmentation-correction-panel button:disabled,
+.segmentation-correction-panel input:disabled,
+.segmentation-correction-panel select:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.segmentation-quality-warnings {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.segmentation-quality-warnings li {
+  padding-left: 11px;
+  color: var(--muted);
+  font-size: var(--ui-readable-small, 8px);
+  line-height: 1.35;
+}
+
+.segmentation-quality-warnings li::before {
+  content: "i";
+  float: left;
+  width: 8px;
+  margin-left: -11px;
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.segmentation-quality-warnings li[data-severity="warning"] {
+  color: var(--warning);
+}
+
+.segmentation-quality-warnings li[data-severity="warning"]::before {
+  content: "!";
+  color: var(--warning);
+}
+
 .mpr-panel[data-volume-state="ready"] .mpr-empty > p {
   display: none;
 }

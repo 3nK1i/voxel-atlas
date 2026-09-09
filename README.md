@@ -303,3 +303,30 @@ visibility, isolation, color, and opacity control both the synchronized MPR
 overlay and the selected 3D surface. Phase 5F1 deliberately leaves smoothing,
 topology repair, decimation, multi-surface residency, and export to Phase 6.
 See the [Phase 5F1 architecture record](docs/phase_history/PHASE5F1_SEGMENTATION_DERIVED_3D_SURFACES.md).
+
+### Phase 5F2 - Manual correction foundation
+
+Phase 5F2 adds non-destructive manual review foundations for a selected
+segmentation structure. An authenticated operator can create a study-bound
+draft, record include, exclude, or review intent at the synchronized Patient
+LPS crosshair, choose a bounded physical radius, and undo, redo, or discard the
+draft. Each durable revision is integrity-sealed and revalidates the immutable
+canonical label-map digest before use.
+
+The workspace presents selected-label quality warnings alongside the edit
+hooks. Draft actions are not materialized into a replacement label map and do
+not alter MPR overlays or 3D surfaces in this phase. Surface smoothing and
+topology work remain Phase 6; real-study comparison and Phase 5 closure remain
+Phase 5G. See the
+[Phase 5F2 architecture record](docs/phase_history/PHASE5F2_MANUAL_CORRECTION_FOUNDATION.md).
+
+The Phase 5F2 identity correction makes installed sample loading idempotent.
+VoxelAtlas verifies the installed DICOM instance inventory and reactivates a
+matching stored study, preferring one that already owns a canonical label map.
+This preserves strict study binding while allowing a previously segmented sample
+to reopen with its MPR overlays and selected 3D surface intact.
+
+Ready reused samples now take an explicit live-restoration path after catalog
+activation. The browser clears the previous presentation, reloads the activated
+study's synchronized MPR descriptor, and initializes its existing direct-volume
+texture without rebuilding the canonical volume or requiring a server restart.
