@@ -26,7 +26,7 @@
     })();
   </script>
 
-  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1">
+  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1-phase6c-r2">
 
   <script type="importmap">
   {
@@ -409,15 +409,15 @@
           <section id="segmentationSurfacePanel" class="control-section segmentation-surface-panel" data-state="unavailable">
             <div class="control-heading compact-heading">
               <div>
-                <div class="section-kicker">3D Segmentation Surface</div>
-                <p id="segmentationSurfaceStatus">No 3D segmentation surface available.</p>
+                <div class="section-kicker">3D Segmentation Surfaces</div>
+                <p id="segmentationSurfaceStatus">No 3D segmentation surfaces available.</p>
               </div>
               <label class="segmentation-overlay-switch">
                 <input id="segmentationSurfaceToggle" type="checkbox" checked disabled>
                 <span>Show</span>
               </label>
             </div>
-            <p class="segmentation-overlay-note" data-accurate-reference="Patient LPS accurate surface">Selected structure · Patient LPS refined surface · combined with the patient volume</p>
+            <p class="segmentation-overlay-note" data-accurate-reference="Patient LPS accurate surface">Visible structures · Patient LPS refined surfaces · polished multi-structure presentation</p>
           </section>
 
           <section id="segmentationStructurePanel" class="control-section segmentation-structure-panel" data-state="unavailable" aria-labelledby="segmentationStructureTitle">
@@ -454,7 +454,7 @@
               </label>
               <input id="segmentationStructureOpacity" type="range" min="0" max="100" step="1" value="100" disabled>
             </div>
-            <p class="segmentation-overlay-note">Presentation controls affect synchronized MPR overlays and the selected 3D surface. Source labels remain immutable.</p>
+            <p class="segmentation-overlay-note">Selecting a visible structure adds its refined 3D surface; Show all builds visible surfaces progressively. Presentation controls remain synchronized with MPR overlays. Source labels remain immutable.</p>
           </section>
 
           <section id="segmentationCorrectionPanel" class="control-section segmentation-correction-panel" data-state="unavailable" aria-labelledby="segmentationCorrectionTitle">
@@ -963,6 +963,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1-phase6a-r1-phase6b-r1"></script>
+  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1-phase6a-r1-phase6b-r1-phase6c-r2"></script>
 </body>
 </html>

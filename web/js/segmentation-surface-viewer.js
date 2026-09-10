@@ -3,6 +3,7 @@ const ACCURATE_SURFACE_MEDIA_TYPE = "application/x-voxelatlas-surface-v2";
 const SURFACE_MAGIC = "VXSF";
 const LEGACY_SURFACE_HEADER_BYTES = 32;
 const ACCURATE_SURFACE_HEADER_BYTES = 36;
+const MAX_CONCURRENT_SURFACE_LOADS = 2;
 
 
 function headerValue(response, name) {
@@ -140,7 +141,7 @@ export class PatientSegmentationSurfaceLayer {
     readVolumePresentation = () => null,
     onStatusChange = () => {},
   }) {
-    if (!three?.BufferGeometry || !three?.Mesh || !three?.MeshPhongMaterial) {
+    if (!three?.BufferGeometry || !three?.Mesh || !three?.MeshStandardMaterial) {
       throw new TypeError("Three.js segmentation surface support is required");
     }
     if (!parent?.add || typeof fetchImpl !== "function") {
@@ -155,33 +156,90 @@ export class PatientSegmentationSurfaceLayer {
     this.group = new three.Group();
     this.group.name = "Patient segmentation surfaces";
     this.group.userData.patientSpace = "DICOM Patient LPS millimetres";
+    this.group.userData.presentation = "phase6c-polished-multi-structure";
     parent.add(this.group);
     this.descriptor = null;
     this.enabled = true;
-    this.current = null;
-    this.controller = null;
+    this.items = new Map();
+    this.controllers = new Map();
+    this.queue = [];
+    this.activeLoads = 0;
+    this.maxConcurrentLoads = MAX_CONCURRENT_SURFACE_LOADS;
     this.generation = 0;
+    this.presentation = null;
+    this.desiredLabels = new Set();
+    this.failedLabels = new Map();
+  }
+
+  _surfaceState(labelId) {
+    if (this.items.has(labelId)) return "ready";
+    if (this.controllers.has(labelId)) return "building";
+    if (this.queue.some((entry) => entry.labelId === labelId && entry.generation === this.generation)) {
+      return "queued";
+    }
+    if (this.failedLabels.has(labelId)) return "failed";
+    return "idle";
+  }
+
+  _surfaceStatusSnapshot() {
+    const labels = [];
+    const presentationStructures = this.presentation?.structures;
+    if (presentationStructures instanceof Map) {
+      for (const structure of presentationStructures.values()) {
+        labels.push(Object.freeze({
+          labelId: structure.labelId,
+          displayName: structure.displayName,
+          desired: this.desiredLabels.has(structure.labelId),
+          resident: this.items.has(structure.labelId),
+          state: this._surfaceState(structure.labelId),
+        }));
+      }
+    }
+    return Object.freeze(labels);
   }
 
   _status(state, message) {
-    this.onStatusChange(Object.freeze({ state, message }));
+    const labels = this._surfaceStatusSnapshot();
+    const countState = (value) => labels.filter((entry) => entry.desired && entry.state === value).length;
+    this.onStatusChange(Object.freeze({
+      state,
+      message,
+      labels,
+      requestedCount: this.desiredLabels.size,
+      readyCount: countState("ready"),
+      queuedCount: countState("queued"),
+      buildingCount: countState("building"),
+      failedCount: countState("failed"),
+    }));
   }
 
-  _disposeMesh() {
-    if (!this.current) return;
-    this.group.remove(this.current.mesh);
-    this.current.geometry.dispose();
-    this.current.material.dispose();
-    this.current = null;
+  _disposeItem(item) {
+    if (!item) return;
+    this.group.remove(item.mesh);
+    item.geometry.dispose();
+    item.material.dispose();
+  }
+
+  _disposeAllMeshes() {
+    for (const item of this.items.values()) this._disposeItem(item);
+    this.items.clear();
+  }
+
+  _abortPending() {
+    for (const controller of this.controllers.values()) controller.abort();
+    this.controllers.clear();
+    this.queue = [];
   }
 
   clear() {
     this.generation += 1;
-    this.controller?.abort();
-    this.controller = null;
-    this._disposeMesh();
+    this._abortPending();
+    this._disposeAllMeshes();
     this.descriptor = null;
-    this._status("unavailable", "No 3D segmentation surface available.");
+    this.presentation = null;
+    this.desiredLabels.clear();
+    this.failedLabels.clear();
+    this._status("unavailable", "No 3D segmentation surfaces available.");
     this.requestRender();
   }
 
@@ -196,64 +254,180 @@ export class PatientSegmentationSurfaceLayer {
       return;
     }
     if (this.descriptor?.label_map_id !== descriptor.label_map_id) {
-      this._disposeMesh();
+      this.generation += 1;
+      this._abortPending();
+      this._disposeAllMeshes();
+      this.desiredLabels.clear();
+      this.failedLabels.clear();
     }
     this.descriptor = descriptor;
-    this._status("ready", "Select a structure to show its 3D surface.");
+    this._status("ready", "Select visible structures to add refined 3D surfaces.");
   }
 
   setEnabled(enabled) {
     this.enabled = Boolean(enabled);
     this.group.visible = this.enabled;
     if (!this.enabled) {
-      this.controller?.abort();
-      this._status("disabled", "Selected 3D surface hidden.");
+      this._abortPending();
+      this._status("disabled", "3D segmentation surfaces hidden.");
+    } else {
+      this._pumpQueue();
+      this._updateStatus();
     }
     this.requestRender();
   }
 
-  async sync(presentation) {
-    const selected = presentation?.structures?.get(presentation.selectedLabelId);
-    if (!this.enabled || !this.descriptor || !selected || !selected.visible) {
-      if (this.current?.mesh) this.current.mesh.visible = false;
-      this._status(this.enabled ? "ready" : "disabled", this.enabled
-        ? "Select a visible structure to show its 3D surface."
-        : "Selected 3D surface hidden.");
-      this.requestRender();
-      return null;
-    }
-    if (this.current?.labelId === selected.labelId) {
-      this.current.mesh.visible = true;
-      this.current.material.color.set(selected.colorHex);
-      this.current.material.opacity = selected.opacity;
-      this.current.material.transparent = selected.opacity < 1;
-      this._status(
-        "qualified",
-        `${selected.displayName} · ${this.current.triangleCount.toLocaleString()} triangles`,
-      );
-      this.requestRender();
-      return this.current;
-    }
+  _makeMaterial(structure) {
+    const opacity = Number(structure?.opacity ?? 1);
+    return new this.three.MeshStandardMaterial({
+      color: structure?.colorHex || "#ffffff",
+      opacity,
+      transparent: opacity < 1,
+      side: this.three.FrontSide ?? this.three.DoubleSide,
+      depthTest: true,
+      depthWrite: opacity >= 0.98,
+      roughness: 0.58,
+      metalness: 0.0,
+      flatShading: false,
+    });
+  }
 
+  _updateItemPresentation(item, structure, selectedLabelId) {
+    const shouldShow = Boolean(
+      this.enabled
+      && structure?.visible
+      && structure?.surfaceVisible
+      && this.desiredLabels.has(item.labelId)
+    );
+    item.mesh.visible = shouldShow;
+    if (!structure) return;
+    item.material.color.set(structure.colorHex);
+    item.material.opacity = structure.opacity;
+    item.material.transparent = structure.opacity < 1;
+    item.material.depthWrite = structure.opacity >= 0.98;
+    item.material.roughness = structure.labelId === selectedLabelId ? 0.52 : 0.60;
+    item.mesh.renderOrder = structure.labelId === selectedLabelId ? 2 : 1;
+    item.material.needsUpdate = true;
+  }
+
+  _desiredStructures(presentation) {
+    if (!presentation?.structures || !(presentation.structures instanceof Map)) return [];
+    const desired = Array.from(presentation.structures.values()).filter((structure) => (
+      structure.visible && structure.surfaceVisible === true
+    ));
+    desired.sort((left, right) => {
+      if (left.labelId === presentation.selectedLabelId) return -1;
+      if (right.labelId === presentation.selectedLabelId) return 1;
+      return left.labelId - right.labelId;
+    });
+    return desired;
+  }
+
+  _updateStatus() {
+    if (!this.descriptor) {
+      this._status("unavailable", "No 3D segmentation surfaces available.");
+      return;
+    }
+    if (!this.enabled) {
+      this._status("disabled", "3D segmentation surfaces hidden.");
+      return;
+    }
+    const desiredCount = this.desiredLabels.size;
+    if (desiredCount === 0) {
+      this._status("ready", "Select visible structures to add refined 3D surfaces.");
+      return;
+    }
+    let readyCount = 0;
+    let triangleCount = 0;
+    for (const labelId of this.desiredLabels) {
+      const item = this.items.get(labelId);
+      if (!item) continue;
+      readyCount += 1;
+      triangleCount += item.triangleCount;
+    }
+    const failedCount = Array.from(this.failedLabels.keys())
+      .filter((labelId) => this.desiredLabels.has(labelId)).length;
+    const pendingCount = Math.max(0, desiredCount - readyCount - failedCount);
+    if (pendingCount > 0 || this.activeLoads > 0) {
+      const selectedLabelId = this.presentation?.selectedLabelId;
+      const selected = this.presentation?.structures?.get(selectedLabelId);
+      const selectedState = Number.isInteger(selectedLabelId)
+        ? this._surfaceState(selectedLabelId)
+        : "idle";
+      let activity = "Building refined surfaces";
+      if (selected?.displayName && selectedState === "building") {
+        activity = `Building ${selected.displayName} surface…`;
+      } else if (selected?.displayName && selectedState === "queued") {
+        activity = `Queued ${selected.displayName} surface…`;
+      }
+      this._status(
+        "loading",
+        `${activity} · ${readyCount}/${desiredCount} ready`,
+      );
+      return;
+    }
+    if (failedCount > 0) {
+      this._status(
+        "error",
+        `${readyCount}/${desiredCount} refined surfaces ready · ${failedCount} failed`,
+      );
+      return;
+    }
+    const noun = readyCount === 1 ? "structure" : "structures";
+    this._status(
+      "qualified",
+      `${readyCount} refined ${noun} · ${triangleCount.toLocaleString()} triangles`,
+    );
+  }
+
+  _enqueue(labelId, generation) {
+    if (
+      this.items.has(labelId)
+      || this.controllers.has(labelId)
+      || this.queue.some((entry) => entry.labelId === labelId && entry.generation === generation)
+      || this.failedLabels.has(labelId)
+    ) return;
+    this.queue.push({ labelId, generation });
+  }
+
+  _pumpQueue() {
+    if (!this.enabled || !this.descriptor) return;
+    while (this.activeLoads < this.maxConcurrentLoads && this.queue.length > 0) {
+      const entry = this.queue.shift();
+      if (
+        entry.generation !== this.generation
+        || !this.desiredLabels.has(entry.labelId)
+        || this.items.has(entry.labelId)
+        || this.controllers.has(entry.labelId)
+      ) continue;
+      this.activeLoads += 1;
+      void this._loadSurface(entry.labelId, entry.generation).finally(() => {
+        this.activeLoads = Math.max(0, this.activeLoads - 1);
+        this.controllers.delete(entry.labelId);
+        this._pumpQueue();
+        this._updateStatus();
+      });
+    }
+  }
+
+  async _loadSurface(labelId, generation) {
+    const descriptor = this.descriptor;
     const presentationTransform = patientLpsToViewerMatrix(
       this.three,
       this.readVolumePresentation(),
     );
-    const generation = ++this.generation;
-    this.controller?.abort();
     const controller = new AbortController();
-    this.controller = controller;
-    this._status("loading", `Building ${selected.displayName} surface...`);
+    this.controllers.set(labelId, controller);
     const fallbackQuality = this.descriptor.default_quality || "accurate";
     const requestedQuality = this.descriptor.presentation_quality || fallbackQuality;
     const usesV2Surface = requestedQuality === "accurate" || requestedQuality === "refined";
     const params = new URLSearchParams({
-      label_map_id: this.descriptor.label_map_id,
+      label_map_id: descriptor.label_map_id,
       quality: requestedQuality,
     });
     try {
       const response = await this.fetchImpl(
-        `/api/studies/latest/segmentation-surfaces/${selected.labelId}?${params}`,
+        `/api/studies/latest/segmentation-surfaces/${labelId}?${params}`,
         {
           credentials: "same-origin",
           cache: "no-store",
@@ -277,8 +451,8 @@ export class PatientSegmentationSurfaceLayer {
         mediaType !== expectedMediaType
         || headerValue(response, "X-Content-Type-Options").toLowerCase() !== "nosniff"
         || !headerValue(response, "Cache-Control").toLowerCase().includes("no-store")
-        || headerValue(response, "X-VoxelAtlas-Label-Map-Id") !== this.descriptor.label_map_id
-        || Number(headerValue(response, "X-VoxelAtlas-Label-Id")) !== selected.labelId
+        || headerValue(response, "X-VoxelAtlas-Label-Map-Id") !== descriptor.label_map_id
+        || Number(headerValue(response, "X-VoxelAtlas-Label-Id")) !== labelId
         || headerValue(response, "X-VoxelAtlas-Surface-Quality") !== requestedQuality
       ) {
         throw new Error("Segmentation surface response binding is invalid");
@@ -292,7 +466,7 @@ export class PatientSegmentationSurfaceLayer {
       if (actualDigest !== expectedDigest) {
         throw new Error("Segmentation surface SHA256 verification failed");
       }
-      const decoded = decodeSegmentationSurface(buffer, { labelId: selected.labelId });
+      const decoded = decodeSegmentationSurface(buffer, { labelId });
       if (
         decoded.vertexCount !== Number(headerValue(response, "X-VoxelAtlas-Surface-Vertices"))
         || decoded.triangleCount !== Number(headerValue(response, "X-VoxelAtlas-Surface-Triangles"))
@@ -306,7 +480,7 @@ export class PatientSegmentationSurfaceLayer {
         !/^surf-[0-9a-f]{32}$/.test(surfaceId)
         || !/^[0-9a-f]{64}$/.test(provenanceSha256)
         || headerValue(response, "X-VoxelAtlas-Surface-Extraction")
-          !== this.descriptor.accurate_surface?.extraction
+          !== descriptor.accurate_surface?.extraction
         || decoded.normals === null
       )) {
         throw new Error("Patient-LPS segmentation surface provenance binding is invalid");
@@ -329,10 +503,10 @@ export class PatientSegmentationSurfaceLayer {
         const decimationCellIndex = Number(
           headerValue(response, "X-VoxelAtlas-Surface-Decimation-Cell-Index"),
         );
-        const allowedCells = this.descriptor.refined_surface?.cluster_cell_sizes_index || [];
+        const allowedCells = descriptor.refined_surface?.cluster_cell_sizes_index || [];
         if (
           headerValue(response, "X-VoxelAtlas-Surface-Refinement")
-            !== this.descriptor.refined_surface?.refinement
+            !== descriptor.refined_surface?.refinement
           || !/^surf-[0-9a-f]{32}$/.test(referenceSurfaceId)
           || !/^[0-9a-f]{64}$/.test(referenceSha256)
           || !Number.isFinite(maxDisplacementMm)
@@ -342,7 +516,7 @@ export class PatientSegmentationSurfaceLayer {
           || maxDisplacementMm > displacementLimitMm + 1e-6
           || !Number.isFinite(triangleRetention)
           || triangleRetention < Number(
-            this.descriptor.refined_surface?.minimum_triangle_retention_ratio,
+            descriptor.refined_surface?.minimum_triangle_retention_ratio,
           ) - 1e-9
           || triangleRetention > 1 + 1e-9
           || !["true", "false"].includes(decimationApplied)
@@ -370,20 +544,13 @@ export class PatientSegmentationSurfaceLayer {
       geometry.applyMatrix4(presentationTransform);
       if (!decoded.normals) geometry.computeVertexNormals();
       geometry.computeBoundingSphere();
-      const material = new this.three.MeshPhongMaterial({
-        color: selected.colorHex,
-        opacity: selected.opacity,
-        transparent: selected.opacity < 1,
-        side: this.three.DoubleSide,
-        depthTest: true,
-        depthWrite: true,
-        shininess: 32,
-        specular: 0x223344,
-      });
+
+      const structure = this.presentation?.structures?.get(labelId);
+      const material = this._makeMaterial(structure);
       const mesh = new this.three.Mesh(geometry, material);
-      mesh.name = `Segmentation surface label ${selected.labelId}`;
-      mesh.userData.labelMapId = this.descriptor.label_map_id;
-      mesh.userData.labelId = selected.labelId;
+      mesh.name = `Segmentation surface label ${labelId}`;
+      mesh.userData.labelMapId = descriptor.label_map_id;
+      mesh.userData.labelId = labelId;
       mesh.userData.coordinateSystem = "patient_lps";
       mesh.userData.surfaceId = surfaceId;
       mesh.userData.provenanceSha256 = provenanceSha256;
@@ -393,32 +560,68 @@ export class PatientSegmentationSurfaceLayer {
       mesh.userData.referenceSurfaceId = headerValue(
         response, "X-VoxelAtlas-Surface-Reference-Id",
       );
-      this._disposeMesh();
       this.group.add(mesh);
-      this.current = {
-        labelId: selected.labelId,
+      const item = {
+        labelId,
         mesh,
         geometry,
         material,
         triangleCount: decoded.triangleCount,
       };
-      this._status(
-        "qualified",
-        `${selected.displayName} · ${decoded.triangleCount.toLocaleString()} triangles`,
+      this.items.set(labelId, item);
+      this.failedLabels.delete(labelId);
+      this._updateItemPresentation(
+        item,
+        this.presentation?.structures?.get(labelId),
+        this.presentation?.selectedLabelId,
       );
       this.requestRender();
-      return this.current;
+      return item;
     } catch (error) {
       if (error?.name === "AbortError") return null;
       if (generation === this.generation) {
-        this._status("error", error instanceof Error
-          ? error.message
-          : "Segmentation surface unavailable");
+        this.failedLabels.set(
+          labelId,
+          error instanceof Error ? error.message : "Segmentation surface unavailable",
+        );
       }
       return null;
-    } finally {
-      if (this.controller === controller) this.controller = null;
     }
+  }
+
+  async sync(presentation) {
+    this.presentation = presentation || null;
+    if (!this.descriptor) {
+      this._updateStatus();
+      return null;
+    }
+    const desiredStructures = this._desiredStructures(presentation);
+    this.desiredLabels = new Set(desiredStructures.map((structure) => structure.labelId));
+    for (const [labelId, controller] of this.controllers) {
+      if (!this.desiredLabels.has(labelId)) controller.abort();
+    }
+    for (const labelId of Array.from(this.failedLabels.keys())) {
+      if (!this.desiredLabels.has(labelId)) this.failedLabels.delete(labelId);
+    }
+
+    for (const [labelId, item] of this.items) {
+      this._updateItemPresentation(
+        item,
+        presentation?.structures?.get(labelId),
+        presentation?.selectedLabelId,
+      );
+    }
+
+    this.queue = this.queue.filter((entry) => (
+      entry.generation === this.generation && this.desiredLabels.has(entry.labelId)
+    ));
+    for (const structure of desiredStructures) {
+      this._enqueue(structure.labelId, this.generation);
+    }
+    this._pumpQueue();
+    this._updateStatus();
+    this.requestRender();
+    return this.items.get(presentation?.selectedLabelId) || null;
   }
 
   dispose() {

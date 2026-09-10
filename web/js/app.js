@@ -29,10 +29,10 @@ import {
 } from "./segmentation-overlay.js?v=phase5e-r1";
 import {
   SegmentationStructurePanel,
-} from "./segmentation-structure-panel.js?v=phase5e-r1";
+} from "./segmentation-structure-panel.js?v=phase5e-r1-phase6c-r2";
 import {
   PatientSegmentationSurfaceLayer,
-} from "./segmentation-surface-viewer.js?v=phase6a-r1-phase6b-r1";
+} from "./segmentation-surface-viewer.js?v=phase6a-r1-phase6b-r1-phase6c-r2";
 import {
   SegmentationCorrectionPanel,
 } from "./segmentation-correction-panel.js?v=phase5f2-r1";
@@ -312,10 +312,16 @@ function requestViewerRender() {
 const scene = new THREE.Scene();
 const anatomyGroup = new THREE.Group();
 scene.add(anatomyGroup);
-scene.add(new THREE.HemisphereLight(0xd8efff, 0x182332, 1.35));
-const segmentationSurfaceLight = new THREE.DirectionalLight(0xffffff, 1.15);
-segmentationSurfaceLight.position.set(2.4, 3.2, 4.5);
+scene.add(new THREE.HemisphereLight(0xd8efff, 0x182332, 1.18));
+const segmentationSurfaceLight = new THREE.DirectionalLight(0xfff6ea, 1.35);
+segmentationSurfaceLight.position.set(2.8, 3.6, 4.8);
 scene.add(segmentationSurfaceLight);
+const segmentationSurfaceFillLight = new THREE.DirectionalLight(0xc9ddff, 0.48);
+segmentationSurfaceFillLight.position.set(-3.4, 1.4, 2.6);
+scene.add(segmentationSurfaceFillLight);
+const segmentationSurfaceRimLight = new THREE.DirectionalLight(0xe4efff, 0.62);
+segmentationSurfaceRimLight.position.set(-1.2, 3.0, -4.2);
+scene.add(segmentationSurfaceRimLight);
 
 const camera = new THREE.PerspectiveCamera(29, 1, 0.005, 40);
 const renderer = new THREE.WebGLRenderer({
@@ -361,9 +367,11 @@ segmentationSurfaceLayer = new PatientSegmentationSurfaceLayer({
   parent: anatomyGroup,
   requestRender: requestViewerRender,
   readVolumePresentation: () => volumeRayMarcher.current?.presentation || null,
-  onStatusChange: ({ state: surfaceState, message }) => {
-    segmentationSurfacePanel.dataset.state = surfaceState;
-    segmentationSurfaceStatus.textContent = message;
+  onStatusChange: (surfaceStatus) => {
+    segmentationSurfacePanel.dataset.state = surfaceStatus.state;
+    segmentationSurfaceStatus.textContent = surfaceStatus.message;
+    segmentationSurfaceStatus.setAttribute("aria-live", surfaceStatus.state === "loading" ? "polite" : "off");
+    segmentationStructurePanel.setSurfaceStatusSnapshot(surfaceStatus);
   },
 });
 const sampleStudyCatalogClient = new SampleStudyCatalogClient();

@@ -44,12 +44,15 @@ export function createStructurePresentation(descriptor) {
       defaultColorHex: colorHex,
       colorHex,
       visible: raw.default_visible !== false,
+      surfaceVisible: false,
       opacity: clamp(raw.default_opacity ?? 1, 0, 1),
     });
   }
   if (structures.size !== catalog.structure_count) {
     throw new Error("Segmentation structure catalog count is invalid");
   }
+  const selectedLabelId = structures.keys().next().value ?? null;
+  if (selectedLabelId !== null) structures.get(selectedLabelId).surfaceVisible = true;
   return {
     labelMapId: descriptor.label_map_id,
     groups: catalog.groups.map((group) => ({
@@ -57,17 +60,30 @@ export function createStructurePresentation(descriptor) {
       displayName: String(group.display_name),
     })),
     structures,
-    selectedLabelId: structures.keys().next().value ?? null,
+    selectedLabelId,
     filter: "",
   };
+}
+
+export function activateSurfaceForStructure(presentation, labelId) {
+  const normalized = Number(labelId);
+  const structure = presentation?.structures?.get(normalized);
+  if (!structure) {
+    throw new Error("Segmentation structure selection is invalid");
+  }
+  if (structure.visible) structure.surfaceVisible = true;
+  presentation.selectedLabelId = normalized;
 }
 
 export function resetStructurePresentation(presentation) {
   for (const structure of presentation.structures.values()) {
     structure.visible = true;
+    structure.surfaceVisible = false;
     structure.colorHex = structure.defaultColorHex;
     structure.opacity = 1;
   }
+  const selected = presentation.structures.get(presentation.selectedLabelId);
+  if (selected) selected.surfaceVisible = true;
 }
 
 export function isolateStructure(presentation, labelId) {
@@ -76,7 +92,9 @@ export function isolateStructure(presentation, labelId) {
     throw new Error("Segmentation structure selection is invalid");
   }
   for (const structure of presentation.structures.values()) {
-    structure.visible = structure.labelId === normalized;
+    const isolated = structure.labelId === normalized;
+    structure.visible = isolated;
+    structure.surfaceVisible = isolated;
   }
   presentation.selectedLabelId = normalized;
 }
@@ -84,6 +102,7 @@ export function isolateStructure(presentation, labelId) {
 function setAllVisible(presentation, visible) {
   for (const structure of presentation.structures.values()) {
     structure.visible = visible;
+    structure.surfaceVisible = visible;
   }
 }
 
@@ -128,6 +147,7 @@ export class SegmentationStructurePanel {
     this.opacityValue = root.querySelector("#segmentationStructureOpacityValue");
     this.presentation = null;
     this.expandedGroups = new Set();
+    this.surfaceStates = new Map();
 
     this.search.addEventListener("input", () => {
       if (!this.presentation) return;
@@ -153,6 +173,7 @@ export class SegmentationStructurePanel {
 
   load(descriptor) {
     this.presentation = createStructurePresentation(descriptor);
+    this.surfaceStates.clear();
     this.expandedGroups = new Set(
       this.presentation.groups.length > 0
         ? [this.presentation.groups[0].groupId]
@@ -170,6 +191,7 @@ export class SegmentationStructurePanel {
   clear() {
     this.presentation = null;
     this.expandedGroups.clear();
+    this.surfaceStates.clear();
     this.root.dataset.state = "unavailable";
     this.search.value = "";
     this.groups.replaceChildren();
@@ -183,6 +205,47 @@ export class SegmentationStructurePanel {
 
   selectedStructure() {
     return this.presentation?.structures.get(this.presentation.selectedLabelId) || null;
+  }
+
+  setSurfaceStatusSnapshot(status) {
+    this.surfaceStates.clear();
+    if (Array.isArray(status?.labels)) {
+      for (const entry of status.labels) {
+        if (!Number.isInteger(entry?.labelId)) continue;
+        this.surfaceStates.set(entry.labelId, {
+          state: String(entry.state || "idle"),
+          desired: Boolean(entry.desired),
+          resident: Boolean(entry.resident),
+        });
+      }
+    }
+    if (this.presentation) this.renderGroups();
+  }
+
+  _surfaceStateIndicator(structure) {
+    const snapshot = this.surfaceStates.get(structure.labelId);
+    const state = snapshot?.state || "idle";
+    const indicator = document.createElement("span");
+    indicator.className = "structure-surface-state";
+    indicator.dataset.surfaceState = state;
+    indicator.setAttribute("aria-hidden", "true");
+    const labels = {
+      idle: "",
+      queued: "…",
+      building: "",
+      ready: "✓",
+      failed: "!",
+    };
+    indicator.textContent = labels[state] ?? "";
+    const title = {
+      idle: "3D surface not requested",
+      queued: "3D surface queued",
+      building: "Building refined 3D surface",
+      ready: "Refined 3D surface ready",
+      failed: "3D surface failed",
+    };
+    indicator.title = title[state] || title.idle;
+    return indicator;
   }
 
   notify() {
@@ -200,8 +263,9 @@ export class SegmentationStructurePanel {
     if (action === "reset") resetStructurePresentation(this.presentation);
     if (action === "isolate") isolateStructure(this.presentation, labelId);
     if (action === "select" && this.presentation.structures.has(labelId)) {
-      this.presentation.selectedLabelId = labelId;
+      activateSurfaceForStructure(this.presentation, labelId);
       this.render();
+      this.notify();
       return;
     }
     this.render();
@@ -215,6 +279,7 @@ export class SegmentationStructurePanel {
       const structure = this.presentation.structures.get(Number(visibility.dataset.labelId));
       if (!structure) return;
       structure.visible = visibility.checked;
+      structure.surfaceVisible = visibility.checked;
       this.presentation.selectedLabelId = structure.labelId;
       this.render();
       this.notify();
@@ -285,10 +350,11 @@ export class SegmentationStructurePanel {
           structure.labelId,
         );
         select.title = `Select ${structure.displayName}`;
+        const surfaceState = this._surfaceStateIndicator(structure);
         const isolate = button("Iso", "structure-isolate", "isolate", structure.labelId);
         isolate.title = `Isolate ${structure.displayName}`;
         isolate.setAttribute("aria-label", `Isolate ${structure.displayName}`);
-        row.append(visibility, swatch, select, isolate);
+        row.append(visibility, swatch, select, surfaceState, isolate);
         list.appendChild(row);
       }
       details.append(summary, list);

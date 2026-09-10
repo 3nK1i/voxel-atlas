@@ -2013,7 +2013,29 @@ button:disabled {
 }
 
 .segmentation-surface-panel[data-state="loading"] {
-  border-color: color-mix(in srgb, var(--accent) 46%, var(--line));
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--line));
+}
+
+.segmentation-surface-panel[data-state="loading"] #segmentationSurfaceStatus {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+}
+
+.segmentation-surface-panel[data-state="loading"] #segmentationSurfaceStatus::before {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border: 2px solid color-mix(in srgb, var(--accent) 34%, transparent);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  content: "";
+  animation: segmentation-surface-spin 0.8s linear infinite;
+}
+
+@keyframes segmentation-surface-spin {
+  to { transform: rotate(360deg); }
 }
 
 .segmentation-surface-panel[data-state="error"] #segmentationSurfaceStatus {
@@ -2192,7 +2214,7 @@ button:disabled {
 
 .structure-row {
   display: grid;
-  grid-template-columns: 16px 12px minmax(0, 1fr) 30px;
+  grid-template-columns: 16px 12px minmax(0, 1fr) 14px 30px;
   align-items: center;
   gap: 5px;
   min-height: 29px;
@@ -2241,6 +2263,40 @@ button:disabled {
 .structure-row[data-selected="true"] .structure-select {
   color: var(--text);
   font-weight: 780;
+}
+
+.structure-surface-state {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.structure-surface-state[data-surface-state="building"] {
+  width: 10px;
+  height: 10px;
+  justify-self: center;
+  border: 2px solid color-mix(in srgb, var(--accent) 32%, transparent);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: segmentation-surface-spin 0.8s linear infinite;
+}
+
+.structure-surface-state[data-surface-state="queued"] {
+  color: var(--accent);
+}
+
+.structure-surface-state[data-surface-state="ready"] {
+  color: var(--success);
+}
+
+.structure-surface-state[data-surface-state="failed"] {
+  color: var(--danger);
 }
 
 .structure-isolate {
