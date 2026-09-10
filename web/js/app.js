@@ -36,6 +36,9 @@ import {
 import {
   SegmentationCorrectionPanel,
 } from "./segmentation-correction-panel.js?v=phase5f2-r1";
+import {
+  SegmentationWorkflowPanel,
+} from "./segmentation-workflow-panel.js?v=phase6d0-r1";
 
 const THEME_KEY = "voxelatlas-theme";
 const DEFAULT_OPACITY = 1.0;
@@ -50,6 +53,7 @@ const modelChip = document.getElementById("modelChip");
 const directionalCutPanel = document.getElementById("directionalCutPanel");
 const clippingResetButton = document.getElementById("clippingResetButton");
 const mprClippingOverlayToggle = document.getElementById("mprClippingOverlayToggle");
+const segmentationWorkflowPanelRoot = document.getElementById("segmentationWorkflowPanel");
 const segmentationOverlayPanel = document.getElementById("segmentationOverlayPanel");
 const segmentationOverlayStatus = document.getElementById("segmentationOverlayStatus");
 const segmentationOverlayToggle = document.getElementById("segmentationOverlayToggle");
@@ -271,6 +275,11 @@ let segmentationSurfaceLayer = null;
 let viewerRenderRequested = true;
 let lastRenderedTimestamp = null;
 let segmentationCorrectionPanel = null;
+let segmentationWorkflowPanel = null;
+let segmentationWorkflowSnapshot = null;
+let segmentationWorkflowPollTimer = null;
+let segmentationWorkflowGeneration = 0;
+let activeSegmentationLabelMapId = null;
 
 function syncSegmentationCorrectionContext(presentation) {
   const descriptor = state.segmentationOverlay.descriptor;
@@ -286,6 +295,14 @@ function syncSegmentationCorrectionContext(presentation) {
     displayName: structure.displayName,
   });
 }
+
+segmentationWorkflowPanel = new SegmentationWorkflowPanel(
+  segmentationWorkflowPanelRoot,
+  {
+    onPrimary: () => void requestSegmentationStart(),
+    onCancel: () => void requestSegmentationCancel(),
+  },
+);
 
 const segmentationStructurePanel = new SegmentationStructurePanel(
   segmentationStructurePanelRoot,
@@ -1541,6 +1558,155 @@ function redrawSegmentationOverlays() {
   }
 }
 
+function clearSegmentationWorkflowPoll() {
+  if (segmentationWorkflowPollTimer !== null) {
+    window.clearTimeout(segmentationWorkflowPollTimer);
+    segmentationWorkflowPollTimer = null;
+  }
+}
+
+function segmentationWorkflowIsActive(workflow) {
+  return ["queued", "starting", "running", "cancelling", "finalizing"].includes(
+    String(workflow?.state || ""),
+  );
+}
+
+function scheduleSegmentationWorkflowPoll(delay = 900) {
+  clearSegmentationWorkflowPoll();
+  const generation = segmentationWorkflowGeneration;
+  segmentationWorkflowPollTimer = window.setTimeout(() => {
+    segmentationWorkflowPollTimer = null;
+    if (generation !== segmentationWorkflowGeneration) return;
+    void refreshSegmentationWorkflowStatus({ activateAvailable: true });
+  }, delay);
+}
+
+function renderSegmentationWorkflow(workflow) {
+  segmentationWorkflowSnapshot = workflow;
+  segmentationWorkflowPanel.render(workflow);
+  if (activeSegmentationLabelMapId) {
+    segmentationWorkflowPanel.setActivated(activeSegmentationLabelMapId);
+  }
+}
+
+async function activateSegmentationResult(labelMapId) {
+  const requestedLabelMapId = String(labelMapId || "");
+  if (!requestedLabelMapId || !state.study?.study_id) return null;
+  const descriptor = await refreshSegmentationOverlayDescriptor(requestedLabelMapId);
+  if (!descriptor) return null;
+  activeSegmentationLabelMapId = requestedLabelMapId;
+  segmentationWorkflowPanel.setActivated(requestedLabelMapId);
+  scheduleMprRender();
+  return descriptor;
+}
+
+async function refreshSegmentationWorkflowStatus({ activateAvailable = false } = {}) {
+  if (!state.study?.study_id || !state.study?.volume_ready) {
+    segmentationWorkflowPanel.reset();
+    return null;
+  }
+  const generation = segmentationWorkflowGeneration;
+  try {
+    const response = await fetch("/api/studies/latest/segmentation-workflow", {
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { "Accept": "application/json" },
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.detail || `Segmentation status failed (${response.status})`);
+    }
+    const workflow = payload.workflow;
+    if (
+      generation !== segmentationWorkflowGeneration
+      || !workflow
+      || workflow.study_id !== state.study.study_id
+    ) {
+      return null;
+    }
+    renderSegmentationWorkflow(workflow);
+    if (workflow.state === "available" && activateAvailable && workflow.label_map_id) {
+      clearSegmentationWorkflowPoll();
+      await activateSegmentationResult(workflow.label_map_id);
+    } else if (segmentationWorkflowIsActive(workflow)) {
+      scheduleSegmentationWorkflowPoll();
+    } else {
+      clearSegmentationWorkflowPoll();
+    }
+    return workflow;
+  } catch (error) {
+    if (generation !== segmentationWorkflowGeneration) return null;
+    clearSegmentationWorkflowPoll();
+    segmentationWorkflowPanel.reset(
+      error instanceof Error ? error.message : "Segmentation status unavailable",
+    );
+    return null;
+  }
+}
+
+async function requestSegmentationStart() {
+  if (!state.study?.study_id || !state.study?.volume_ready) return;
+  const generation = segmentationWorkflowGeneration;
+  segmentationWorkflowPanel.setBusy(
+    segmentationWorkflowSnapshot?.state === "available"
+      ? "Activating existing segmentation..."
+      : "Starting segmentation...",
+  );
+  try {
+    const response = await fetch("/api/studies/latest/segmentation-workflow/start", {
+      method: "POST",
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { "Accept": "application/json" },
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.detail || `Segmentation start failed (${response.status})`);
+    }
+    if (generation !== segmentationWorkflowGeneration) return;
+    const workflow = payload.workflow;
+    renderSegmentationWorkflow(workflow);
+    if (workflow?.state === "available" && workflow.label_map_id) {
+      await activateSegmentationResult(workflow.label_map_id);
+    } else if (segmentationWorkflowIsActive(workflow) || workflow?.state === "output_ready") {
+      scheduleSegmentationWorkflowPoll(500);
+    }
+  } catch (error) {
+    if (generation !== segmentationWorkflowGeneration) return;
+    segmentationWorkflowPanel.reset(
+      error instanceof Error ? error.message : "Segmentation could not start",
+    );
+    void refreshSegmentationWorkflowStatus();
+  }
+}
+
+async function requestSegmentationCancel() {
+  if (!state.study?.study_id) return;
+  const generation = segmentationWorkflowGeneration;
+  segmentationWorkflowPanel.setBusy("Requesting segmentation cancellation...");
+  try {
+    const response = await fetch("/api/studies/latest/segmentation-workflow/cancel", {
+      method: "POST",
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { "Accept": "application/json" },
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.detail || `Segmentation cancellation failed (${response.status})`);
+    }
+    if (generation !== segmentationWorkflowGeneration) return;
+    renderSegmentationWorkflow(payload.workflow);
+    if (segmentationWorkflowIsActive(payload.workflow)) scheduleSegmentationWorkflowPoll(500);
+  } catch (error) {
+    if (generation !== segmentationWorkflowGeneration) return;
+    segmentationWorkflowPanel.reset(
+      error instanceof Error ? error.message : "Segmentation cancellation failed",
+    );
+    void refreshSegmentationWorkflowStatus();
+  }
+}
+
 function setSegmentationSurfaceAvailability(descriptor) {
   const ready = Boolean(descriptor?.ready);
   state.segmentationSurface.descriptor = ready ? descriptor : null;
@@ -1640,15 +1806,17 @@ function setSegmentationOverlayAvailability(descriptor) {
   }
 }
 
-async function refreshSegmentationOverlayDescriptor() {
-  if (!state.study?.study_id || !state.mpr.descriptor) {
+async function refreshSegmentationOverlayDescriptor(labelMapId) {
+  if (!state.study?.study_id || !state.mpr.descriptor || !labelMapId) {
     setSegmentationOverlayAvailability(null);
     return null;
   }
   if (segmentationOverlayDescriptorPromise) return segmentationOverlayDescriptorPromise;
   segmentationOverlayDescriptorPromise = (async () => {
-    const response = await fetch("/api/studies/latest/segmentation-overlay", {
+    const params = new URLSearchParams({ label_map_id: String(labelMapId) });
+    const response = await fetch(`/api/studies/latest/segmentation-overlay?${params}`, {
       credentials: "same-origin",
+      cache: "no-store",
       headers: { "Accept": "application/json" },
     });
     const payload = await response.json().catch(() => ({}));
@@ -1660,7 +1828,10 @@ async function refreshSegmentationOverlayDescriptor() {
       setSegmentationOverlayAvailability(null);
       return null;
     }
-    if (descriptor.source_study_id !== state.study.study_id) {
+    if (
+      descriptor.source_study_id !== state.study.study_id
+      || descriptor.label_map_id !== labelMapId
+    ) {
       throw new Error("Segmentation overlay study binding is invalid");
     }
     setSegmentationOverlayAvailability(descriptor);
@@ -1851,7 +2022,6 @@ async function ensureMprReady() {
     state.mpr.window = Number(payload.mpr.default_window.width);
     state.mpr.level = Number(payload.mpr.default_window.level);
     syncClippingControlsFromMpr();
-    await refreshSegmentationOverlayDescriptor();
     for (const entry of mprRegistry.values()) {
       entry.panel.dataset.volumeState = "loading";
       entry.message.textContent = "Rendering patient volume...";
@@ -2273,6 +2443,11 @@ function applyStudy(study) {
   if (previousStudyId !== nextStudyId) {
     mprAbortController?.abort();
     state.mpr.descriptor = null;
+    segmentationWorkflowGeneration += 1;
+    clearSegmentationWorkflowPoll();
+    segmentationWorkflowSnapshot = null;
+    activeSegmentationLabelMapId = null;
+    segmentationWorkflowPanel.reset();
     setSegmentationOverlayAvailability(null);
   }
   state.study = study;
@@ -2356,6 +2531,7 @@ async function ensureCanonicalVolume(study) {
     await ensureMprReady();
     setPatientVolumeReadyStatus();
     await ensureVolumeRenderingFoundation();
+    void refreshSegmentationWorkflowStatus({ activateAvailable: false });
     return payload.study || null;
   })();
 
@@ -2379,6 +2555,7 @@ async function restoreReadyPatientVolume(message) {
   await ensureMprReady();
   setPatientVolumeReadyStatus();
   await ensureVolumeRenderingFoundation();
+  void refreshSegmentationWorkflowStatus({ activateAvailable: false });
 }
 
 async function refreshLatestStudy() {
@@ -2807,6 +2984,7 @@ void refreshLatestStudy();
 const timer = new THREE.Timer();
 timer.connect(document);
 window.addEventListener("pagehide", () => {
+  clearSegmentationWorkflowPoll();
   qualification?.dispose();
   volumeRenderingQuality.deactivate();
   volumeRayMarcher.dispose();

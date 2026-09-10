@@ -3673,3 +3673,136 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+/* Phase 6D0 — on-demand segmentation workflow. */
+.segmentation-workflow-panel {
+  border-color: color-mix(in srgb, var(--line) 82%, transparent);
+}
+
+.segmentation-workflow-panel[data-state="idle"],
+.segmentation-workflow-panel[data-state="available"],
+.segmentation-workflow-panel[data-state="active"] {
+  border-color: color-mix(in srgb, var(--success) 36%, var(--line));
+}
+
+.segmentation-workflow-panel[data-state="queued"],
+.segmentation-workflow-panel[data-state="starting"],
+.segmentation-workflow-panel[data-state="running"],
+.segmentation-workflow-panel[data-state="finalizing"],
+.segmentation-workflow-panel[data-state="loading"] {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+}
+
+.segmentation-workflow-panel[data-state="failed"] {
+  border-color: color-mix(in srgb, var(--danger) 52%, var(--line));
+}
+
+.segmentation-workflow-heading {
+  align-items: flex-start;
+}
+
+.segmentation-workflow-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 3px 7px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  color: var(--text-soft);
+  background: color-mix(in srgb, var(--panel-raised) 86%, transparent);
+  font-size: var(--ui-readable-small, 8px);
+  font-weight: 760;
+  white-space: nowrap;
+}
+
+.segmentation-workflow-panel[data-state="active"] .segmentation-workflow-badge,
+.segmentation-workflow-panel[data-state="available"] .segmentation-workflow-badge {
+  color: var(--success);
+  border-color: color-mix(in srgb, var(--success) 42%, var(--line));
+}
+
+.segmentation-workflow-panel[data-state="running"] .segmentation-workflow-badge,
+.segmentation-workflow-panel[data-state="queued"] .segmentation-workflow-badge,
+.segmentation-workflow-panel[data-state="starting"] .segmentation-workflow-badge,
+.segmentation-workflow-panel[data-state="finalizing"] .segmentation-workflow-badge {
+  color: var(--accent-strong);
+  border-color: color-mix(in srgb, var(--accent) 46%, var(--line));
+}
+
+.segmentation-workflow-panel[data-state="failed"] .segmentation-workflow-badge {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 48%, var(--line));
+}
+
+.segmentation-workflow-provider {
+  margin: 7px 0 0;
+  color: var(--text-muted);
+  font-size: var(--ui-readable-small, 8px);
+  line-height: 1.45;
+}
+
+.segmentation-workflow-progress {
+  margin-top: 9px;
+}
+
+.segmentation-workflow-progress[hidden] {
+  display: none;
+}
+
+.segmentation-workflow-progress-track {
+  width: 100%;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--line) 78%, transparent);
+}
+
+.segmentation-workflow-progress-track > span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 180ms ease;
+}
+
+#segmentationWorkflowProgressText {
+  display: block;
+  margin-top: 5px;
+  color: var(--text-soft);
+  font-size: var(--ui-readable-small, 8px);
+  line-height: 1.35;
+}
+
+.segmentation-workflow-actions {
+  display: flex;
+  gap: 7px;
+  margin-top: 9px;
+}
+
+.segmentation-workflow-actions button {
+  min-height: 28px;
+  padding: 5px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 7px;
+  color: var(--text);
+  background: var(--panel-raised);
+  font: inherit;
+  font-size: var(--ui-readable-small, 8px);
+  font-weight: 760;
+  cursor: pointer;
+}
+
+.segmentation-workflow-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.segmentation-workflow-primary:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  background: color-mix(in srgb, var(--accent) 16%, var(--panel-raised));
+}
+
+.segmentation-workflow-cancel:not(:disabled) {
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--line));
+}

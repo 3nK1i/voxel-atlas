@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import timedelta
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, File, HTTPException, Query, Request, Response, UploadFile, status
+from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, Query, Request, Response, UploadFile, status
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -48,6 +48,7 @@ from .segmentation import (
     SegmentationConflictError,
     SegmentationError,
     SegmentationJobService,
+    SegmentationModelRegistry,
     SegmentationNotFoundError,
     SegmentationUnavailableError,
     SegmentationValidationError,
@@ -58,6 +59,8 @@ from .segmentation_overlays import (
     OVERLAY_MEDIA_TYPE,
     SegmentationOverlayService,
 )
+from .segmentation_workflow import SegmentationWorkflowService
+from .totalsegmentator_execution import TotalSegmentatorProvider
 from .segmentation_surfaces import (
     SURFACE_MEDIA_TYPE,
     SegmentationSurfaceService,
@@ -145,6 +148,7 @@ def create_app(
     segmentation_overlay_service: SegmentationOverlayService | None = None,
     segmentation_surface_service: SegmentationSurfaceService | None = None,
     segmentation_correction_service: SegmentationCorrectionService | None = None,
+    segmentation_workflow_service: SegmentationWorkflowService | None = None,
 ) -> FastAPI:
     runtime_settings = load_settings() if settings is None else settings
     if (
@@ -186,11 +190,24 @@ def create_app(
         if volume_rendering_service is not None
         else VolumeRenderingService(data_dir=runtime_settings.data_dir)
     )
-    patient_segmentation_service = (
-        segmentation_service
-        if segmentation_service is not None
-        else SegmentationJobService(data_dir=runtime_settings.data_dir)
-    )
+    if segmentation_service is not None:
+        patient_segmentation_service = segmentation_service
+    elif runtime_settings.segmentation_worker_python is not None:
+        provider = TotalSegmentatorProvider(
+            data_dir=runtime_settings.data_dir,
+            python_executable=runtime_settings.segmentation_worker_python,
+            bridge_script=REPOSITORY_ROOT / "scripts" / "phase5b2_nifti_worker.py",
+        )
+        registry = SegmentationModelRegistry()
+        registry.register_provider(provider)
+        patient_segmentation_service = SegmentationJobService(
+            data_dir=runtime_settings.data_dir,
+            registry=registry,
+        )
+    else:
+        patient_segmentation_service = SegmentationJobService(
+            data_dir=runtime_settings.data_dir
+        )
     patient_segmentation_label_map_service = (
         segmentation_label_map_service
         if segmentation_label_map_service is not None
@@ -234,6 +251,17 @@ def create_app(
             label_map_service=patient_segmentation_label_map_service,
         )
     )
+    patient_segmentation_workflow_service = (
+        segmentation_workflow_service
+        if segmentation_workflow_service is not None
+        else SegmentationWorkflowService(
+            data_dir=runtime_settings.data_dir,
+            job_service=patient_segmentation_service,
+            label_map_service=patient_segmentation_label_map_service,
+            python_executable=runtime_settings.segmentation_worker_python,
+            import_worker_script=REPOSITORY_ROOT / "scripts" / "phase5c_label_map_worker.py",
+        )
+    )
 
     app = FastAPI(title="VoxelAtlas", docs_url=None, redoc_url=None)
     app.add_middleware(
@@ -253,6 +281,7 @@ def create_app(
     app.state.segmentation_overlay_service = patient_segmentation_overlay_service
     app.state.segmentation_surface_service = patient_segmentation_surface_service
     app.state.segmentation_correction_service = patient_segmentation_correction_service
+    app.state.segmentation_workflow_service = patient_segmentation_workflow_service
 
     app.mount("/assets", StaticFiles(directory=WEB_ROOT / "assets"), name="assets")
     app.mount("/css", StaticFiles(directory=WEB_ROOT / "css"), name="css")
@@ -718,6 +747,59 @@ def create_app(
             detail=str(exc),
             headers={"Cache-Control": "no-store"},
         ) from exc
+
+    @app.get("/api/studies/latest/segmentation-workflow")
+    def latest_segmentation_workflow(
+        response: Response,
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        current_service: SegmentationWorkflowService = (
+            app.state.segmentation_workflow_service
+        )
+        try:
+            workflow = current_service.snapshot_latest()
+        except SegmentationError as exc:
+            raise_segmentation_http_error(exc)
+        return {"workflow": workflow}
+
+    @app.post("/api/studies/latest/segmentation-workflow/start")
+    def start_latest_segmentation_workflow(
+        background_tasks: BackgroundTasks,
+        response: Response,
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        current_service: SegmentationWorkflowService = (
+            app.state.segmentation_workflow_service
+        )
+        try:
+            requested = current_service.request_start()
+        except SegmentationError as exc:
+            raise_segmentation_http_error(exc)
+        if requested.background_job_id is not None:
+            background_tasks.add_task(
+                current_service.execute_requested, requested.background_job_id
+            )
+        return {"workflow": requested.workflow}
+
+    @app.post("/api/studies/latest/segmentation-workflow/cancel")
+    def cancel_latest_segmentation_workflow(
+        response: Response,
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        current_service: SegmentationWorkflowService = (
+            app.state.segmentation_workflow_service
+        )
+        try:
+            workflow = current_service.cancel_latest()
+        except SegmentationError as exc:
+            raise_segmentation_http_error(exc)
+        return {"workflow": workflow}
 
     @app.get("/api/segmentation/models")
     def segmentation_models(

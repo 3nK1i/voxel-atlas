@@ -26,7 +26,7 @@
     })();
   </script>
 
-  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1-phase6c-r2">
+  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1-phase6c-r2-phase6d0-r1">
 
   <script type="importmap">
   {
@@ -379,6 +379,37 @@
 
       <aside class="right-panel panel" aria-label="3D patient volume controls">
         <div class="panel-scroll">
+          <section id="segmentationWorkflowPanel" class="control-section segmentation-workflow-panel" data-state="waiting" aria-labelledby="segmentationWorkflowTitle">
+            <div class="control-heading compact-heading segmentation-workflow-heading">
+              <div>
+                <div id="segmentationWorkflowTitle" class="section-kicker">Segmentation</div>
+                <p id="segmentationWorkflowStatus" aria-live="polite">Patient volume loads before segmentation becomes available.</p>
+              </div>
+              <span id="segmentationWorkflowBadge" class="segmentation-workflow-badge">Waiting</span>
+            </div>
+            <p id="segmentationWorkflowProvider" class="segmentation-workflow-provider">Segmentation is intentionally off the initial loading path.</p>
+            <div
+              id="segmentationWorkflowProgress"
+              class="segmentation-workflow-progress"
+              role="progressbar"
+              aria-label="Segmentation progress"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="0"
+              hidden
+            >
+              <div class="segmentation-workflow-progress-track" aria-hidden="true">
+                <span id="segmentationWorkflowProgressFill"></span>
+              </div>
+              <span id="segmentationWorkflowProgressText">0% · Waiting</span>
+            </div>
+            <div class="segmentation-workflow-actions">
+              <button id="segmentationWorkflowPrimary" class="segmentation-workflow-primary" type="button" disabled>Start Segmentation</button>
+              <button id="segmentationWorkflowCancel" class="segmentation-workflow-cancel" type="button" hidden>Cancel</button>
+            </div>
+            <p class="segmentation-overlay-note">On-demand workflow · direct volume and MPR remain available while segmentation runs.</p>
+          </section>
+
           <section id="segmentationOverlayPanel" class="control-section segmentation-overlay-panel" data-state="unavailable">
             <div class="control-heading compact-heading">
               <div>
@@ -963,6 +994,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1-phase6a-r1-phase6b-r1-phase6c-r2"></script>
+  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1-phase6a-r1-phase6b-r1-phase6c-r2-phase6d0-r1"></script>
 </body>
 </html>
