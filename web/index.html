@@ -26,7 +26,7 @@
     })();
   </script>
 
-  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1-phase6c-r2-phase6d0-r1">
+  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1-phase6c-r2-phase6d0-r1-phase6d1-r1">
 
   <script type="importmap">
   {
@@ -379,6 +379,28 @@
 
       <aside class="right-panel panel" aria-label="3D patient volume controls">
         <div class="panel-scroll">
+          <section id="volumeSurfacePanel" class="control-section volume-surface-panel" data-state="unavailable" aria-labelledby="volumeSurfaceTitle">
+            <div class="control-heading compact-heading">
+              <div>
+                <div id="volumeSurfaceTitle" class="section-kicker">Volume-derived Surface</div>
+                <p id="volumeSurfaceStatus" aria-live="polite">Available after a qualified CT volume is loaded.</p>
+              </div>
+              <span class="volume-surface-source-badge">Direct CT</span>
+            </div>
+            <label class="volume-surface-isovalue" for="volumeSurfaceIsovalue">
+              <span>CT isovalue <small>Bone baseline: 300 HU when in range</small></span>
+              <span class="volume-surface-isovalue-entry">
+                <input id="volumeSurfaceIsovalue" type="number" step="10" value="300" inputmode="decimal" disabled>
+                <strong>HU</strong>
+              </span>
+            </label>
+            <div class="volume-surface-actions">
+              <button id="volumeSurfaceBuild" class="volume-surface-build" type="button" disabled>Build Surface</button>
+              <button id="volumeSurfaceClear" class="volume-surface-clear" type="button" disabled>Remove</button>
+            </div>
+            <p class="segmentation-overlay-note">Canonical CT intensity isosurface · Patient LPS · no semantic segmentation required.</p>
+          </section>
+
           <section id="segmentationWorkflowPanel" class="control-section segmentation-workflow-panel" data-state="waiting" aria-labelledby="segmentationWorkflowTitle">
             <div class="control-heading compact-heading segmentation-workflow-heading">
               <div>
@@ -994,6 +1016,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1-phase6a-r1-phase6b-r1-phase6c-r2-phase6d0-r1-phase6d0-explicit-r1"></script>
+  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1-phase6a-r1-phase6b-r1-phase6c-r2-phase6d0-r1-phase6d0-explicit-r1-phase6d1-r2"></script>
 </body>
 </html>

@@ -72,6 +72,13 @@ from .volume_rendering import (
     VolumeRenderingService,
     VolumeRenderingValidationError,
 )
+from .volume_surfaces import (
+    VOLUME_SURFACE_MEDIA_TYPE,
+    VolumeSurfaceError,
+    VolumeSurfaceService,
+    VolumeSurfaceUnavailableError,
+    VolumeSurfaceValidationError,
+)
 
 
 COOKIE_SAMESITE = "lax"
@@ -109,6 +116,10 @@ class SegmentationJobCreateRequest(BaseModel):
     parameters: dict[str, object] = Field(default_factory=dict)
 
 
+class VolumeSurfaceCreateRequest(BaseModel):
+    isovalue: float = Field(ge=-1000000.0, le=1000000.0)
+
+
 class SegmentationCorrectionSessionCreateRequest(BaseModel):
     label_map_id: str = Field(pattern=r"^map-[0-9a-f]{32}$")
 
@@ -142,6 +153,7 @@ def create_app(
     mpr_service: CanonicalMprService | None = None,
     anatomy_service: AnatomyReconstructionService | None = None,
     volume_rendering_service: VolumeRenderingService | None = None,
+    volume_surface_service: VolumeSurfaceService | None = None,
     sample_catalog_service: SampleStudyCatalogService | None = None,
     segmentation_service: SegmentationJobService | None = None,
     segmentation_label_map_service: SegmentationLabelMapService | None = None,
@@ -189,6 +201,16 @@ def create_app(
         volume_rendering_service
         if volume_rendering_service is not None
         else VolumeRenderingService(data_dir=runtime_settings.data_dir)
+    )
+    patient_volume_surface_service = (
+        volume_surface_service
+        if volume_surface_service is not None
+        else VolumeSurfaceService(
+            data_dir=runtime_settings.data_dir,
+            volume_rendering_service=patient_volume_rendering_service,
+            worker_python=runtime_settings.surface_worker_python,
+            worker_script=REPOSITORY_ROOT / "scripts" / "phase6d1_volume_surface_worker.py",
+        )
     )
     if segmentation_service is not None:
         patient_segmentation_service = segmentation_service
@@ -275,6 +297,7 @@ def create_app(
     app.state.mpr_service = patient_mpr_service
     app.state.anatomy_service = patient_anatomy_service
     app.state.volume_rendering_service = patient_volume_rendering_service
+    app.state.volume_surface_service = patient_volume_surface_service
     app.state.sample_catalog_service = patient_sample_catalog_service
     app.state.segmentation_service = patient_segmentation_service
     app.state.segmentation_label_map_service = patient_segmentation_label_map_service
@@ -747,6 +770,61 @@ def create_app(
             detail=str(exc),
             headers={"Cache-Control": "no-store"},
         ) from exc
+
+    @app.get("/api/studies/latest/volume-surface")
+    def latest_volume_surface_descriptor(
+        response: Response,
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        current_service: VolumeSurfaceService = app.state.volume_surface_service
+        try:
+            descriptor = current_service.descriptor_latest()
+        except VolumeSurfaceUnavailableError as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc), headers={"Cache-Control":"no-store"}) from exc
+        except VolumeSurfaceValidationError as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc), headers={"Cache-Control":"no-store"}) from exc
+        except VolumeSurfaceError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc), headers={"Cache-Control":"no-store"}) from exc
+        return {"volume_surface": descriptor}
+
+    @app.post("/api/studies/latest/volume-surface")
+    def build_latest_volume_surface(
+        payload: VolumeSurfaceCreateRequest,
+        username: str = Depends(require_username),
+    ) -> Response:
+        del username
+        current_service: VolumeSurfaceService = app.state.volume_surface_service
+        try:
+            surface = current_service.surface_latest(isovalue=payload.isovalue)
+        except VolumeSurfaceUnavailableError as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc), headers={"Cache-Control":"no-store"}) from exc
+        except VolumeSurfaceValidationError as exc:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc), headers={"Cache-Control":"no-store"}) from exc
+        except VolumeSurfaceError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc), headers={"Cache-Control":"no-store"}) from exc
+        bounds = ",".join(f"{value:.6f}" for value in surface.bounds_lps_mm)
+        return Response(
+            content=surface.payload,
+            media_type=VOLUME_SURFACE_MEDIA_TYPE,
+            headers={
+                "Cache-Control": "no-store",
+                "X-Content-Type-Options": "nosniff",
+                "X-VoxelAtlas-Volume-Surface-Id": surface.surface_id,
+                "X-VoxelAtlas-Volume-Surface-Source": surface.source_type,
+                "X-VoxelAtlas-Volume-Surface-Isovalue": f"{surface.isovalue:.6f}",
+                "X-VoxelAtlas-Volume-Surface-Units": surface.intensity_units,
+                "X-VoxelAtlas-Volume-Surface-Extraction": surface.extraction,
+                "X-VoxelAtlas-Volume-Surface-SHA256": surface.payload_sha256,
+                "X-VoxelAtlas-Volume-Surface-Provenance-SHA256": surface.provenance_sha256,
+                "X-VoxelAtlas-Volume-Surface-Vertices": str(surface.vertex_count),
+                "X-VoxelAtlas-Volume-Surface-Triangles": str(surface.triangle_count),
+                "X-VoxelAtlas-Volume-Surface-Degenerate-Triangles-Removed": str(surface.degenerate_triangle_count),
+                "X-VoxelAtlas-Volume-Surface-Unreferenced-Vertices-Removed": str(surface.unreferenced_vertex_count),
+                "X-VoxelAtlas-Volume-Surface-Bounds-LPS-MM": bounds,
+            },
+        )
 
     @app.get("/api/studies/latest/segmentation-workflow")
     def latest_segmentation_workflow(

@@ -15,6 +15,9 @@ import {
 import {
   AdaptiveVolumeRenderingQuality,
 } from "./volume-rendering-quality.js?v=phase4h1";
+import {
+  PatientVolumeSurfaceLayer,
+} from "./volume-surface-viewer.js?v=phase6d1-r1";
 import { SampleStudyCatalogClient } from "./sample-study-catalog.js?v=phase4g-r1";
 import {
   classifySampleStudyActivation,
@@ -54,6 +57,11 @@ const directionalCutPanel = document.getElementById("directionalCutPanel");
 const clippingResetButton = document.getElementById("clippingResetButton");
 const mprClippingOverlayToggle = document.getElementById("mprClippingOverlayToggle");
 const segmentationWorkflowPanelRoot = document.getElementById("segmentationWorkflowPanel");
+const volumeSurfacePanel = document.getElementById("volumeSurfacePanel");
+const volumeSurfaceStatus = document.getElementById("volumeSurfaceStatus");
+const volumeSurfaceIsovalue = document.getElementById("volumeSurfaceIsovalue");
+const volumeSurfaceBuild = document.getElementById("volumeSurfaceBuild");
+const volumeSurfaceClear = document.getElementById("volumeSurfaceClear");
 const segmentationOverlayPanel = document.getElementById("segmentationOverlayPanel");
 const segmentationOverlayStatus = document.getElementById("segmentationOverlayStatus");
 const segmentationOverlayToggle = document.getElementById("segmentationOverlayToggle");
@@ -258,6 +266,9 @@ const state = {
     descriptor: null,
     enabled: true,
   },
+  volumeSurface: {
+    descriptor: null,
+  },
   size: new THREE.Vector3(1, 1, 1),
   cameraPosition: new THREE.Vector3(),
   cameraTarget: new THREE.Vector3(),
@@ -272,6 +283,8 @@ let mprAbortController = null;
 let segmentationOverlayDescriptorPromise = null;
 let segmentationSurfaceDescriptorPromise = null;
 let segmentationSurfaceLayer = null;
+let volumeSurfaceDescriptorPromise = null;
+let volumeSurfaceLayer = null;
 let viewerRenderRequested = true;
 let lastRenderedTimestamp = null;
 let segmentationCorrectionPanel = null;
@@ -379,6 +392,21 @@ const volumeTextureManager = new PatientVolumeTextureManager({
   initializeTexture: (texture) => renderer.initTexture(texture),
 });
 const volumeRayMarcher = new PatientVolumeRayMarcher({ three: THREE });
+volumeSurfaceLayer = new PatientVolumeSurfaceLayer({
+  three: THREE,
+  parent: anatomyGroup,
+  requestRender: requestViewerRender,
+  readVolumePresentation: () => volumeRayMarcher.current?.presentation || null,
+  onStatusChange: (surfaceStatus) => {
+    volumeSurfacePanel.dataset.state = surfaceStatus.state;
+    volumeSurfaceStatus.textContent = surfaceStatus.message;
+    const busy = surfaceStatus.state === "loading";
+    const available = Boolean(state.volumeSurface.descriptor?.available);
+    volumeSurfaceBuild.disabled = busy || !available;
+    volumeSurfaceIsovalue.disabled = busy || !available;
+    volumeSurfaceClear.disabled = busy || !volumeSurfaceLayer?.current;
+  },
+});
 segmentationSurfaceLayer = new PatientSegmentationSurfaceLayer({
   three: THREE,
   parent: anatomyGroup,
@@ -856,6 +884,7 @@ function setVolumeAvailability(available) {
 function applyVolumeVisibility() {
   if (volumeLayer.root) {
     volumeLayer.root.visible = volumeLayer.available && state.opacity > 0.001;
+    if (volumeSurfaceLayer?.current) volumeLayer.root.visible = false;
     requestViewerRender();
   }
 }
@@ -1125,6 +1154,12 @@ function clearPatientVolumeRendering() {
   volumeRenderingQuality.deactivate();
   volumeRayMarcher.dispose();
   volumeLayer.root = null;
+  volumeSurfaceDescriptorPromise = null;
+  state.volumeSurface.descriptor = null;
+  volumeSurfaceLayer.clear();
+  volumeSurfaceBuild.disabled = true;
+  volumeSurfaceClear.disabled = true;
+  volumeSurfaceIsovalue.disabled = true;
   setSegmentationSurfaceAvailability(null);
   clearTransferControls();
   setVolumeAvailability(false);
@@ -1362,6 +1397,7 @@ async function ensureVolumeRenderingFoundation() {
     }
     state.volumeRendering.descriptor = descriptor;
     state.volumeRendering.textureResource = textureResource;
+    void refreshVolumeSurfaceDescriptor();
     return descriptor;
   })();
   volumeRenderingTask = task;
@@ -1556,6 +1592,81 @@ function redrawSegmentationOverlays() {
       state.segmentationOverlay.opacity,
     );
   }
+}
+
+function setVolumeSurfaceDescriptor(descriptor) {
+  state.volumeSurface.descriptor = descriptor || null;
+  volumeSurfaceLayer.setDescriptor(descriptor || null);
+  if (!descriptor) {
+    volumeSurfacePanel.dataset.state = "unavailable";
+    volumeSurfaceBuild.disabled = true;
+    volumeSurfaceClear.disabled = true;
+    volumeSurfaceIsovalue.disabled = true;
+    return;
+  }
+  const range = Array.isArray(descriptor.source_value_range) ? descriptor.source_value_range : [];
+  const minimum = Number(range[0]);
+  const maximum = Number(range[1]);
+  const defaultLevel = Number(descriptor.default_isovalue);
+  if (Number.isFinite(minimum) && Number.isFinite(maximum) && minimum < maximum) {
+    const epsilon = Math.max(0.001, Math.abs(maximum - minimum) * 1e-6);
+    volumeSurfaceIsovalue.min = String(minimum + epsilon);
+    volumeSurfaceIsovalue.max = String(maximum - epsilon);
+  }
+  if (Number.isFinite(defaultLevel)) {
+    volumeSurfaceIsovalue.value = String(defaultLevel);
+  } else if (Number.isFinite(minimum) && Number.isFinite(maximum) && minimum < maximum) {
+    volumeSurfaceIsovalue.value = String(Math.round((minimum + maximum) / 2));
+  }
+  volumeSurfaceBuild.disabled = !descriptor.available;
+  volumeSurfaceIsovalue.disabled = !descriptor.available;
+  volumeSurfaceClear.disabled = !volumeSurfaceLayer.current;
+}
+
+async function refreshVolumeSurfaceDescriptor() {
+  if (!state.study?.volume_ready || !volumeRayMarcher.current) {
+    setVolumeSurfaceDescriptor(null);
+    return null;
+  }
+  if (volumeSurfaceDescriptorPromise) return volumeSurfaceDescriptorPromise;
+  volumeSurfaceDescriptorPromise = (async () => {
+    try {
+      const response = await fetch("/api/studies/latest/volume-surface", {
+        credentials: "same-origin",
+        headers: { "Accept": "application/json" },
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.detail || `Volume surface availability failed (${response.status})`);
+      if (payload.volume_surface?.study_id !== state.study?.study_id) return null;
+      setVolumeSurfaceDescriptor(payload.volume_surface);
+      return payload.volume_surface;
+    } catch (error) {
+      setVolumeSurfaceDescriptor(null);
+      volumeSurfacePanel.dataset.state = "error";
+      volumeSurfaceStatus.textContent = error instanceof Error ? error.message : "Volume-derived surface availability failed";
+      return null;
+    } finally {
+      volumeSurfaceDescriptorPromise = null;
+    }
+  })();
+  return volumeSurfaceDescriptorPromise;
+}
+
+async function requestVolumeSurfaceBuild() {
+  const level = Number(volumeSurfaceIsovalue.value);
+  try {
+    const builtSurface = await volumeSurfaceLayer.build(level);
+    if (builtSurface) applyVolumeVisibility();
+    volumeSurfaceClear.disabled = !volumeSurfaceLayer.current;
+  } catch {
+    volumeSurfaceClear.disabled = !volumeSurfaceLayer.current;
+  }
+}
+
+function clearVolumeDerivedSurface() {
+  volumeSurfaceLayer.clearSurface();
+  applyVolumeVisibility();
+  volumeSurfaceClear.disabled = true;
 }
 
 function clearSegmentationWorkflowPoll() {
@@ -2690,6 +2801,19 @@ clippingResetButton.addEventListener("click", () => {
 
 mprClippingOverlayToggle.addEventListener("change", updateMprClippingOverlays);
 
+volumeSurfaceBuild.addEventListener("click", () => {
+  void requestVolumeSurfaceBuild();
+});
+
+volumeSurfaceClear.addEventListener("click", clearVolumeDerivedSurface);
+
+volumeSurfaceIsovalue.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !volumeSurfaceBuild.disabled) {
+    event.preventDefault();
+    void requestVolumeSurfaceBuild();
+  }
+});
+
 segmentationOverlayToggle.addEventListener("change", () => {
   state.segmentationOverlay.enabled = segmentationOverlayToggle.checked;
   if (state.segmentationOverlay.enabled) {
@@ -2988,6 +3112,7 @@ window.addEventListener("pagehide", () => {
   qualification?.dispose();
   volumeRenderingQuality.deactivate();
   volumeRayMarcher.dispose();
+  volumeSurfaceLayer.dispose();
   segmentationSurfaceLayer.dispose();
   volumeTextureManager.dispose();
   timer.dispose();

@@ -3806,3 +3806,116 @@ button:disabled {
 .segmentation-workflow-cancel:not(:disabled) {
   border-color: color-mix(in srgb, var(--danger) 42%, var(--line));
 }
+
+/* Phase 6D1 — direct canonical-volume isosurface preview. */
+.volume-surface-panel[data-state="ready"],
+.volume-surface-panel[data-state="qualified"] {
+  --volume-surface-accent: rgba(138, 196, 255, 0.92);
+}
+
+.volume-surface-panel[data-state="loading"] #volumeSurfaceStatus::before {
+  content: "";
+  display: inline-block;
+  width: 0.72rem;
+  height: 0.72rem;
+  margin-right: 0.45rem;
+  vertical-align: -0.08rem;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: segmentation-surface-spin 0.8s linear infinite;
+}
+
+.volume-surface-panel[data-state="error"] #volumeSurfaceStatus {
+  color: var(--danger, #ff8b96);
+}
+
+.volume-surface-source-badge {
+  flex: 0 0 auto;
+  padding: 0.2rem 0.48rem;
+  border: 1px solid rgba(131, 185, 239, 0.28);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.volume-surface-isovalue {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.7rem;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.volume-surface-isovalue > span:first-child {
+  display: grid;
+  gap: 0.16rem;
+}
+
+.volume-surface-isovalue small {
+  color: var(--text-muted);
+  font-size: 0.66rem;
+}
+
+.volume-surface-isovalue-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.volume-surface-isovalue input {
+  width: 5.4rem;
+  min-height: 2rem;
+  padding: 0.28rem 0.45rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.45rem;
+  background: var(--surface-inset);
+  color: var(--text-primary);
+  font: inherit;
+  text-align: right;
+}
+
+.volume-surface-isovalue-entry strong {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.volume-surface-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+
+.volume-surface-build,
+.volume-surface-clear {
+  min-height: 2.1rem;
+  border-radius: 0.48rem;
+  border: 1px solid var(--border-subtle);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.volume-surface-build {
+  background: rgba(66, 141, 219, 0.16);
+  color: var(--text-primary);
+}
+
+.volume-surface-clear {
+  padding-inline: 0.72rem;
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.volume-surface-build:disabled,
+.volume-surface-clear:disabled,
+.volume-surface-isovalue input:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
