@@ -17,7 +17,10 @@ import {
 } from "./volume-rendering-quality.js?v=phase4h1";
 import {
   PatientVolumeSurfaceLayer,
-} from "./volume-surface-viewer.js?v=phase6d1-r1";
+} from "./volume-surface-viewer.js?v=phase6d2b-r1";
+import {
+  ReconstructionVisualizationModeController,
+} from "./reconstruction-visualization-mode.js?v=phase6d2a-r1";
 import { SampleStudyCatalogClient } from "./sample-study-catalog.js?v=phase4g-r1";
 import {
   classifySampleStudyActivation,
@@ -35,7 +38,7 @@ import {
 } from "./segmentation-structure-panel.js?v=phase5e-r1-phase6c-r2-phase6d0-explicit-r1";
 import {
   PatientSegmentationSurfaceLayer,
-} from "./segmentation-surface-viewer.js?v=phase6a-r1-phase6b-r1-phase6c-r2";
+} from "./segmentation-surface-viewer.js?v=phase6a-r1-phase6b-r1-phase6c-r2-phase6d2b-r1";
 import {
   SegmentationCorrectionPanel,
 } from "./segmentation-correction-panel.js?v=phase5f2-r1";
@@ -45,6 +48,10 @@ import {
 
 const THEME_KEY = "voxelatlas-theme";
 const DEFAULT_OPACITY = 1.0;
+const DEFAULT_RECONSTRUCTION_SURFACE_SOURCE_SELECTION = Object.freeze({
+  "volume-derived": true,
+  "segmentation-derived": true,
+});
 const INITIAL_VIEW_DISTANCE_SCALE = 1.18;
 const CLIPPING_MINIMUM_GAP_PERCENT = 0.1;
 
@@ -57,6 +64,12 @@ const directionalCutPanel = document.getElementById("directionalCutPanel");
 const clippingResetButton = document.getElementById("clippingResetButton");
 const mprClippingOverlayToggle = document.getElementById("mprClippingOverlayToggle");
 const segmentationWorkflowPanelRoot = document.getElementById("segmentationWorkflowPanel");
+const reconstructionVisualizationPanel = document.getElementById("reconstructionVisualizationPanel");
+const reconstructionVisualizationStatus = document.getElementById("reconstructionVisualizationStatus");
+const surfaceModeStatusText = document.getElementById("surfaceModeStatusText");
+const combinedModeStatusText = document.getElementById("combinedModeStatusText");
+const reconstructionModeButtons = Array.from(document.querySelectorAll("[data-reconstruction-mode]"));
+const reconstructionSurfaceSourceInputs = Array.from(document.querySelectorAll("[data-reconstruction-surface-source]"));
 const volumeSurfacePanel = document.getElementById("volumeSurfacePanel");
 const volumeSurfaceStatus = document.getElementById("volumeSurfaceStatus");
 const volumeSurfaceIsovalue = document.getElementById("volumeSurfaceIsovalue");
@@ -269,6 +282,9 @@ const state = {
   volumeSurface: {
     descriptor: null,
   },
+  reconstructionVisualization: {
+    surfaceSourceSelection: { ...DEFAULT_RECONSTRUCTION_SURFACE_SOURCE_SELECTION },
+  },
   size: new THREE.Vector3(1, 1, 1),
   cameraPosition: new THREE.Vector3(),
   cameraTarget: new THREE.Vector3(),
@@ -285,6 +301,7 @@ let segmentationSurfaceDescriptorPromise = null;
 let segmentationSurfaceLayer = null;
 let volumeSurfaceDescriptorPromise = null;
 let volumeSurfaceLayer = null;
+let reconstructionVisualizationController = null;
 let viewerRenderRequested = true;
 let lastRenderedTimestamp = null;
 let segmentationCorrectionPanel = null;
@@ -405,6 +422,7 @@ volumeSurfaceLayer = new PatientVolumeSurfaceLayer({
     volumeSurfaceBuild.disabled = busy || !available;
     volumeSurfaceIsovalue.disabled = busy || !available;
     volumeSurfaceClear.disabled = busy || !volumeSurfaceLayer?.current;
+    syncReconstructionVisualizationResources();
   },
 });
 segmentationSurfaceLayer = new PatientSegmentationSurfaceLayer({
@@ -417,8 +435,13 @@ segmentationSurfaceLayer = new PatientSegmentationSurfaceLayer({
     segmentationSurfaceStatus.textContent = surfaceStatus.message;
     segmentationSurfaceStatus.setAttribute("aria-live", surfaceStatus.state === "loading" ? "polite" : "off");
     segmentationStructurePanel.setSurfaceStatusSnapshot(surfaceStatus);
+    syncReconstructionVisualizationResources();
   },
 });
+reconstructionVisualizationController = new ReconstructionVisualizationModeController({
+  onChange: (snapshot) => applyReconstructionVisualizationSnapshot(snapshot),
+});
+applyReconstructionVisualizationSnapshot(reconstructionVisualizationController.snapshot());
 const sampleStudyCatalogClient = new SampleStudyCatalogClient();
 let sampleReplacementResolver = null;
 let sampleCatalogLoading = false;
@@ -868,6 +891,114 @@ function applyTransferAdjustments(changedControl = null) {
   return transfer;
 }
 
+function reconstructionSurfaceSourceLabel(sourceId) {
+  return sourceId === "volume-derived" ? "Direct CT" : "Segmentation";
+}
+
+function applyReconstructionVisualizationSnapshot(snapshot) {
+  if (!snapshot) return;
+  if (volumeLayer.root) {
+    volumeLayer.root.visible = Boolean(snapshot.visibility.volume) && state.opacity > 0.001;
+  }
+  volumeSurfaceLayer?.setPresentationVisible(snapshot.visibility.surfaceSources["volume-derived"]);
+  segmentationSurfaceLayer?.setPresentationVisible(snapshot.visibility.surfaceSources["segmentation-derived"]);
+
+  if (reconstructionVisualizationPanel) {
+    reconstructionVisualizationPanel.dataset.mode = snapshot.mode;
+    reconstructionVisualizationPanel.dataset.state = snapshot.volumeAvailable || snapshot.canSurface
+      ? "ready"
+      : "unavailable";
+  }
+  for (const button of reconstructionModeButtons) {
+    const modeId = button.dataset.reconstructionMode;
+    const available = modeId === "volume"
+      ? snapshot.canVolume
+      : (modeId === "surface" ? snapshot.canSurface : snapshot.canCombined);
+    button.disabled = !available;
+    button.dataset.active = String(snapshot.mode === modeId && available);
+    button.dataset.capability = available ? "ready" : "unavailable";
+    button.setAttribute("aria-pressed", String(snapshot.mode === modeId && available));
+  }
+  const selectedResidentLabels = snapshot.selectedResidentSurfaceSources.map(reconstructionSurfaceSourceLabel);
+  const sourceSummary = selectedResidentLabels.join(" + ");
+  if (surfaceModeStatusText) {
+    surfaceModeStatusText.textContent = snapshot.canSurface
+      ? `${sourceSummary || "Surface"} ready`
+      : "Build or select a surface";
+  }
+  if (combinedModeStatusText) {
+    combinedModeStatusText.textContent = snapshot.canCombined
+      ? "Volume + selected surface ready"
+      : "Requires volume + surface";
+  }
+  for (const input of reconstructionSurfaceSourceInputs) {
+    const sourceId = input.dataset.reconstructionSurfaceSource;
+    const sourceState = snapshot.surfaceSources[sourceId];
+    const semanticEnabled = sourceId !== "segmentation-derived" || state.segmentationSurface.enabled;
+    const selectable = Boolean(sourceState?.resident && semanticEnabled);
+    input.disabled = !selectable;
+    input.checked = Boolean(selectable && sourceState?.selected);
+    const row = input.closest("[data-reconstruction-source-row]");
+    if (row) {
+      row.dataset.state = !selectable ? "unavailable" : (sourceState.selected ? "selected" : "ready");
+    }
+  }
+  if (reconstructionVisualizationStatus) {
+    if (!snapshot.volumeAvailable && !snapshot.canSurface) {
+      reconstructionVisualizationStatus.textContent = "Available after a patient volume or resident surface is ready.";
+    } else if (snapshot.mode === "combined") {
+      reconstructionVisualizationStatus.textContent = `Combined view · patient volume + ${sourceSummary} · resident geometry reused.`;
+    } else if (snapshot.mode === "surface") {
+      reconstructionVisualizationStatus.textContent = `Surface view · ${sourceSummary} · resident geometry reused without rebuilding.`;
+    } else {
+      reconstructionVisualizationStatus.textContent = snapshot.canSurface
+        ? "Volume view · resident surface sources are ready for Surface or Combined."
+        : "Volume view · build or select a surface to enable Surface and Combined.";
+    }
+  }
+  requestViewerRender();
+}
+
+function syncReconstructionVisualizationResources() {
+  if (!reconstructionVisualizationController) return null;
+  const volumeAvailable = Boolean(volumeLayer.available && volumeLayer.root);
+  const volumeDerivedResident = Boolean(volumeSurfaceLayer?.current);
+  const segmentationDerivedResident = Boolean(segmentationSurfaceLayer?.items?.size);
+  const sourceSelection = state.reconstructionVisualization.surfaceSourceSelection;
+
+  reconstructionVisualizationController.setVolumeAvailable(volumeAvailable);
+  reconstructionVisualizationController.setSurfaceSource("volume-derived", {
+    available: Boolean(state.volumeSurface.descriptor?.available),
+    resident: volumeDerivedResident,
+    selected: volumeDerivedResident && Boolean(sourceSelection["volume-derived"]),
+  });
+  reconstructionVisualizationController.setSurfaceSource("segmentation-derived", {
+    available: Boolean(state.segmentationSurface.descriptor?.ready),
+    resident: segmentationDerivedResident,
+    selected: segmentationDerivedResident
+      && state.segmentationSurface.enabled
+      && Boolean(sourceSelection["segmentation-derived"]),
+  });
+  return reconstructionVisualizationController.snapshot();
+}
+
+function requestReconstructionVisualizationMode(modeId) {
+  if (!reconstructionVisualizationController) return null;
+  return reconstructionVisualizationController.requestMode(modeId);
+}
+
+function requestReconstructionSurfaceSourceSelection(sourceId, selected) {
+  if (!reconstructionVisualizationController) return null;
+  const selection = state.reconstructionVisualization.surfaceSourceSelection;
+  if (!Object.hasOwn(selection, sourceId)) return null;
+  selection[sourceId] = Boolean(selected);
+  const snapshot = reconstructionVisualizationController.snapshot();
+  const sourceState = snapshot.surfaceSources[sourceId];
+  const semanticEnabled = sourceId !== "segmentation-derived" || state.segmentationSurface.enabled;
+  const effectiveSelection = Boolean(selected && sourceState?.resident && semanticEnabled);
+  return reconstructionVisualizationController.selectSurfaceSource(sourceId, effectiveSelection);
+}
+
 function setVolumeAvailability(available) {
   volumeLayer.available = Boolean(available);
   modelChip.textContent = "Patient scan - Full Volume";
@@ -879,12 +1010,14 @@ function setVolumeAvailability(available) {
     && Boolean(state.mpr.descriptor),
   );
   setTransferControlsEnabled(volumeLayer.available && Boolean(volumeRayMarcher.current));
+  syncReconstructionVisualizationResources();
 }
 
 function applyVolumeVisibility() {
   if (volumeLayer.root) {
-    volumeLayer.root.visible = volumeLayer.available && state.opacity > 0.001;
-    if (volumeSurfaceLayer?.current) volumeLayer.root.visible = false;
+    const snapshot = reconstructionVisualizationController?.snapshot();
+    const modeAllowsVolume = snapshot ? snapshot.visibility.volume : true;
+    volumeLayer.root.visible = volumeLayer.available && state.opacity > 0.001 && modeAllowsVolume;
     requestViewerRender();
   }
 }
@@ -1149,6 +1282,13 @@ function applyOpacity() {
   requestViewerRender();
 }
 
+function resetReconstructionVisualizationForStudy() {
+  state.reconstructionVisualization.surfaceSourceSelection = {
+    ...DEFAULT_RECONSTRUCTION_SURFACE_SOURCE_SELECTION,
+  };
+  reconstructionVisualizationController?.reset();
+}
+
 function clearPatientVolumeRendering() {
   qualification?.resetWindow();
   volumeRenderingQuality.deactivate();
@@ -1163,6 +1303,7 @@ function clearPatientVolumeRendering() {
   setSegmentationSurfaceAvailability(null);
   clearTransferControls();
   setVolumeAvailability(false);
+  resetReconstructionVisualizationForStudy();
   applyVolumeVisibility();
   setStatus(
     "loading",
@@ -1227,6 +1368,9 @@ function resetWorkspace() {
   autoRotateButton.textContent = "Auto rotate";
 
   anatomyGroup.rotation.set(0, 0, 0);
+  if (reconstructionVisualizationController?.snapshot().canVolume) {
+    requestReconstructionVisualizationMode("volume");
+  }
   applyOpacity();
   setViewerInteractionMode("rotate");
   fitSavedView();
@@ -1602,6 +1746,7 @@ function setVolumeSurfaceDescriptor(descriptor) {
     volumeSurfaceBuild.disabled = true;
     volumeSurfaceClear.disabled = true;
     volumeSurfaceIsovalue.disabled = true;
+    syncReconstructionVisualizationResources();
     return;
   }
   const range = Array.isArray(descriptor.source_value_range) ? descriptor.source_value_range : [];
@@ -1621,6 +1766,7 @@ function setVolumeSurfaceDescriptor(descriptor) {
   volumeSurfaceBuild.disabled = !descriptor.available;
   volumeSurfaceIsovalue.disabled = !descriptor.available;
   volumeSurfaceClear.disabled = !volumeSurfaceLayer.current;
+  syncReconstructionVisualizationResources();
 }
 
 async function refreshVolumeSurfaceDescriptor() {
@@ -1655,17 +1801,18 @@ async function refreshVolumeSurfaceDescriptor() {
 async function requestVolumeSurfaceBuild() {
   const level = Number(volumeSurfaceIsovalue.value);
   try {
-    const builtSurface = await volumeSurfaceLayer.build(level);
-    if (builtSurface) applyVolumeVisibility();
+    await volumeSurfaceLayer.build(level);
+    syncReconstructionVisualizationResources();
     volumeSurfaceClear.disabled = !volumeSurfaceLayer.current;
   } catch {
+    syncReconstructionVisualizationResources();
     volumeSurfaceClear.disabled = !volumeSurfaceLayer.current;
   }
 }
 
 function clearVolumeDerivedSurface() {
   volumeSurfaceLayer.clearSurface();
-  applyVolumeVisibility();
+  syncReconstructionVisualizationResources();
   volumeSurfaceClear.disabled = true;
 }
 
@@ -1829,6 +1976,7 @@ function setSegmentationSurfaceAvailability(descriptor) {
   } else {
     segmentationSurfaceLayer.clear();
   }
+  syncReconstructionVisualizationResources();
 }
 
 async function syncSegmentationSurface() {
@@ -2801,6 +2949,23 @@ clippingResetButton.addEventListener("click", () => {
 
 mprClippingOverlayToggle.addEventListener("change", updateMprClippingOverlays);
 
+for (const button of reconstructionModeButtons) {
+  button.addEventListener("click", () => {
+    if (button.disabled) return;
+    requestReconstructionVisualizationMode(button.dataset.reconstructionMode);
+  });
+}
+
+for (const input of reconstructionSurfaceSourceInputs) {
+  input.addEventListener("change", () => {
+    if (input.disabled) return;
+    requestReconstructionSurfaceSourceSelection(
+      input.dataset.reconstructionSurfaceSource,
+      input.checked,
+    );
+  });
+}
+
 volumeSurfaceBuild.addEventListener("click", () => {
   void requestVolumeSurfaceBuild();
 });
@@ -2838,6 +3003,7 @@ segmentationOverlayOpacity.addEventListener("input", () => {
 segmentationSurfaceToggle.addEventListener("change", () => {
   state.segmentationSurface.enabled = segmentationSurfaceToggle.checked;
   segmentationSurfaceLayer.setEnabled(state.segmentationSurface.enabled);
+  syncReconstructionVisualizationResources();
   if (state.segmentationSurface.enabled) void syncSegmentationSurface();
 });
 

@@ -97,6 +97,8 @@ export class PatientVolumeSurfaceLayer {
     this.current = null;
     this.controller = null;
     this.generation = 0;
+    this.presentationVisible = true;
+    this.group.visible = true;
   }
 
   _status(state, message, extra = {}) {
@@ -149,6 +151,13 @@ export class PatientVolumeSurfaceLayer {
       this._status("unavailable", descriptor.reason || "Volume-derived surface unavailable.");
     }
     this.requestRender();
+  }
+
+  setPresentationVisible(visible) {
+    this.presentationVisible = Boolean(visible);
+    this.group.visible = this.presentationVisible;
+    this.requestRender();
+    return this.group.visible;
   }
 
   async build(isovalue) {

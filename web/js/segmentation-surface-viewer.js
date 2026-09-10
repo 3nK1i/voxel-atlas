@@ -160,6 +160,7 @@ export class PatientSegmentationSurfaceLayer {
     parent.add(this.group);
     this.descriptor = null;
     this.enabled = true;
+    this.presentationVisible = true;
     this.items = new Map();
     this.controllers = new Map();
     this.queue = [];
@@ -266,7 +267,7 @@ export class PatientSegmentationSurfaceLayer {
 
   setEnabled(enabled) {
     this.enabled = Boolean(enabled);
-    this.group.visible = this.enabled;
+    this.group.visible = this.enabled && this.presentationVisible;
     if (!this.enabled) {
       this._abortPending();
       this._status("disabled", "3D segmentation surfaces hidden.");
@@ -275,6 +276,13 @@ export class PatientSegmentationSurfaceLayer {
       this._updateStatus();
     }
     this.requestRender();
+  }
+
+  setPresentationVisible(visible) {
+    this.presentationVisible = Boolean(visible);
+    this.group.visible = this.enabled && this.presentationVisible;
+    this.requestRender();
+    return this.group.visible;
   }
 
   _makeMaterial(structure) {

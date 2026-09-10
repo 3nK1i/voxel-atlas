@@ -3736,7 +3736,7 @@ button:disabled {
 
 .segmentation-workflow-provider {
   margin: 7px 0 0;
-  color: var(--text-muted);
+  color: var(--muted);
   font-size: var(--ui-readable-small, 8px);
   line-height: 1.45;
 }
@@ -3835,7 +3835,7 @@ button:disabled {
   padding: 0.2rem 0.48rem;
   border: 1px solid rgba(131, 185, 239, 0.28);
   border-radius: 999px;
-  color: var(--text-muted);
+  color: var(--muted);
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -3858,7 +3858,7 @@ button:disabled {
 }
 
 .volume-surface-isovalue small {
-  color: var(--text-muted);
+  color: var(--muted);
   font-size: 0.66rem;
 }
 
@@ -3875,13 +3875,13 @@ button:disabled {
   border: 1px solid var(--border-subtle);
   border-radius: 0.45rem;
   background: var(--surface-inset);
-  color: var(--text-primary);
+  color: var(--text);
   font: inherit;
   text-align: right;
 }
 
 .volume-surface-isovalue-entry strong {
-  color: var(--text-muted);
+  color: var(--muted);
   font-size: 0.72rem;
 }
 
@@ -3904,7 +3904,7 @@ button:disabled {
 
 .volume-surface-build {
   background: rgba(66, 141, 219, 0.16);
-  color: var(--text-primary);
+  color: var(--text);
 }
 
 .volume-surface-clear {
@@ -3918,4 +3918,179 @@ button:disabled {
 .volume-surface-isovalue input:disabled {
   cursor: not-allowed;
   opacity: 0.48;
+}
+
+
+/* Phase 6D2B — non-destructive Volume / Surface reconstruction transitions. */
+.reconstruction-mode-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-soft);
+  color: var(--muted);
+  font-size: 0.67rem;
+  font-weight: 700;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+
+/* Phase 6D2C — Combined visualization and presentation-only surface source selection. */
+.reconstruction-surface-sources {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.reconstruction-source-label {
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.reconstruction-source-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.reconstruction-source-option {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 30px;
+  gap: 7px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease, background 140ms ease, opacity 140ms ease;
+}
+
+.reconstruction-source-option[data-state="selected"] {
+  border-color: var(--line-strong);
+  background: var(--accent-bg);
+  color: var(--text);
+}
+
+.reconstruction-source-option[data-state="unavailable"] {
+  cursor: not-allowed;
+  opacity: 0.46;
+}
+
+.reconstruction-source-option input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: currentColor;
+}
+
+.reconstruction-source-option span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* Phase 6D2D — left-sidebar reconstruction mode cards and deterministic closure states. */
+.reconstruction-mode-list {
+  gap: 6px;
+}
+
+.reconstruction-mode-card {
+  width: 100%;
+  margin: 0;
+  appearance: none;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, opacity 140ms ease, transform 140ms ease;
+}
+
+.reconstruction-mode-card:not(:disabled):hover {
+  border-color: var(--line-strong);
+  background: color-mix(in srgb, var(--panel-soft) 88%, var(--accent) 12%);
+}
+
+.reconstruction-mode-card:not(:disabled):active {
+  transform: translateY(1px);
+}
+
+.reconstruction-mode-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.reconstruction-mode-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.reconstruction-mode-card[data-capability="ready"]:not([data-active="true"]) {
+  opacity: 0.88;
+}
+
+.reconstruction-mode-card[data-active="true"] {
+  border-color: var(--line-strong);
+  background: linear-gradient(
+    120deg,
+    color-mix(in srgb, var(--accent-bg) 82%, var(--panel-soft) 18%),
+    var(--panel-soft)
+  );
+  opacity: 1;
+}
+
+.reconstruction-mode-icon svg {
+  width: 21px;
+  height: 21px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.25;
+}
+
+.reconstruction-mode-card[data-active="true"] .reconstruction-mode-icon {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+.reconstruction-mode-card[data-active="false"] .readiness-check,
+.reconstruction-mode-card[data-active="false"] .readiness-check path {
+  opacity: 0;
+}
+
+.reconstruction-mode-card[data-active="true"] .readiness-check {
+  color: #071a16;
+  opacity: 1;
+}
+
+.reconstruction-mode-card[data-active="true"] .readiness-check circle {
+  fill: var(--success);
+  stroke: var(--success);
+}
+
+.reconstruction-mode-card[data-active="true"] .readiness-check path {
+  opacity: 1;
+  stroke: #06231b;
+  stroke-width: 2.2;
+}
+
+.reconstruction-mode-card[data-active="true"] .status-copy strong {
+  color: var(--text);
+}
+
+.reconstruction-mode-card[data-capability="unavailable"] .status-copy small {
+  color: var(--muted-2);
 }
