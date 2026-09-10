@@ -23,7 +23,7 @@ import {
 } from "./reconstruction-visualization-mode.js?v=phase6d2a-r1";
 import {
   ReconstructionPresentationProfileController,
-} from "./reconstruction-presentation-profile.js?v=phase6e-a-r1";
+} from "./reconstruction-presentation-profile.js?v=phase6e-a-r1-phase6e-c-r1";
 import {
   createSurfaceLightingRig,
 } from "./reconstruction-surface-presentation.js?v=phase6e-b-r1";

@@ -3,7 +3,7 @@ const PROFILE_DEFINITIONS = Object.freeze([
     id: "fidelity",
     label: "Fidelity",
     intent: "restrained",
-    description: "Restrained rendering intent for clear geometry-first inspection.",
+    description: "Neutral reference rendering for clear geometry-first inspection.",
   }),
   Object.freeze({
     id: "presentation",

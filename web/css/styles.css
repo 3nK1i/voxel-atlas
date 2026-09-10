@@ -4162,3 +4162,28 @@ button:disabled {
   font-size: 9px;
   line-height: 1.45;
 }
+
+/* Phase 6E-C — reconstruction-card border consistency.
+   Reconstruction readiness must not leak the legacy green ready-border into one
+   mode card. Non-active ready cards share one neutral base treatment; only the
+   active reconstruction mode receives the emphasized border and green check. */
+.reconstruction-mode-card[data-state="ready"]:not([data-active="true"]),
+.reconstruction-mode-card[data-capability="ready"]:not([data-active="true"]) {
+  border-color: color-mix(in srgb, var(--accent) 13%, var(--line));
+  background: linear-gradient(
+    120deg,
+    color-mix(in srgb, var(--panel-soft) 94%, var(--accent) 6%),
+    var(--panel-soft)
+  );
+}
+
+.reconstruction-mode-card[data-state="ready"]:not([data-active="true"]) .reconstruction-mode-icon,
+.reconstruction-mode-card[data-capability="ready"]:not([data-active="true"]) .reconstruction-mode-icon {
+  color: var(--muted);
+  border-color: var(--line);
+  background: transparent;
+}
+
+.reconstruction-mode-card[data-active="true"] {
+  border-color: var(--line-strong);
+}
