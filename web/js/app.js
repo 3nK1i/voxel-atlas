@@ -17,13 +17,16 @@ import {
 } from "./volume-rendering-quality.js?v=phase4h1";
 import {
   PatientVolumeSurfaceLayer,
-} from "./volume-surface-viewer.js?v=phase6d2b-r1";
+} from "./volume-surface-viewer.js?v=phase6d2b-r1-phase6e-b-r1";
 import {
   ReconstructionVisualizationModeController,
 } from "./reconstruction-visualization-mode.js?v=phase6d2a-r1";
 import {
   ReconstructionPresentationProfileController,
 } from "./reconstruction-presentation-profile.js?v=phase6e-a-r1";
+import {
+  createSurfaceLightingRig,
+} from "./reconstruction-surface-presentation.js?v=phase6e-b-r1";
 import { SampleStudyCatalogClient } from "./sample-study-catalog.js?v=phase4g-r1";
 import {
   classifySampleStudyActivation,
@@ -41,7 +44,7 @@ import {
 } from "./segmentation-structure-panel.js?v=phase5e-r1-phase6c-r2-phase6d0-explicit-r1";
 import {
   PatientSegmentationSurfaceLayer,
-} from "./segmentation-surface-viewer.js?v=phase6a-r1-phase6b-r1-phase6c-r2-phase6d2b-r1";
+} from "./segmentation-surface-viewer.js?v=phase6a-r1-phase6b-r1-phase6c-r2-phase6d2b-r1-phase6e-b-r1";
 import {
   SegmentationCorrectionPanel,
 } from "./segmentation-correction-panel.js?v=phase5f2-r1";
@@ -365,16 +368,11 @@ function requestViewerRender() {
 const scene = new THREE.Scene();
 const anatomyGroup = new THREE.Group();
 scene.add(anatomyGroup);
-scene.add(new THREE.HemisphereLight(0xd8efff, 0x182332, 1.18));
-const segmentationSurfaceLight = new THREE.DirectionalLight(0xfff6ea, 1.35);
-segmentationSurfaceLight.position.set(2.8, 3.6, 4.8);
-scene.add(segmentationSurfaceLight);
-const segmentationSurfaceFillLight = new THREE.DirectionalLight(0xc9ddff, 0.48);
-segmentationSurfaceFillLight.position.set(-3.4, 1.4, 2.6);
-scene.add(segmentationSurfaceFillLight);
-const segmentationSurfaceRimLight = new THREE.DirectionalLight(0xe4efff, 0.62);
-segmentationSurfaceRimLight.position.set(-1.2, 3.0, -4.2);
-scene.add(segmentationSurfaceRimLight);
+const surfaceLightingRig = createSurfaceLightingRig({
+  three: THREE,
+  scene,
+  requestRender: requestViewerRender,
+});
 
 const camera = new THREE.PerspectiveCamera(29, 1, 0.005, 40);
 const renderer = new THREE.WebGLRenderer({
@@ -907,6 +905,9 @@ function reconstructionSurfaceSourceLabel(sourceId) {
 
 function applyReconstructionPresentationProfileSnapshot(snapshot) {
   if (!snapshot) return;
+  surfaceLightingRig.setProfile(snapshot.profile);
+  volumeSurfaceLayer?.setPresentationProfile(snapshot.profile);
+  segmentationSurfaceLayer?.setPresentationProfile(snapshot.profile);
   if (reconstructionVisualizationPanel) {
     reconstructionVisualizationPanel.dataset.presentationProfile = snapshot.profile;
   }

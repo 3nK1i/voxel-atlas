@@ -1,3 +1,9 @@
+import {
+  applySegmentationSurfaceMaterialProfile,
+  createSegmentationSurfaceMaterial,
+  getSurfacePresentationProfile,
+} from "./reconstruction-surface-presentation.js?v=phase6e-b-r1";
+
 const LEGACY_SURFACE_MEDIA_TYPE = "application/x-voxelatlas-surface-v1";
 const ACCURATE_SURFACE_MEDIA_TYPE = "application/x-voxelatlas-surface-v2";
 const SURFACE_MAGIC = "VXSF";
@@ -161,6 +167,7 @@ export class PatientSegmentationSurfaceLayer {
     this.descriptor = null;
     this.enabled = true;
     this.presentationVisible = true;
+    this.presentationProfile = "fidelity";
     this.items = new Map();
     this.controllers = new Map();
     this.queue = [];
@@ -285,19 +292,31 @@ export class PatientSegmentationSurfaceLayer {
     return this.group.visible;
   }
 
+  setPresentationProfile(profileId) {
+    const profile = getSurfacePresentationProfile(profileId);
+    this.presentationProfile = profile.id;
+    const structures = this.presentation?.structures;
+    for (const item of this.items.values()) {
+      const structure = structures instanceof Map ? structures.get(item.labelId) : null;
+      if (!structure) continue;
+      applySegmentationSurfaceMaterialProfile(
+        item.material,
+        structure,
+        profile.id,
+        structure.labelId === this.presentation?.selectedLabelId,
+      );
+    }
+    this.requestRender();
+    return this.presentationProfile;
+  }
+
   _makeMaterial(structure) {
-    const opacity = Number(structure?.opacity ?? 1);
-    return new this.three.MeshStandardMaterial({
-      color: structure?.colorHex || "#ffffff",
-      opacity,
-      transparent: opacity < 1,
-      side: this.three.FrontSide ?? this.three.DoubleSide,
-      depthTest: true,
-      depthWrite: opacity >= 0.98,
-      roughness: 0.58,
-      metalness: 0.0,
-      flatShading: false,
-    });
+    return createSegmentationSurfaceMaterial(
+      this.three,
+      structure,
+      this.presentationProfile,
+      structure?.labelId === this.presentation?.selectedLabelId,
+    );
   }
 
   _updateItemPresentation(item, structure, selectedLabelId) {
@@ -309,13 +328,13 @@ export class PatientSegmentationSurfaceLayer {
     );
     item.mesh.visible = shouldShow;
     if (!structure) return;
-    item.material.color.set(structure.colorHex);
-    item.material.opacity = structure.opacity;
-    item.material.transparent = structure.opacity < 1;
-    item.material.depthWrite = structure.opacity >= 0.98;
-    item.material.roughness = structure.labelId === selectedLabelId ? 0.52 : 0.60;
+    applySegmentationSurfaceMaterialProfile(
+      item.material,
+      structure,
+      this.presentationProfile,
+      structure.labelId === selectedLabelId,
+    );
     item.mesh.renderOrder = structure.labelId === selectedLabelId ? 2 : 1;
-    item.material.needsUpdate = true;
   }
 
   _desiredStructures(presentation) {

@@ -63,16 +63,15 @@ class Phase6EAPresentationProfileArchitectureTests(unittest.TestCase):
         self.assertNotIn("fetch(", lowered)
         self.assertNotIn(".build(", lowered)
 
-    def test_profile_foundation_does_not_apply_lighting_or_material_values_yet(self):
+    def test_profile_controller_remains_free_of_rendering_implementation_details(self):
         app = APP.read_text(encoding="utf-8")
         controller = CTRL.read_text(encoding="utf-8")
-        joined = (app + "\n" + controller).lower()
         for token in (
             "meshstandardmaterial",
             "hemispherelight",
             "directionallight",
-            "roughness =",
-            "metalness =",
+            "roughness",
+            "metalness",
             "envmapintensity",
         ):
             self.assertNotIn(token, controller.lower())
@@ -81,8 +80,10 @@ class Phase6EAPresentationProfileArchitectureTests(unittest.TestCase):
             "function applyReconstructionPresentationProfileSnapshot(",
             "function requestReconstructionPresentationProfile(",
         ).lower()
-        self.assertNotIn("material", profile_block)
-        self.assertNotIn("light", profile_block)
+        self.assertNotIn("new three.", profile_block)
+        self.assertNotIn("roughness =", profile_block)
+        self.assertNotIn("metalness =", profile_block)
+
 
     def test_existing_6d2_mode_and_surface_source_controls_remain_present(self):
         index = INDEX.read_text(encoding="utf-8")

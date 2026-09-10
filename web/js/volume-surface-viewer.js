@@ -1,3 +1,9 @@
+import {
+  applyVolumeSurfaceMaterialProfile,
+  createVolumeSurfaceMaterial,
+  getSurfacePresentationProfile,
+} from "./reconstruction-surface-presentation.js?v=phase6e-b-r1";
+
 const VOLUME_SURFACE_MEDIA_TYPE = "application/x-voxelatlas-volume-surface-v1";
 const VOLUME_SURFACE_MAGIC = "VXVS";
 const VOLUME_SURFACE_HEADER_BYTES = 32;
@@ -98,6 +104,7 @@ export class PatientVolumeSurfaceLayer {
     this.controller = null;
     this.generation = 0;
     this.presentationVisible = true;
+    this.presentationProfile = "fidelity";
     this.group.visible = true;
   }
 
@@ -158,6 +165,16 @@ export class PatientVolumeSurfaceLayer {
     this.group.visible = this.presentationVisible;
     this.requestRender();
     return this.group.visible;
+  }
+
+  setPresentationProfile(profileId) {
+    const profile = getSurfacePresentationProfile(profileId);
+    this.presentationProfile = profile.id;
+    if (this.current?.material) {
+      applyVolumeSurfaceMaterialProfile(this.current.material, profile.id);
+    }
+    this.requestRender();
+    return this.presentationProfile;
   }
 
   async build(isovalue) {
@@ -224,17 +241,7 @@ export class PatientVolumeSurfaceLayer {
       geometry.setIndex(new this.three.BufferAttribute(decoded.indices, 1));
       geometry.applyMatrix4(patientLpsToViewerMatrix(this.three, this.readVolumePresentation()));
       geometry.computeBoundingSphere();
-      const material = new this.three.MeshStandardMaterial({
-        color: "#e8e1d2",
-        opacity: 1,
-        transparent: false,
-        side: this.three.DoubleSide,
-        depthTest: true,
-        depthWrite: true,
-        roughness: 0.62,
-        metalness: 0.0,
-        flatShading: false,
-      });
+      const material = createVolumeSurfaceMaterial(this.three, this.presentationProfile);
       const mesh = new this.three.Mesh(geometry, material);
       mesh.name = `Volume-derived CT surface ${level.toFixed(0)} HU`;
       mesh.userData.sourceType = "canonical_volume";

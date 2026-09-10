@@ -17,14 +17,16 @@ class Phase6CPolishedMultiStructurePresentationTests(unittest.TestCase):
 
     def test_surface_layer_is_multi_resident_and_uses_polished_materials(self) -> None:
         module = (ROOT / "web/js/segmentation-surface-viewer.js").read_text(encoding="utf-8")
+        shared = (ROOT / "web/js/reconstruction-surface-presentation.js").read_text(encoding="utf-8")
         self.assertIn("this.items = new Map()", module)
         self.assertIn("MAX_CONCURRENT_SURFACE_LOADS", module)
-        self.assertIn("MeshStandardMaterial", module)
-        self.assertIn("roughness", module)
-        self.assertIn("metalness", module)
+        self.assertIn("createSegmentationSurfaceMaterial", module)
+        self.assertIn("MeshStandardMaterial", shared)
+        self.assertIn("roughness", shared)
+        self.assertIn("metalness", shared)
         self.assertIn("surfaceVisible", module)
         self.assertNotIn("this.current = null", module)
-        self.assertNotIn("MeshPhongMaterial", module)
+        self.assertNotIn("MeshPhongMaterial", module + shared)
 
     def test_phase6c_ui_copy_is_multi_structure_and_cache_identity_advances(self) -> None:
         index = (ROOT / "web/index.html").read_text(encoding="utf-8")
@@ -63,8 +65,10 @@ class Phase6CPolishedMultiStructurePresentationTests(unittest.TestCase):
     def test_phase6c_adds_presentation_lighting_without_geometry_mutation(self) -> None:
         app = (ROOT / "web/js/app.js").read_text(encoding="utf-8")
         viewer = (ROOT / "web/js/segmentation-surface-viewer.js").read_text(encoding="utf-8")
-        self.assertIn("segmentationSurfaceFillLight", app)
-        self.assertIn("segmentationSurfaceRimLight", app)
+        shared = (ROOT / "web/js/reconstruction-surface-presentation.js").read_text(encoding="utf-8")
+        self.assertIn("createSurfaceLightingRig", app)
+        self.assertIn("DirectionalLight", shared)
+        self.assertIn("HemisphereLight", shared)
         lowered = viewer.lower()
         self.assertNotIn("smooth_bounded", lowered)
         self.assertNotIn("cluster_candidate", lowered)
