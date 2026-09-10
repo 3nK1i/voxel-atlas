@@ -244,9 +244,12 @@ export class PatientSegmentationSurfaceLayer {
     const controller = new AbortController();
     this.controller = controller;
     this._status("loading", `Building ${selected.displayName} surface...`);
+    const fallbackQuality = this.descriptor.default_quality || "accurate";
+    const requestedQuality = this.descriptor.presentation_quality || fallbackQuality;
+    const usesV2Surface = requestedQuality === "accurate" || requestedQuality === "refined";
     const params = new URLSearchParams({
       label_map_id: this.descriptor.label_map_id,
-      quality: this.descriptor.default_quality || "accurate",
+      quality: requestedQuality,
     });
     try {
       const response = await this.fetchImpl(
@@ -255,7 +258,7 @@ export class PatientSegmentationSurfaceLayer {
           credentials: "same-origin",
           cache: "no-store",
           headers: {
-            "Accept": (this.descriptor.default_quality || "accurate") === "accurate"
+            "Accept": usesV2Surface
               ? ACCURATE_SURFACE_MEDIA_TYPE
               : LEGACY_SURFACE_MEDIA_TYPE,
           },
@@ -267,8 +270,7 @@ export class PatientSegmentationSurfaceLayer {
         throw new Error(detail.detail || `Segmentation surface failed (${response.status})`);
       }
       const mediaType = headerValue(response, "Content-Type").split(";", 1)[0].toLowerCase();
-      const requestedQuality = this.descriptor.default_quality || "accurate";
-      const expectedMediaType = requestedQuality === "accurate"
+      const expectedMediaType = usesV2Surface
         ? ACCURATE_SURFACE_MEDIA_TYPE
         : LEGACY_SURFACE_MEDIA_TYPE;
       if (
@@ -300,14 +302,62 @@ export class PatientSegmentationSurfaceLayer {
       }
       const surfaceId = headerValue(response, "X-VoxelAtlas-Surface-Id");
       const provenanceSha256 = headerValue(response, "X-VoxelAtlas-Surface-Provenance-SHA256");
-      if (requestedQuality === "accurate" && (
+      if (usesV2Surface && (
         !/^surf-[0-9a-f]{32}$/.test(surfaceId)
         || !/^[0-9a-f]{64}$/.test(provenanceSha256)
         || headerValue(response, "X-VoxelAtlas-Surface-Extraction")
           !== this.descriptor.accurate_surface?.extraction
         || decoded.normals === null
       )) {
-        throw new Error("Accurate segmentation surface provenance binding is invalid");
+        throw new Error("Patient-LPS segmentation surface provenance binding is invalid");
+      }
+      if (requestedQuality === "refined") {
+        const referenceSurfaceId = headerValue(response, "X-VoxelAtlas-Surface-Reference-Id");
+        const referenceSha256 = headerValue(response, "X-VoxelAtlas-Surface-Reference-SHA256");
+        const maxDisplacementMm = Number(
+          headerValue(response, "X-VoxelAtlas-Surface-Max-Displacement-Mm"),
+        );
+        const displacementLimitMm = Number(
+          headerValue(response, "X-VoxelAtlas-Surface-Displacement-Limit-Mm"),
+        );
+        const triangleRetention = Number(
+          headerValue(response, "X-VoxelAtlas-Surface-Triangle-Retention"),
+        );
+        const decimationApplied = headerValue(
+          response, "X-VoxelAtlas-Surface-Decimation-Applied",
+        );
+        const decimationCellIndex = Number(
+          headerValue(response, "X-VoxelAtlas-Surface-Decimation-Cell-Index"),
+        );
+        const allowedCells = this.descriptor.refined_surface?.cluster_cell_sizes_index || [];
+        if (
+          headerValue(response, "X-VoxelAtlas-Surface-Refinement")
+            !== this.descriptor.refined_surface?.refinement
+          || !/^surf-[0-9a-f]{32}$/.test(referenceSurfaceId)
+          || !/^[0-9a-f]{64}$/.test(referenceSha256)
+          || !Number.isFinite(maxDisplacementMm)
+          || !Number.isFinite(displacementLimitMm)
+          || maxDisplacementMm < 0
+          || displacementLimitMm <= 0
+          || maxDisplacementMm > displacementLimitMm + 1e-6
+          || !Number.isFinite(triangleRetention)
+          || triangleRetention < Number(
+            this.descriptor.refined_surface?.minimum_triangle_retention_ratio,
+          ) - 1e-9
+          || triangleRetention > 1 + 1e-9
+          || !["true", "false"].includes(decimationApplied)
+          || !Number.isFinite(decimationCellIndex)
+          || (decimationApplied === "false" && Math.abs(decimationCellIndex) > 1e-9)
+          || (
+            decimationApplied === "true"
+            && !allowedCells.some((value) => (
+              Number.isFinite(Number(value))
+              && Math.abs(Number(value) - decimationCellIndex) <= 1e-9
+            ))
+          )
+        ) {
+          throw new Error("Refined segmentation surface binding is invalid");
+        }
       }
       if (generation !== this.generation || controller.signal.aborted) return null;
 
@@ -338,6 +388,11 @@ export class PatientSegmentationSurfaceLayer {
       mesh.userData.surfaceId = surfaceId;
       mesh.userData.provenanceSha256 = provenanceSha256;
       mesh.userData.surfaceSchemaVersion = decoded.version;
+      mesh.userData.surfaceQuality = requestedQuality;
+      mesh.userData.refinement = headerValue(response, "X-VoxelAtlas-Surface-Refinement");
+      mesh.userData.referenceSurfaceId = headerValue(
+        response, "X-VoxelAtlas-Surface-Reference-Id",
+      );
       this._disposeMesh();
       this.group.add(mesh);
       this.current = {

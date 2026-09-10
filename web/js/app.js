@@ -32,7 +32,7 @@ import {
 } from "./segmentation-structure-panel.js?v=phase5e-r1";
 import {
   PatientSegmentationSurfaceLayer,
-} from "./segmentation-surface-viewer.js?v=phase6a-r1";
+} from "./segmentation-surface-viewer.js?v=phase6a-r1-phase6b-r1";
 import {
   SegmentationCorrectionPanel,
 } from "./segmentation-correction-panel.js?v=phase5f2-r1";

@@ -930,7 +930,7 @@ def create_app(
             max_length=36,
             pattern=r"^map-[0-9a-f]{32}$",
         ),
-        quality: str = Query(default="accurate", pattern=r"^(accurate|preview|balanced)$"),
+        quality: str = Query(default="accurate", pattern=r"^(refined|accurate|preview|balanced)$"),
         username: str = Depends(require_username),
     ) -> Response:
         del username
@@ -963,6 +963,23 @@ def create_app(
                 "X-VoxelAtlas-Surface-Schema": str(surface.schema_version),
                 "X-VoxelAtlas-Surface-Id": surface.surface_id,
                 "X-VoxelAtlas-Surface-Provenance-SHA256": surface.provenance_sha256,
+                "X-VoxelAtlas-Surface-Refinement": surface.refinement,
+                "X-VoxelAtlas-Surface-Reference-Id": surface.reference_surface_id,
+                "X-VoxelAtlas-Surface-Reference-SHA256": surface.reference_payload_sha256,
+                "X-VoxelAtlas-Surface-Topology-Repairs": str(surface.topology_repair_count),
+                "X-VoxelAtlas-Surface-Boundary-Edges": str(surface.boundary_edge_count),
+                "X-VoxelAtlas-Surface-Nonmanifold-Edges": str(surface.nonmanifold_edge_count),
+                "X-VoxelAtlas-Surface-Components": str(surface.connected_component_count),
+                "X-VoxelAtlas-Surface-Euler": str(surface.euler_characteristic),
+                "X-VoxelAtlas-Surface-Max-Displacement-Mm": f"{surface.max_displacement_mm:.6f}",
+                "X-VoxelAtlas-Surface-Displacement-Limit-Mm": f"{surface.displacement_limit_mm:.6f}",
+                "X-VoxelAtlas-Surface-Triangle-Retention": f"{surface.triangle_retention_ratio:.9f}",
+                "X-VoxelAtlas-Surface-Decimation-Applied": (
+                    "true" if surface.decimation_applied else "false"
+                ),
+                "X-VoxelAtlas-Surface-Decimation-Cell-Index": (
+                    f"{surface.decimation_cell_size_index:.6f}"
+                ),
                 "X-VoxelAtlas-Surface-Bounds-LPS-Mm": bounds,
             },
         )
