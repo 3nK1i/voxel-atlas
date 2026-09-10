@@ -443,6 +443,18 @@
               </div>
               <span class="reconstruction-mode-badge">Reconstruction</span>
             </div>
+            <div class="reconstruction-presentation-profile" aria-labelledby="reconstructionPresentationProfileLabel">
+              <div class="reconstruction-presentation-profile-heading">
+                <span id="reconstructionPresentationProfileLabel" class="reconstruction-source-label">Presentation profile</span>
+                <span class="reconstruction-presentation-profile-badge">Rendering intent</span>
+              </div>
+              <div class="reconstruction-presentation-profile-options" role="group" aria-label="3D reconstruction presentation profile">
+                <button class="reconstruction-presentation-profile-option" type="button" data-reconstruction-presentation-profile="fidelity" data-active="true" aria-pressed="true">Fidelity</button>
+                <button class="reconstruction-presentation-profile-option" type="button" data-reconstruction-presentation-profile="presentation" data-active="false" aria-pressed="false">Presentation</button>
+              </div>
+              <p id="reconstructionPresentationProfileStatus" class="reconstruction-presentation-profile-status" aria-live="polite">Fidelity · Restrained rendering intent for clear geometry-first inspection.</p>
+              <p class="segmentation-overlay-note">Geometry and source data remain unchanged. Profiles control rendering intent only.</p>
+            </div>
             <div class="reconstruction-surface-sources" aria-label="Surface sources">
               <span class="reconstruction-source-label">Surface sources</span>
               <div class="reconstruction-source-options">
@@ -1096,6 +1108,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1-phase6a-r1-phase6b-r1-phase6c-r2-phase6d0-r1-phase6d0-explicit-r1-phase6d1-r2-phase6d2b-r1-phase6d2c-r1-phase6d2d-r1"></script>
+  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1-phase6a-r1-phase6b-r1-phase6c-r2-phase6d0-r1-phase6d0-explicit-r1-phase6d1-r2-phase6d2b-r1-phase6d2c-r1-phase6d2d-r1-phase6e-a-r1"></script>
 </body>
 </html>

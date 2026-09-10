@@ -4094,3 +4094,71 @@ button:disabled {
 .reconstruction-mode-card[data-capability="unavailable"] .status-copy small {
   color: var(--muted-2);
 }
+
+
+/* Phase 6E-A — Fidelity / Presentation profile architecture. */
+.reconstruction-presentation-profile {
+  display: grid;
+  gap: 7px;
+  margin-top: 8px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel-soft) 92%, transparent);
+}
+
+.reconstruction-presentation-profile-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.reconstruction-presentation-profile-badge {
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.reconstruction-presentation-profile-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.reconstruction-presentation-profile-option {
+  min-height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--muted);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, color 140ms ease;
+}
+
+.reconstruction-presentation-profile-option:hover {
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+.reconstruction-presentation-profile-option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.reconstruction-presentation-profile-option[data-active="true"] {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--line));
+  background: color-mix(in srgb, var(--accent-bg) 72%, var(--panel));
+  color: var(--text);
+}
+
+.reconstruction-presentation-profile-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.45;
+}

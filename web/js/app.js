@@ -21,6 +21,9 @@ import {
 import {
   ReconstructionVisualizationModeController,
 } from "./reconstruction-visualization-mode.js?v=phase6d2a-r1";
+import {
+  ReconstructionPresentationProfileController,
+} from "./reconstruction-presentation-profile.js?v=phase6e-a-r1";
 import { SampleStudyCatalogClient } from "./sample-study-catalog.js?v=phase4g-r1";
 import {
   classifySampleStudyActivation,
@@ -70,6 +73,8 @@ const surfaceModeStatusText = document.getElementById("surfaceModeStatusText");
 const combinedModeStatusText = document.getElementById("combinedModeStatusText");
 const reconstructionModeButtons = Array.from(document.querySelectorAll("[data-reconstruction-mode]"));
 const reconstructionSurfaceSourceInputs = Array.from(document.querySelectorAll("[data-reconstruction-surface-source]"));
+const reconstructionPresentationProfileStatus = document.getElementById("reconstructionPresentationProfileStatus");
+const reconstructionPresentationProfileButtons = Array.from(document.querySelectorAll("[data-reconstruction-presentation-profile]"));
 const volumeSurfacePanel = document.getElementById("volumeSurfacePanel");
 const volumeSurfaceStatus = document.getElementById("volumeSurfaceStatus");
 const volumeSurfaceIsovalue = document.getElementById("volumeSurfaceIsovalue");
@@ -302,6 +307,7 @@ let segmentationSurfaceLayer = null;
 let volumeSurfaceDescriptorPromise = null;
 let volumeSurfaceLayer = null;
 let reconstructionVisualizationController = null;
+let reconstructionPresentationProfileController = null;
 let viewerRenderRequested = true;
 let lastRenderedTimestamp = null;
 let segmentationCorrectionPanel = null;
@@ -442,6 +448,10 @@ reconstructionVisualizationController = new ReconstructionVisualizationModeContr
   onChange: (snapshot) => applyReconstructionVisualizationSnapshot(snapshot),
 });
 applyReconstructionVisualizationSnapshot(reconstructionVisualizationController.snapshot());
+reconstructionPresentationProfileController = new ReconstructionPresentationProfileController({
+  onChange: (snapshot) => applyReconstructionPresentationProfileSnapshot(snapshot),
+});
+applyReconstructionPresentationProfileSnapshot(reconstructionPresentationProfileController.snapshot());
 const sampleStudyCatalogClient = new SampleStudyCatalogClient();
 let sampleReplacementResolver = null;
 let sampleCatalogLoading = false;
@@ -893,6 +903,27 @@ function applyTransferAdjustments(changedControl = null) {
 
 function reconstructionSurfaceSourceLabel(sourceId) {
   return sourceId === "volume-derived" ? "Direct CT" : "Segmentation";
+}
+
+function applyReconstructionPresentationProfileSnapshot(snapshot) {
+  if (!snapshot) return;
+  if (reconstructionVisualizationPanel) {
+    reconstructionVisualizationPanel.dataset.presentationProfile = snapshot.profile;
+  }
+  for (const button of reconstructionPresentationProfileButtons) {
+    const profileId = button.dataset.reconstructionPresentationProfile;
+    const active = snapshot.profile === profileId;
+    button.dataset.active = String(active);
+    button.setAttribute("aria-pressed", String(active));
+  }
+  if (reconstructionPresentationProfileStatus) {
+    reconstructionPresentationProfileStatus.textContent = `${snapshot.label} · ${snapshot.description}`;
+  }
+}
+
+function requestReconstructionPresentationProfile(profileId) {
+  if (!reconstructionPresentationProfileController) return null;
+  return reconstructionPresentationProfileController.requestProfile(profileId);
 }
 
 function applyReconstructionVisualizationSnapshot(snapshot) {
@@ -2963,6 +2994,12 @@ for (const input of reconstructionSurfaceSourceInputs) {
       input.dataset.reconstructionSurfaceSource,
       input.checked,
     );
+  });
+}
+
+for (const button of reconstructionPresentationProfileButtons) {
+  button.addEventListener("click", () => {
+    requestReconstructionPresentationProfile(button.dataset.reconstructionPresentationProfile);
   });
 }
 
