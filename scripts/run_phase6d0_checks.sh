@@ -80,10 +80,14 @@ check_phase6d0_boundary() {
 echo "===== PHASE 6D0 ON-DEMAND SEGMENTATION WORKFLOW VALIDATION ====="
 run_quiet "Phase 6D0 focused unit contracts" \
   python -m unittest tests.test_phase6d0_on_demand_segmentation_workflow
+run_quiet "Phase 6D0 explicit surface-selection correction" \
+  python -m unittest tests.test_phase6d0_explicit_surface_selection_correction
 run_quiet "Phase 6D0 architecture probe" \
   python scripts/check_phase6d0_on_demand_architecture.py
 run_quiet "Phase 6D0 browser workflow contract" \
   node scripts/check_phase6d0_segmentation_workflow_panel.mjs
+run_quiet "Phase 6D0 explicit surface-selection browser contract" \
+  node scripts/check_phase6d0_explicit_surface_selection.mjs
 run_quiet "Phase 5A provider-neutral segmentation regression" \
   python -m unittest tests.test_phase5a_segmentation_architecture
 run_quiet "Phase 5B2 TotalSegmentator execution contract regression" \
@@ -104,9 +108,10 @@ run_quiet "Phase 6D0 Python compile" \
     scripts/check_phase6d0_on_demand_architecture.py \
     scripts/qualify_phase6d0_existing_segmentation_reuse.py \
     scripts/run_phase6d0_previous_regression.py \
-    tests/test_phase6d0_on_demand_segmentation_workflow.py
+    tests/test_phase6d0_on_demand_segmentation_workflow.py \
+    tests/test_phase6d0_explicit_surface_selection_correction.py
 run_quiet "Phase 6D0 JavaScript syntax" \
-  bash -c 'node --check web/js/segmentation-workflow-panel.js && node --check web/js/app.js && node --check scripts/check_phase6d0_segmentation_workflow_panel.mjs'
+  bash -c 'node --check web/js/segmentation-workflow-panel.js && node --check web/js/segmentation-structure-panel.js && node --check web/js/app.js && node --check scripts/check_phase6d0_segmentation_workflow_panel.mjs && node --check scripts/check_phase6d0_explicit_surface_selection.mjs'
 run_quiet "Phase 6D0 shell syntax" bash -n scripts/run_phase6d0_checks.sh
 run_quiet "Phase 6A isolated surface runtime regression" \
   python scripts/check_phase6a_surface_environment.py --python "$SURFACE_PYTHON"
@@ -124,6 +129,7 @@ else
 fi
 echo "INITIAL_MPR_DIRECT_VOLUME_FIRST=REQUIRED"
 echo "SEMANTIC_SEGMENTATION=EXPLICIT_USER_ACTION_ONLY"
+echo "SEGMENTATION_3D_SURFACE=EXPLICIT_STRUCTURE_SELECTION_ONLY"
 echo "EXISTING_SEGMENTATION_REUSE=QUALIFY_SEPARATELY"
 echo "REAL_NEW_CT_SEGMENTATION=QUALIFY_SEPARATELY"
 echo "MRI_SEGMENTATION_PROVIDER=DEFERRED_TO_PHASE7"

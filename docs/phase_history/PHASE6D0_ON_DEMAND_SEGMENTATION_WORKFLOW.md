@@ -81,3 +81,19 @@ No clinical or diagnostic validation claim is introduced.
 ## Deferred roadmap boundaries
 
 Phase 6D0 does not implement Phase 6D1 volume-derived isosurfaces, Phase 6D2 independent Volume/Surface/Combined controls, Phase 6E fidelity/presentation profiles or deferred lighting polish, Phase 6F advanced multi-structure interaction, Phase 6G fidelity metrics, or Phase 6H export.
+
+
+## Post-closure UX correction — explicit 3D surface selection
+
+After real manual qualification, the default Phase 6C presentation behavior that automatically selected the first catalog structure was identified as undesirable for the on-demand workflow. Activating a segmentation result must make the structure catalog available without implicitly requesting any refined 3D segmentation surface.
+
+The corrected contract is:
+
+- segmentation activation leaves `selectedLabelId` unset and all `surfaceVisible` flags false;
+- no refined 3D surface request is made until the user explicitly selects, isolates, or otherwise explicitly shows a structure;
+- subsequent explicit selections continue to accumulate resident multi-structure surfaces as introduced in Phase 6C;
+- Reset returns the 3D segmentation-surface presentation to an empty selection;
+- Phase 5 MPR label-overlay default visibility is unchanged;
+- Phase 6A/6B geometry generation and Phase 6C surface residency/refinement are unchanged.
+
+This is a narrow UX correction and does not add or reorder a roadmap phase.

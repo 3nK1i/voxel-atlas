@@ -116,6 +116,13 @@ const catalogDescriptor = {
 };
 
 const presentation = createStructurePresentation(catalogDescriptor);
+assert.equal(presentation.selectedLabelId, null);
+assert.equal(
+  Array.from(presentation.structures.values()).some((item) => item.surfaceVisible),
+  false,
+  "Activating segmentation must not auto-request a 3D surface",
+);
+activateSurfaceForStructure(presentation, 1);
 assert.equal(presentation.structures.get(1).surfaceVisible, true);
 assert.equal(presentation.structures.get(2).surfaceVisible, false);
 activateSurfaceForStructure(presentation, 2);
@@ -128,11 +135,14 @@ assert.deepEqual(
 );
 resetStructurePresentation(presentation);
 assert.equal(Array.from(presentation.structures.values()).every((item) => item.visible), true);
+assert.equal(presentation.selectedLabelId, null);
 assert.deepEqual(
   Array.from(presentation.structures.values()).filter((item) => item.surfaceVisible).map((item) => item.labelId),
-  [3],
+  [],
 );
-for (const item of presentation.structures.values()) item.surfaceVisible = true;
+activateSurfaceForStructure(presentation, 1);
+activateSurfaceForStructure(presentation, 2);
+activateSurfaceForStructure(presentation, 3);
 
 const surfaceDescriptor = {
   ready: true,
@@ -254,6 +264,7 @@ assert.equal(layer.items.size, 0);
 assert.equal(layer.group.children.length, 0);
 
 console.log("PHASE6C_MULTI_STRUCTURE_RESIDENCY=PASS");
+console.log("PHASE6C_EXPLICIT_INITIAL_SURFACE_SELECTION=PASS");
 console.log("PHASE6C_PROGRESSIVE_SURFACE_ACTIVATION=PASS");
 console.log("PHASE6C_BOUNDED_CONCURRENT_LOADS=PASS");
 console.log("PHASE6C_POLISHED_STANDARD_MATERIAL=PASS");

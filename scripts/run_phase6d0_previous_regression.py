@@ -11,7 +11,10 @@ for path in (ROOT, ROOT / "backend"):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-CURRENT_PREFIX = "test_phase6d0_on_demand_segmentation_workflow."
+CURRENT_PREFIXES = (
+    "test_phase6d0_on_demand_segmentation_workflow.",
+    "test_phase6d0_explicit_surface_selection_correction.",
+)
 EXCLUDED_SUPERSEDED_ASSERTIONS = {
     "test_phase2a_workspace_migration.Phase2AWorkspaceMigrationTests.test_layer_contract_is_structural_without_faking_patient_anatomy",
     "test_phase2b_final_workspace_target.Phase2BFinalWorkspaceTargetTests.test_anatomical_layer_architecture_is_truthful_and_volume_only",
@@ -49,7 +52,7 @@ def main() -> int:
     excluded_current = 0
     excluded_superseded: list[str] = []
     for test in iter_tests(discovered):
-        if test.id().startswith(CURRENT_PREFIX):
+        if test.id().startswith(CURRENT_PREFIXES):
             excluded_current += 1
         elif test.id() in EXCLUDED_SUPERSEDED_ASSERTIONS:
             excluded_superseded.append(test.id())

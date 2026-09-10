@@ -51,8 +51,6 @@ export function createStructurePresentation(descriptor) {
   if (structures.size !== catalog.structure_count) {
     throw new Error("Segmentation structure catalog count is invalid");
   }
-  const selectedLabelId = structures.keys().next().value ?? null;
-  if (selectedLabelId !== null) structures.get(selectedLabelId).surfaceVisible = true;
   return {
     labelMapId: descriptor.label_map_id,
     groups: catalog.groups.map((group) => ({
@@ -60,7 +58,7 @@ export function createStructurePresentation(descriptor) {
       displayName: String(group.display_name),
     })),
     structures,
-    selectedLabelId,
+    selectedLabelId: null,
     filter: "",
   };
 }
@@ -82,8 +80,7 @@ export function resetStructurePresentation(presentation) {
     structure.colorHex = structure.defaultColorHex;
     structure.opacity = 1;
   }
-  const selected = presentation.structures.get(presentation.selectedLabelId);
-  if (selected) selected.surfaceVisible = true;
+  presentation.selectedLabelId = null;
 }
 
 export function isolateStructure(presentation, labelId) {
@@ -373,7 +370,12 @@ export class SegmentationStructurePanel {
     const disabled = !structure;
     this.color.disabled = disabled;
     this.opacity.disabled = disabled;
-    if (!structure) return;
+    if (!structure) {
+      this.selectedName.textContent = "No structure selected";
+      this.selectedMetadata.textContent = "Select a visible structure to edit its presentation.";
+      this.opacityValue.textContent = "—";
+      return;
+    }
     this.selectedName.textContent = structure.displayName;
     this.selectedMetadata.textContent = `${structure.groupName} · Label ${structure.labelId}`;
     this.color.value = structure.colorHex;
