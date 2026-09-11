@@ -2,7 +2,7 @@ import {
   applyVolumeSurfaceMaterialProfile,
   createVolumeSurfaceMaterial,
   getSurfacePresentationProfile,
-} from "./reconstruction-surface-presentation.js?v=phase6e-b-r1";
+} from "./reconstruction-surface-presentation.js?v=phase6e-b-r1-phase6e-d-r1";
 
 const VOLUME_SURFACE_MEDIA_TYPE = "application/x-voxelatlas-volume-surface-v1";
 const VOLUME_SURFACE_MAGIC = "VXVS";

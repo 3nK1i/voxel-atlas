@@ -2,7 +2,7 @@ import {
   applySegmentationSurfaceMaterialProfile,
   createSegmentationSurfaceMaterial,
   getSurfacePresentationProfile,
-} from "./reconstruction-surface-presentation.js?v=phase6e-b-r1";
+} from "./reconstruction-surface-presentation.js?v=phase6e-b-r1-phase6e-d-r1";
 
 const LEGACY_SURFACE_MEDIA_TYPE = "application/x-voxelatlas-surface-v1";
 const ACCURATE_SURFACE_MEDIA_TYPE = "application/x-voxelatlas-surface-v2";

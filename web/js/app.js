@@ -17,7 +17,7 @@ import {
 } from "./volume-rendering-quality.js?v=phase4h1";
 import {
   PatientVolumeSurfaceLayer,
-} from "./volume-surface-viewer.js?v=phase6d2b-r1-phase6e-b-r1";
+} from "./volume-surface-viewer.js?v=phase6d2b-r1-phase6e-b-r1-phase6e-d-r1";
 import {
   ReconstructionVisualizationModeController,
 } from "./reconstruction-visualization-mode.js?v=phase6d2a-r1";
@@ -26,7 +26,7 @@ import {
 } from "./reconstruction-presentation-profile.js?v=phase6e-a-r1-phase6e-c-r1";
 import {
   createSurfaceLightingRig,
-} from "./reconstruction-surface-presentation.js?v=phase6e-b-r1";
+} from "./reconstruction-surface-presentation.js?v=phase6e-b-r1-phase6e-d-r1";
 import { SampleStudyCatalogClient } from "./sample-study-catalog.js?v=phase4g-r1";
 import {
   classifySampleStudyActivation,
@@ -44,7 +44,7 @@ import {
 } from "./segmentation-structure-panel.js?v=phase5e-r1-phase6c-r2-phase6d0-explicit-r1";
 import {
   PatientSegmentationSurfaceLayer,
-} from "./segmentation-surface-viewer.js?v=phase6a-r1-phase6b-r1-phase6c-r2-phase6d2b-r1-phase6e-b-r1";
+} from "./segmentation-surface-viewer.js?v=phase6a-r1-phase6b-r1-phase6c-r2-phase6d2b-r1-phase6e-b-r1-phase6e-d-r1";
 import {
   SegmentationCorrectionPanel,
 } from "./segmentation-correction-panel.js?v=phase5f2-r1";
@@ -3340,6 +3340,7 @@ function animate(timestamp) {
   if (shouldRender) {
     viewerRenderRequested = false;
     updateOrientationGizmo();
+    surfaceLightingRig.syncToView(camera, controls.target);
     const qualificationStart = qualification ? performance.now() : 0;
     renderer.render(scene, camera);
     if (volumeLayer.available && volumeRayMarcher.current) {

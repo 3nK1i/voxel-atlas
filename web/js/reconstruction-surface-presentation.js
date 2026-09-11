@@ -21,20 +21,25 @@ const SURFACE_PRESENTATION_PROFILES = Object.freeze({
   presentation: Object.freeze({
     id: "presentation",
     lighting: Object.freeze({
-      hemisphere: Object.freeze({ sky: "#e7f5ff", ground: "#2a3a50", intensity: 1.32 }),
-      key: Object.freeze({ color: "#fff4e6", intensity: 1.45, position: Object.freeze([2.5, 3.8, 4.5]) }),
-      fill: Object.freeze({ color: "#d8e9ff", intensity: 0.68, position: Object.freeze([-3.2, 1.8, 2.8]) }),
-      rim: Object.freeze({ color: "#edf7ff", intensity: 0.78, position: Object.freeze([-1.4, 3.2, -4.0]) }),
+      viewRelative: true,
+      hemisphere: Object.freeze({ sky: "#eef8ff", ground: "#64748a", intensity: 1.40 }),
+      key: Object.freeze({ color: "#fff4e6", intensity: 1.26, position: Object.freeze([1.9, 2.4, 3.1]) }),
+      fill: Object.freeze({ color: "#dcecff", intensity: 0.88, position: Object.freeze([-2.5, 1.0, 2.2]) }),
+      rim: Object.freeze({ color: "#f3f8ff", intensity: 0.74, position: Object.freeze([0.8, 2.0, -2.8]) }),
     }),
     volumeSurface: Object.freeze({
-      color: "#eee7d9",
-      roughness: 0.50,
+      color: "#f0e8da",
+      roughness: 0.56,
       metalness: 0.0,
+      emissive: "#4a4134",
+      emissiveIntensity: 0.16,
     }),
     segmentationSurface: Object.freeze({
-      roughness: 0.52,
-      selectedRoughness: 0.44,
+      roughness: 0.54,
+      selectedRoughness: 0.46,
       metalness: 0.0,
+      emissiveIntensity: 0.08,
+      selectedEmissiveIntensity: 0.12,
     }),
   }),
 });
@@ -50,6 +55,22 @@ function setLight(light, definition) {
   light.color.set(definition.color);
   light.intensity = definition.intensity;
   light.position.set(...definition.position);
+}
+
+function setDirectionalTarget(light, focus) {
+  if (!light?.target?.position?.set) return;
+  light.target.position.set(focus.x, focus.y, focus.z);
+  light.target.updateMatrixWorld?.(true);
+}
+
+function placeViewRelativeLight(three, light, camera, focus, offset) {
+  const position = new three.Vector3(...offset);
+  position.applyQuaternion(camera.quaternion);
+  position.x += focus.x;
+  position.y += focus.y;
+  position.z += focus.z;
+  light.position.set(position.x, position.y, position.z);
+  setDirectionalTarget(light, focus);
 }
 
 export function createSurfaceLightingRig({ three, scene, requestRender = () => {} }) {
@@ -86,9 +107,30 @@ export function createSurfaceLightingRig({ three, scene, requestRender = () => {
       setLight(key, lighting.key);
       setLight(fill, lighting.fill);
       setLight(rim, lighting.rim);
+      if (!lighting.viewRelative) {
+        const origin = { x: 0, y: 0, z: 0 };
+        setDirectionalTarget(key, origin);
+        setDirectionalTarget(fill, origin);
+        setDirectionalTarget(rim, origin);
+      }
       rig.profile = profile.id;
       requestRender();
       return profile;
+    },
+    syncToView(camera, focus) {
+      const profile = getSurfacePresentationProfile(rig.profile);
+      const lighting = profile.lighting;
+      if (!lighting.viewRelative) return false;
+      if (!three?.Vector3 || !camera?.quaternion) return false;
+      const target = {
+        x: Number(focus?.x ?? 0),
+        y: Number(focus?.y ?? 0),
+        z: Number(focus?.z ?? 0),
+      };
+      placeViewRelativeLight(three, key, camera, target, lighting.key.position);
+      placeViewRelativeLight(three, fill, camera, target, lighting.fill.position);
+      placeViewRelativeLight(three, rim, camera, target, lighting.rim.position);
+      return true;
     },
   };
   rig.setProfile("fidelity");
@@ -102,6 +144,8 @@ export function applyVolumeSurfaceMaterialProfile(material, profileId) {
   material.color.set(policy.color);
   material.roughness = policy.roughness;
   material.metalness = policy.metalness;
+  material.emissive?.set?.(policy.emissive || "#000000");
+  material.emissiveIntensity = Number(policy.emissiveIntensity ?? 0);
   material.needsUpdate = true;
   return profile;
 }
@@ -112,6 +156,8 @@ export function createVolumeSurfaceMaterial(three, profileId = "fidelity") {
   const policy = profile.volumeSurface;
   return new three.MeshStandardMaterial({
     color: policy.color,
+    emissive: policy.emissive || "#000000",
+    emissiveIntensity: Number(policy.emissiveIntensity ?? 0),
     opacity: 1,
     transparent: false,
     side: three.DoubleSide,
@@ -133,7 +179,13 @@ export function applySegmentationSurfaceMaterialProfile(
   const profile = getSurfacePresentationProfile(profileId);
   const policy = profile.segmentationSurface;
   const opacity = Number(structure?.opacity ?? 1);
+  const semanticColor = structure?.colorHex || "#ffffff";
+  const emissiveIntensity = selected
+    ? Number(policy.selectedEmissiveIntensity ?? policy.emissiveIntensity ?? 0)
+    : Number(policy.emissiveIntensity ?? 0);
   material.color.set(structure?.colorHex || "#ffffff");
+  material.emissive?.set?.(semanticColor);
+  material.emissiveIntensity = emissiveIntensity;
   material.opacity = opacity;
   material.transparent = opacity < 1;
   material.depthWrite = opacity >= 0.98;
@@ -151,10 +203,16 @@ export function createSegmentationSurfaceMaterial(
 ) {
   if (!three?.MeshStandardMaterial) throw new TypeError("Three.js MeshStandardMaterial is required");
   const opacity = Number(structure?.opacity ?? 1);
+  const semanticColor = structure?.colorHex || "#ffffff";
   const profile = getSurfacePresentationProfile(profileId);
   const policy = profile.segmentationSurface;
+  const emissiveIntensity = selected
+    ? Number(policy.selectedEmissiveIntensity ?? policy.emissiveIntensity ?? 0)
+    : Number(policy.emissiveIntensity ?? 0);
   return new three.MeshStandardMaterial({
-    color: structure?.colorHex || "#ffffff",
+    color: semanticColor,
+    emissive: emissiveIntensity > 0 ? semanticColor : "#000000",
+    emissiveIntensity,
     opacity,
     transparent: opacity < 1,
     side: three.FrontSide ?? three.DoubleSide,
