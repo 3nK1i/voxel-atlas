@@ -46,6 +46,30 @@ export function resetStructureInteractionState(presentation) {
   return presentation.interaction;
 }
 
+export function activateStructureIsolation(presentation, labelId) {
+  requirePresentation(presentation);
+  const normalizedLabelId = Number(labelId);
+  if (!Number.isInteger(normalizedLabelId) || !presentation.structures.has(normalizedLabelId)) {
+    throw new Error("Segmentation structure interaction selection is invalid");
+  }
+  if (!presentation.interaction || presentation.interaction.schemaVersion !== STRUCTURE_INTERACTION_SCHEMA_VERSION) {
+    presentation.interaction = createStructureInteractionState();
+  }
+  presentation.interaction.isolatedLabelId = normalizedLabelId;
+  return normalizedLabelId;
+}
+
+export function restoreStructureIsolation(presentation) {
+  requirePresentation(presentation);
+  if (!presentation.interaction || presentation.interaction.schemaVersion !== STRUCTURE_INTERACTION_SCHEMA_VERSION) {
+    presentation.interaction = createStructureInteractionState();
+    return null;
+  }
+  const previous = presentation.interaction.isolatedLabelId;
+  presentation.interaction.isolatedLabelId = null;
+  return Number.isInteger(previous) ? previous : null;
+}
+
 export function resolveStructureInteraction(presentation, labelId) {
   requirePresentation(presentation);
   const normalizedLabelId = Number(labelId);

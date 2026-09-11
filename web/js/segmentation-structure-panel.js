@@ -1,8 +1,11 @@
 import {
+  activateStructureIsolation,
   createStructureInteractionDefaults,
   createStructureInteractionState,
   resetStructureInteractionState,
-} from "./segmentation-structure-interaction.js?v=phase6f-a-r1";
+  resolveStructureInteraction,
+  restoreStructureIsolation,
+} from "./segmentation-structure-interaction.js?v=phase6f-a-r1-phase6f-b-r1";
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
@@ -96,18 +99,17 @@ export function resetStructurePresentation(presentation) {
 
 export function isolateStructure(presentation, labelId) {
   const normalized = Number(labelId);
-  if (!presentation.structures.has(normalized)) {
-    throw new Error("Segmentation structure selection is invalid");
-  }
-  for (const structure of presentation.structures.values()) {
-    const isolated = structure.labelId === normalized;
-    structure.visible = isolated;
-    structure.surfaceVisible = isolated;
-  }
+  activateStructureIsolation(presentation, normalized);
   presentation.selectedLabelId = normalized;
+  return normalized;
+}
+
+export function restoreIsolation(presentation) {
+  return restoreStructureIsolation(presentation);
 }
 
 function setAllVisible(presentation, visible) {
+  restoreIsolation(presentation);
   for (const structure of presentation.structures.values()) {
     structure.visible = visible;
     structure.surfaceVisible = visible;
@@ -153,6 +155,7 @@ export class SegmentationStructurePanel {
     this.color = root.querySelector("#segmentationStructureColor");
     this.opacity = root.querySelector("#segmentationStructureOpacity");
     this.opacityValue = root.querySelector("#segmentationStructureOpacityValue");
+    this.restoreIsolationButton = root.querySelector("#segmentationStructureRestoreIsolation");
     this.presentation = null;
     this.expandedGroups = new Set();
     this.surfaceStates = new Map();
@@ -269,7 +272,14 @@ export class SegmentationStructurePanel {
     if (action === "show-all") setAllVisible(this.presentation, true);
     if (action === "hide-all") setAllVisible(this.presentation, false);
     if (action === "reset") resetStructurePresentation(this.presentation);
-    if (action === "isolate") isolateStructure(this.presentation, labelId);
+    if (action === "restore-isolation") restoreIsolation(this.presentation);
+    if (action === "isolate") {
+      if (this.presentation.interaction?.isolatedLabelId === labelId) {
+        restoreIsolation(this.presentation);
+      } else {
+        isolateStructure(this.presentation, labelId);
+      }
+    }
     if (action === "select" && this.presentation.structures.has(labelId)) {
       activateSurfaceForStructure(this.presentation, labelId);
       this.render();
@@ -286,6 +296,7 @@ export class SegmentationStructurePanel {
     if (visibility) {
       const structure = this.presentation.structures.get(Number(visibility.dataset.labelId));
       if (!structure) return;
+      restoreIsolation(this.presentation);
       structure.visible = visibility.checked;
       structure.surfaceVisible = visibility.checked;
       this.presentation.selectedLabelId = structure.labelId;
@@ -310,9 +321,21 @@ export class SegmentationStructurePanel {
 
   renderSummary() {
     if (!this.presentation) return;
+    const isolatedLabelId = this.presentation.interaction?.isolatedLabelId;
+    const isolatedStructure = Number.isInteger(isolatedLabelId)
+      ? this.presentation.structures.get(isolatedLabelId)
+      : null;
     const visible = Array.from(this.presentation.structures.values())
-      .filter((structure) => structure.visible).length;
-    this.summary.textContent = `${visible} of ${this.presentation.structures.size} structures shown`;
+      .filter((structure) => (
+        resolveStructureInteraction(this.presentation, structure.labelId).effectiveVisible
+      )).length;
+    this.summary.textContent = isolatedStructure
+      ? `${visible} of ${this.presentation.structures.size} structures shown · ${isolatedStructure.displayName} isolated`
+      : `${visible} of ${this.presentation.structures.size} structures shown`;
+    if (this.restoreIsolationButton) {
+      this.restoreIsolationButton.disabled = !isolatedStructure;
+      this.restoreIsolationButton.setAttribute("aria-disabled", String(!isolatedStructure));
+    }
   }
 
   renderGroups() {
@@ -342,6 +365,8 @@ export class SegmentationStructurePanel {
         row.dataset.selected = String(
           structure.labelId === this.presentation.selectedLabelId,
         );
+        const interaction = resolveStructureInteraction(this.presentation, structure.labelId);
+        row.dataset.isolated = String(interaction.isolated);
         const visibility = document.createElement("input");
         visibility.type = "checkbox";
         visibility.checked = structure.visible;
@@ -360,8 +385,16 @@ export class SegmentationStructurePanel {
         select.title = `Select ${structure.displayName}`;
         const surfaceState = this._surfaceStateIndicator(structure);
         const isolate = button("Iso", "structure-isolate", "isolate", structure.labelId);
-        isolate.title = `Isolate ${structure.displayName}`;
-        isolate.setAttribute("aria-label", `Isolate ${structure.displayName}`);
+        isolate.title = interaction.isolated
+          ? `Restore structures after isolating ${structure.displayName}`
+          : `Isolate ${structure.displayName}`;
+        isolate.setAttribute(
+          "aria-label",
+          interaction.isolated
+            ? `Restore structures after isolating ${structure.displayName}`
+            : `Isolate ${structure.displayName}`,
+        );
+        isolate.setAttribute("aria-pressed", String(interaction.isolated));
         row.append(visibility, swatch, select, surfaceState, isolate);
         list.appendChild(row);
       }

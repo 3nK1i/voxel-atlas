@@ -5,7 +5,11 @@ import {
   createStructurePresentation,
   isolateStructure,
   resetStructurePresentation,
+  restoreIsolation,
 } from "../web/js/segmentation-structure-panel.js";
+import {
+  resolveStructureInteraction,
+} from "../web/js/segmentation-structure-interaction.js";
 import {
   decodeSegmentationLabels,
   drawSegmentationLabels,
@@ -54,9 +58,16 @@ const presentation = createStructurePresentation(descriptor);
 assert.equal(presentation.structures.size, 2);
 assert.equal(presentation.structures.get(51).displayName, "Heart");
 
+const visibilityBeforeIsolation = new Map(
+  Array.from(presentation.structures.values(), (item) => [item.labelId, item.visible]),
+);
 isolateStructure(presentation, 51);
-assert.equal(presentation.structures.get(1).visible, false);
-assert.equal(presentation.structures.get(51).visible, true);
+assert.equal(presentation.structures.get(1).visible, visibilityBeforeIsolation.get(1));
+assert.equal(presentation.structures.get(51).visible, visibilityBeforeIsolation.get(51));
+assert.equal(resolveStructureInteraction(presentation, 1).effectiveVisible, false);
+assert.equal(resolveStructureInteraction(presentation, 51).effectiveVisible, true);
+restoreIsolation(presentation);
+assert.equal(resolveStructureInteraction(presentation, 1).effectiveVisible, true);
 
 resetStructurePresentation(presentation);
 presentation.structures.get(1).colorHex = "#112233";
@@ -94,6 +105,6 @@ assert.deepEqual(Array.from(rendered.slice(4, 8)), [17, 34, 51, 255]);
 assert.deepEqual(Array.from(rendered.slice(8, 12)), [0, 255, 0, 128]);
 
 console.log("PHASE5E_STRUCTURE_PRESENTATION_MODEL=PASS");
-console.log("PHASE5E_STRUCTURE_VISIBILITY_ISOLATION=PASS");
+console.log("PHASE5E_STRUCTURE_VISIBILITY_ISOLATION=PASS_NON_DESTRUCTIVE_SUPERSESSION");
 console.log("PHASE5E_LOCAL_COLOR_OPACITY_COMPOSITING=PASS");
 console.log("PHASE5E_BROWSER_CONTRACT_OK=YES");

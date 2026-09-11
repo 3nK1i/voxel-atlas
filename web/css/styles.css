@@ -2134,7 +2134,7 @@ button:disabled {
 
 .structure-bulk-actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 5px;
 }
 
@@ -2154,6 +2154,12 @@ button:disabled {
 .structure-isolate:hover {
   border-color: var(--line-strong);
   background: var(--panel-hover);
+}
+
+.structure-isolate[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--panel-soft));
+  color: var(--text);
 }
 
 .structure-groups {

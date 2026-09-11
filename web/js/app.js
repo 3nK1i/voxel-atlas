@@ -41,13 +41,16 @@ import {
   decodeSegmentationLabels,
   drawSegmentationLabels,
   drawSegmentationRgba,
-} from "./segmentation-overlay.js?v=phase5e-r1";
+} from "./segmentation-overlay.js?v=phase5e-r1-phase6f-b-r1";
 import {
   SegmentationStructurePanel,
-} from "./segmentation-structure-panel.js?v=phase5e-r1-phase6c-r2-phase6d0-explicit-r1-phase6f-a-r1";
+} from "./segmentation-structure-panel.js?v=phase5e-r1-phase6c-r2-phase6d0-explicit-r1-phase6f-a-r1-phase6f-b-r1";
+import {
+  resolveStructureInteraction,
+} from "./segmentation-structure-interaction.js?v=phase6f-a-r1-phase6f-b-r1";
 import {
   PatientSegmentationSurfaceLayer,
-} from "./segmentation-surface-viewer.js?v=phase6a-r1-phase6b-r1-phase6c-r2-phase6d2b-r1-phase6e-b-r1-phase6e-d-r1";
+} from "./segmentation-surface-viewer.js?v=phase6a-r1-phase6b-r1-phase6c-r2-phase6d2b-r1-phase6e-b-r1-phase6e-d-r1-phase6f-b-r1";
 import {
   SegmentationCorrectionPanel,
 } from "./segmentation-correction-panel.js?v=phase5f2-r1";
@@ -338,6 +341,19 @@ function syncSegmentationCorrectionContext(presentation) {
   });
 }
 
+function syncSegmentationOverlayPresentationStatus(presentation) {
+  const descriptor = state.segmentationOverlay.descriptor;
+  if (!descriptor || !(presentation?.structures instanceof Map)) return;
+  const provider = descriptor.provider_id === "totalsegmentator"
+    ? "TotalSegmentator"
+    : String(descriptor.provider_id || "Segmentation");
+  const visibleCount = Array.from(presentation.structures.values()).filter((structure) => (
+    resolveStructureInteraction(presentation, structure.labelId).effectiveVisible
+  )).length;
+  const suffix = visibleCount === 1 ? "visible label" : "visible labels";
+  segmentationOverlayStatus.textContent = `${provider} · ${visibleCount} ${suffix}`;
+}
+
 segmentationWorkflowPanel = new SegmentationWorkflowPanel(
   segmentationWorkflowPanelRoot,
   {
@@ -350,6 +366,7 @@ const segmentationStructurePanel = new SegmentationStructurePanel(
   segmentationStructurePanelRoot,
   (presentation) => {
     state.segmentationOverlay.presentation = presentation;
+    syncSegmentationOverlayPresentationStatus(presentation);
     redrawSegmentationOverlays();
     syncSegmentationSurface();
     syncSegmentationCorrectionContext(presentation);
@@ -2107,11 +2124,7 @@ function setSegmentationOverlayAvailability(descriptor) {
   if (ready) {
     state.segmentationOverlay.presentation = segmentationStructurePanel.load(descriptor);
     syncSegmentationCorrectionContext(state.segmentationOverlay.presentation);
-    const labelCount = Number(descriptor.present_label_count) || 0;
-    const provider = descriptor.provider_id === "totalsegmentator"
-      ? "TotalSegmentator"
-      : String(descriptor.provider_id || "Segmentation");
-    segmentationOverlayStatus.textContent = `${provider} · ${labelCount} visible labels`;
+    syncSegmentationOverlayPresentationStatus(state.segmentationOverlay.presentation);
   } else {
     segmentationStructurePanel.clear();
     segmentationCorrectionPanel.clear();

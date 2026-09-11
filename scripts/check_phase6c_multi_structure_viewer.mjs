@@ -9,7 +9,11 @@ import {
   createStructurePresentation,
   isolateStructure,
   resetStructurePresentation,
+  restoreIsolation,
 } from "../web/js/segmentation-structure-panel.js";
+import {
+  resolveStructureInteraction,
+} from "../web/js/segmentation-structure-interaction.js";
 
 class FakeColor {
   constructor(value) { this.value = value; }
@@ -131,8 +135,15 @@ assert.equal(presentation.structures.get(2).surfaceVisible, true);
 isolateStructure(presentation, 3);
 assert.deepEqual(
   Array.from(presentation.structures.values()).filter((item) => item.surfaceVisible).map((item) => item.labelId),
-  [3],
+  [1, 2],
+  "Isolation must preserve the existing explicit surface-request set",
 );
+assert.equal(resolveStructureInteraction(presentation, 1).effectiveSurfaceVisible, false);
+assert.equal(resolveStructureInteraction(presentation, 2).effectiveSurfaceVisible, false);
+assert.equal(resolveStructureInteraction(presentation, 3).effectiveSurfaceVisible, false);
+restoreIsolation(presentation);
+assert.equal(resolveStructureInteraction(presentation, 1).effectiveSurfaceVisible, true);
+assert.equal(resolveStructureInteraction(presentation, 2).effectiveSurfaceVisible, true);
 resetStructurePresentation(presentation);
 assert.equal(Array.from(presentation.structures.values()).every((item) => item.visible), true);
 assert.equal(presentation.selectedLabelId, null);

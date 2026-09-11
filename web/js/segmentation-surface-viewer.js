@@ -3,6 +3,9 @@ import {
   createSegmentationSurfaceMaterial,
   getSurfacePresentationProfile,
 } from "./reconstruction-surface-presentation.js?v=phase6e-b-r1-phase6e-d-r1";
+import {
+  resolveStructureInteraction,
+} from "./segmentation-structure-interaction.js?v=phase6f-a-r1-phase6f-b-r1";
 
 const LEGACY_SURFACE_MEDIA_TYPE = "application/x-voxelatlas-surface-v1";
 const ACCURATE_SURFACE_MEDIA_TYPE = "application/x-voxelatlas-surface-v2";
@@ -320,10 +323,12 @@ export class PatientSegmentationSurfaceLayer {
   }
 
   _updateItemPresentation(item, structure, selectedLabelId) {
+    const interaction = structure && this.presentation
+      ? resolveStructureInteraction(this.presentation, item.labelId)
+      : null;
     const shouldShow = Boolean(
       this.enabled
-      && structure?.visible
-      && structure?.surfaceVisible
+      && interaction?.effectiveSurfaceVisible
       && this.desiredLabels.has(item.labelId)
     );
     item.mesh.visible = shouldShow;

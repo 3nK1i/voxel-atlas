@@ -49,15 +49,15 @@ class Phase6FAStructureInteractionStateTests(unittest.TestCase):
         self.assertIn("clippingEnabled", panel)
         self.assertIn("explodedOffsetLpsMm", panel)
 
-    def test_phase6f_a_does_not_activate_advanced_interaction_ui(self) -> None:
+    def test_phase6f_a_foundation_keeps_later_interaction_features_out_of_scope(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         panel = (ROOT / "web" / "js" / "segmentation-structure-panel.js").read_text(
             encoding="utf-8"
         )
-        self.assertNotIn("segmentationStructureRestoreIsolation", html)
+        # 6F-B may layer restore/isolation behavior on the 6F-A state foundation,
+        # but clipping and exploded-view controls remain later roadmap steps.
         self.assertNotIn("segmentationStructureClipParticipation", html)
         self.assertNotIn("segmentationStructureExplode", html)
-        # Phase 5E's current Iso control remains until 6F-B wires the new state model.
         self.assertIn('button("Iso", "structure-isolate", "isolate"', panel)
 
     def test_cache_keys_load_the_phase6f_a_foundation(self) -> None:

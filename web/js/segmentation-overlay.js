@@ -1,3 +1,7 @@
+import {
+  resolveStructureInteraction,
+} from "./segmentation-structure-interaction.js?v=phase6f-a-r1-phase6f-b-r1";
+
 export const SEGMENTATION_OVERLAY_MEDIA_TYPE = "application/x-voxelatlas-rgba8";
 
 export function validateOverlayPayload(buffer, width, height) {
@@ -95,10 +99,11 @@ export function drawSegmentationLabels(
   const styles = new Map();
   for (const [labelId, structure] of presentation.structures.entries()) {
     const rgb = parseColor(structure.colorHex);
+    const interaction = resolveStructureInteraction(presentation, labelId);
     styles.set(Number(labelId), {
       rgb,
-      alpha: structure.visible
-        ? Math.round(255 * Math.min(1, Math.max(0, Number(structure.opacity))))
+      alpha: interaction.effectiveVisible
+        ? Math.round(255 * Math.min(1, Math.max(0, Number(interaction.opacity))))
         : 0,
     });
   }

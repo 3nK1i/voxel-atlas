@@ -47,10 +47,9 @@ def main() -> int:
     require("phase6f-a-r1" in app, "Structure-panel cache key not advanced")
     require("phase6f-a-r1" in html, "App cache key not advanced")
 
-    # 6F-A is foundation-only. Existing rendering consumers are intentionally unchanged.
+    # The 6F-A foundation must remain intact as later interaction steps layer on top.
     require("drawSegmentationLabels" in overlay, "Segmentation overlay implementation changed unexpectedly")
     require("class PatientSegmentationSurfaceLayer" in surface, "Segmentation surface layer missing")
-    require("segmentationStructureRestoreIsolation" not in html, "6F-B UI enabled prematurely")
     require("segmentationStructureClipParticipation" not in html, "6F-D UI enabled prematurely")
     require("segmentationStructureExplode" not in html, "6F-E UI enabled prematurely")
 
@@ -58,8 +57,8 @@ def main() -> int:
     print("PHASE6F_A_STATE_MODEL=PASS")
     print("PHASE6F_A_PRECEDENCE_RULES=PASS")
     print("PHASE6F_A_GEOMETRY_IO_SIDE_EFFECTS=NONE")
-    print("PHASE6F_A_EXISTING_UI_BEHAVIOR=PRESERVED")
-    print("PHASE6F_B_ADVANCED_VISIBILITY=NOT_ENABLED")
+    print("PHASE6F_A_FOUNDATION_INTACT=YES")
+    print("PHASE6F_B_MAY_LAYER_VISIBILITY=YES")
     print("PHASE6F_D_PER_STRUCTURE_CLIPPING=NOT_ENABLED")
     print("PHASE6F_E_EXPLODED_PRESENTATION=NOT_ENABLED")
     print("CLINICAL_VALIDATION=NOT_CLAIMED")
