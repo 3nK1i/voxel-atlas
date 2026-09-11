@@ -2,7 +2,8 @@ import {
   applyVolumeSurfaceMaterialProfile,
   createVolumeSurfaceMaterial,
   getSurfacePresentationProfile,
-} from "./reconstruction-surface-presentation.js?v=phase6e-b-r1-phase6e-d-r1";
+  resolveDirectCtSurfaceCompositionPolicy,
+} from "./reconstruction-surface-presentation.js?v=phase6e-b-r1-phase6e-d-r1-phase6f-c-r3";
 
 const VOLUME_SURFACE_MEDIA_TYPE = "application/x-voxelatlas-volume-surface-v1";
 const VOLUME_SURFACE_MAGIC = "VXVS";
@@ -106,6 +107,7 @@ export class PatientVolumeSurfaceLayer {
     this.presentationVisible = true;
     this.presentationProfile = "fidelity";
     this.presentationOpacity = 1;
+    this.semanticOverlayActive = false;
     this.group.visible = true;
   }
 
@@ -181,11 +183,21 @@ export class PatientVolumeSurfaceLayer {
 
   _applyPresentationOpacity() {
     if (!this.current?.material) return;
-    const opacity = Math.min(1, Math.max(0, Number(this.presentationOpacity)));
-    this.current.material.opacity = opacity;
-    this.current.material.transparent = opacity < 0.999;
-    this.current.material.depthWrite = opacity >= 0.999;
+    const policy = resolveDirectCtSurfaceCompositionPolicy(
+      this.presentationOpacity,
+      this.semanticOverlayActive,
+    );
+    this.current.material.opacity = policy.opacity;
+    this.current.material.transparent = policy.transparent;
+    this.current.material.depthWrite = policy.depthWrite;
     this.current.material.needsUpdate = true;
+  }
+
+  setSemanticOverlayActive(active) {
+    this.semanticOverlayActive = Boolean(active);
+    this._applyPresentationOpacity();
+    this.requestRender();
+    return this.semanticOverlayActive;
   }
 
   setPresentationOpacity(opacity) {

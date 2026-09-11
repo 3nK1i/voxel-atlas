@@ -169,6 +169,42 @@ export function createVolumeSurfaceMaterial(three, profileId = "fidelity") {
   });
 }
 
+
+
+export function resolveDirectCtSurfaceCompositionPolicy(rawOpacity, semanticOverlayActive = false) {
+  const opacity = Number(rawOpacity ?? 1);
+  if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1) {
+    throw new RangeError("Direct CT surface opacity must be within [0, 1]");
+  }
+  const semanticOverlay = Boolean(semanticOverlayActive);
+  const translucent = opacity < 0.999;
+  return Object.freeze({
+    opacity,
+    // In Surface mode, a co-present semantic segmentation layer must remain
+    // visible over the resident Direct CT mesh. Keep alpha exact, but move
+    // Direct CT out of the depth-writing opaque lane while semantic overlay
+    // coexistence is active. No geometry is offset or rebuilt.
+    transparent: translucent || semanticOverlay,
+    depthWrite: !(translucent || semanticOverlay),
+  });
+}
+
+export function resolveSegmentationSurfaceOpacityPolicy(rawOpacity) {
+  const opacity = Number(rawOpacity ?? 1);
+  if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1) {
+    throw new RangeError("Segmentation surface opacity must be within [0, 1]");
+  }
+  const fullyOpaque = opacity >= 1;
+  return Object.freeze({
+    opacity,
+    // Segmentation surfaces stay in the transparent render lane even at
+    // alpha=1 so semantic overlays render after Direct CT presentation
+    // surfaces. Alpha remains exact; only queue placement is stabilized.
+    transparent: true,
+    depthWrite: fullyOpaque,
+  });
+}
+
 export function applySegmentationSurfaceMaterialProfile(
   material,
   structure,
@@ -178,7 +214,7 @@ export function applySegmentationSurfaceMaterialProfile(
   if (!material?.color?.set) throw new TypeError("Segmentation surface material is required");
   const profile = getSurfacePresentationProfile(profileId);
   const policy = profile.segmentationSurface;
-  const opacity = Number(structure?.opacity ?? 1);
+  const opacityPolicy = resolveSegmentationSurfaceOpacityPolicy(structure?.opacity ?? 1);
   const semanticColor = structure?.colorHex || "#ffffff";
   const emissiveIntensity = selected
     ? Number(policy.selectedEmissiveIntensity ?? policy.emissiveIntensity ?? 0)
@@ -186,9 +222,9 @@ export function applySegmentationSurfaceMaterialProfile(
   material.color.set(structure?.colorHex || "#ffffff");
   material.emissive?.set?.(semanticColor);
   material.emissiveIntensity = emissiveIntensity;
-  material.opacity = opacity;
-  material.transparent = opacity < 1;
-  material.depthWrite = opacity >= 0.98;
+  material.opacity = opacityPolicy.opacity;
+  material.transparent = opacityPolicy.transparent;
+  material.depthWrite = opacityPolicy.depthWrite;
   material.roughness = selected ? policy.selectedRoughness : policy.roughness;
   material.metalness = policy.metalness;
   material.needsUpdate = true;
@@ -202,7 +238,7 @@ export function createSegmentationSurfaceMaterial(
   selected = false,
 ) {
   if (!three?.MeshStandardMaterial) throw new TypeError("Three.js MeshStandardMaterial is required");
-  const opacity = Number(structure?.opacity ?? 1);
+  const opacityPolicy = resolveSegmentationSurfaceOpacityPolicy(structure?.opacity ?? 1);
   const semanticColor = structure?.colorHex || "#ffffff";
   const profile = getSurfacePresentationProfile(profileId);
   const policy = profile.segmentationSurface;
@@ -213,11 +249,11 @@ export function createSegmentationSurfaceMaterial(
     color: semanticColor,
     emissive: emissiveIntensity > 0 ? semanticColor : "#000000",
     emissiveIntensity,
-    opacity,
-    transparent: opacity < 1,
+    opacity: opacityPolicy.opacity,
+    transparent: opacityPolicy.transparent,
     side: three.FrontSide ?? three.DoubleSide,
     depthTest: true,
-    depthWrite: opacity >= 0.98,
+    depthWrite: opacityPolicy.depthWrite,
     roughness: selected ? policy.selectedRoughness : policy.roughness,
     metalness: policy.metalness,
     flatShading: false,

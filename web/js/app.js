@@ -17,7 +17,7 @@ import {
 } from "./volume-rendering-quality.js?v=phase4h1";
 import {
   PatientVolumeSurfaceLayer,
-} from "./volume-surface-viewer.js?v=phase6d2b-r1-phase6e-b-r1-phase6e-d-r1-phase6e-e-r1";
+} from "./volume-surface-viewer.js?v=phase6d2b-r1-phase6e-b-r1-phase6e-d-r1-phase6e-e-r1-phase6f-c-r3";
 import {
   ReconstructionVisualizationModeController,
 } from "./reconstruction-visualization-mode.js?v=phase6d2a-r1";
@@ -26,7 +26,7 @@ import {
 } from "./reconstruction-presentation-profile.js?v=phase6e-a-r1-phase6e-c-r1";
 import {
   createSurfaceLightingRig,
-} from "./reconstruction-surface-presentation.js?v=phase6e-b-r1-phase6e-d-r1";
+} from "./reconstruction-surface-presentation.js?v=phase6e-b-r1-phase6e-d-r1-phase6f-c-r3";
 import {
   resolveCombinedPresentationBalance,
 } from "./reconstruction-combined-presentation.js?v=phase6e-e-r1";
@@ -50,7 +50,7 @@ import {
 } from "./segmentation-structure-interaction.js?v=phase6f-a-r1-phase6f-b-r1";
 import {
   PatientSegmentationSurfaceLayer,
-} from "./segmentation-surface-viewer.js?v=phase6a-r1-phase6b-r1-phase6c-r2-phase6d2b-r1-phase6e-b-r1-phase6e-d-r1-phase6f-b-r1-phase6b-fallback-r1";
+} from "./segmentation-surface-viewer.js?v=phase6a-r1-phase6b-r1-phase6c-r2-phase6d2b-r1-phase6e-b-r1-phase6e-d-r1-phase6f-b-r1-phase6b-fallback-r1-phase6f-c-r3";
 import {
   SegmentationCorrectionPanel,
 } from "./segmentation-correction-panel.js?v=phase5f2-r1";
@@ -971,6 +971,12 @@ function applyReconstructionVisualizationSnapshot(snapshot) {
   if (volumeLayer.root) {
     volumeLayer.root.visible = Boolean(snapshot.visibility.volume) && state.opacity > 0.001;
   }
+  const surfaceSemanticOverlayActive = Boolean(
+    snapshot.mode === "surface"
+    && snapshot.visibility.surfaceSources["volume-derived"]
+    && snapshot.visibility.surfaceSources["segmentation-derived"]
+  );
+  volumeSurfaceLayer?.setSemanticOverlayActive(surfaceSemanticOverlayActive);
   volumeSurfaceLayer?.setPresentationVisible(snapshot.visibility.surfaceSources["volume-derived"]);
   segmentationSurfaceLayer?.setPresentationVisible(snapshot.visibility.surfaceSources["segmentation-derived"]);
 

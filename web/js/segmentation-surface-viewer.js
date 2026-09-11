@@ -2,7 +2,7 @@ import {
   applySegmentationSurfaceMaterialProfile,
   createSegmentationSurfaceMaterial,
   getSurfacePresentationProfile,
-} from "./reconstruction-surface-presentation.js?v=phase6e-b-r1-phase6e-d-r1";
+} from "./reconstruction-surface-presentation.js?v=phase6e-b-r1-phase6e-d-r1-phase6f-c-r3";
 import {
   resolveStructureInteraction,
 } from "./segmentation-structure-interaction.js?v=phase6f-a-r1-phase6f-b-r1";
