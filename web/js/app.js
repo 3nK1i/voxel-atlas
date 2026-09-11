@@ -17,7 +17,7 @@ import {
 } from "./volume-rendering-quality.js?v=phase4h1";
 import {
   PatientVolumeSurfaceLayer,
-} from "./volume-surface-viewer.js?v=phase6d2b-r1-phase6e-b-r1-phase6e-d-r1";
+} from "./volume-surface-viewer.js?v=phase6d2b-r1-phase6e-b-r1-phase6e-d-r1-phase6e-e-r1";
 import {
   ReconstructionVisualizationModeController,
 } from "./reconstruction-visualization-mode.js?v=phase6d2a-r1";
@@ -27,6 +27,9 @@ import {
 import {
   createSurfaceLightingRig,
 } from "./reconstruction-surface-presentation.js?v=phase6e-b-r1-phase6e-d-r1";
+import {
+  resolveCombinedPresentationBalance,
+} from "./reconstruction-combined-presentation.js?v=phase6e-e-r1";
 import { SampleStudyCatalogClient } from "./sample-study-catalog.js?v=phase4g-r1";
 import {
   classifySampleStudyActivation,
@@ -903,6 +906,24 @@ function reconstructionSurfaceSourceLabel(sourceId) {
   return sourceId === "volume-derived" ? "Direct CT" : "Segmentation";
 }
 
+function applyCombinedPresentationBalance(visualizationSnapshot = null, profileSnapshot = null) {
+  const visualization = visualizationSnapshot || reconstructionVisualizationController?.snapshot();
+  const presentation = profileSnapshot || reconstructionPresentationProfileController?.snapshot();
+  const plan = resolveCombinedPresentationBalance({
+    mode: visualization?.mode || "volume",
+    profile: presentation?.profile || "fidelity",
+    userVolumeOpacity: state.opacity,
+    directCtSurfaceVisible: Boolean(visualization?.visibility?.surfaceSources?.["volume-derived"]),
+    segmentationSurfaceVisible: Boolean(visualization?.visibility?.surfaceSources?.["segmentation-derived"]),
+  });
+  volumeRayMarcher.setOpacity(plan.effectiveVolumeOpacity);
+  volumeSurfaceLayer?.setPresentationOpacity(plan.directCtSurfaceOpacity);
+  if (reconstructionVisualizationPanel) {
+    reconstructionVisualizationPanel.dataset.combinedBalance = plan.active ? "active" : "inactive";
+  }
+  return plan;
+}
+
 function applyReconstructionPresentationProfileSnapshot(snapshot) {
   if (!snapshot) return;
   surfaceLightingRig.setProfile(snapshot.profile);
@@ -920,6 +941,7 @@ function applyReconstructionPresentationProfileSnapshot(snapshot) {
   if (reconstructionPresentationProfileStatus) {
     reconstructionPresentationProfileStatus.textContent = `${snapshot.label} · ${snapshot.description}`;
   }
+  applyCombinedPresentationBalance(null, snapshot);
 }
 
 function requestReconstructionPresentationProfile(profileId) {
@@ -979,7 +1001,7 @@ function applyReconstructionVisualizationSnapshot(snapshot) {
     if (!snapshot.volumeAvailable && !snapshot.canSurface) {
       reconstructionVisualizationStatus.textContent = "Available after a patient volume or resident surface is ready.";
     } else if (snapshot.mode === "combined") {
-      reconstructionVisualizationStatus.textContent = `Combined view · patient volume + ${sourceSummary} · resident geometry reused.`;
+      reconstructionVisualizationStatus.textContent = `Combined view · balanced patient volume + ${sourceSummary} · semantic surface colors preserved.`;
     } else if (snapshot.mode === "surface") {
       reconstructionVisualizationStatus.textContent = `Surface view · ${sourceSummary} · resident geometry reused without rebuilding.`;
     } else {
@@ -988,6 +1010,7 @@ function applyReconstructionVisualizationSnapshot(snapshot) {
         : "Volume view · build or select a surface to enable Surface and Combined.";
     }
   }
+  applyCombinedPresentationBalance(snapshot, null);
   requestViewerRender();
 }
 
@@ -1309,6 +1332,7 @@ function resetPatientClipping() {
 
 function applyOpacity() {
   volumeRayMarcher.setOpacity(state.opacity);
+  applyCombinedPresentationBalance();
   applyVolumeVisibility();
   opacityValue.textContent = `${Math.round(state.opacity * 100)}%`;
   requestViewerRender();

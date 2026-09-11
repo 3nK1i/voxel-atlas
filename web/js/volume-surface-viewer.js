@@ -105,6 +105,7 @@ export class PatientVolumeSurfaceLayer {
     this.generation = 0;
     this.presentationVisible = true;
     this.presentationProfile = "fidelity";
+    this.presentationOpacity = 1;
     this.group.visible = true;
   }
 
@@ -172,9 +173,28 @@ export class PatientVolumeSurfaceLayer {
     this.presentationProfile = profile.id;
     if (this.current?.material) {
       applyVolumeSurfaceMaterialProfile(this.current.material, profile.id);
+      this._applyPresentationOpacity();
     }
     this.requestRender();
     return this.presentationProfile;
+  }
+
+  _applyPresentationOpacity() {
+    if (!this.current?.material) return;
+    const opacity = Math.min(1, Math.max(0, Number(this.presentationOpacity)));
+    this.current.material.opacity = opacity;
+    this.current.material.transparent = opacity < 0.999;
+    this.current.material.depthWrite = opacity >= 0.999;
+    this.current.material.needsUpdate = true;
+  }
+
+  setPresentationOpacity(opacity) {
+    const normalized = Number(opacity);
+    if (!Number.isFinite(normalized)) throw new TypeError("Direct CT presentation opacity must be finite");
+    this.presentationOpacity = Math.min(1, Math.max(0, normalized));
+    this._applyPresentationOpacity();
+    this.requestRender();
+    return this.presentationOpacity;
   }
 
   async build(isovalue) {
@@ -253,6 +273,7 @@ export class PatientVolumeSurfaceLayer {
 
       const previous = this.current;
       this.current = { mesh, geometry, material, isovalue: level, triangleCount: decoded.triangleCount, surfaceId };
+      this._applyPresentationOpacity();
       this.group.add(mesh);
       if (previous) {
         this.group.remove(previous.mesh);
