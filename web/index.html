@@ -26,7 +26,7 @@
     })();
   </script>
 
-  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1-phase6c-r2-phase6d0-r1-phase6d1-r1-phase6d2b-r1-phase6d2c-r1-phase6d2d-r1-phase6e-c-r1-phase6f-b-r1">
+  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1-phase6c-r2-phase6d0-r1-phase6d1-r1-phase6d2b-r1-phase6d2c-r1-phase6d2d-r1-phase6e-c-r1-phase6f-b-r1-phase6f-d-r1">
 
   <script type="importmap">
   {
@@ -599,8 +599,12 @@
                 <strong id="segmentationStructureOpacityValue">100%</strong>
               </label>
               <input id="segmentationStructureOpacity" type="range" min="0" max="100" step="1" value="100" disabled>
+              <label class="structure-clipping-control" for="segmentationStructureClipParticipation">
+                <input id="segmentationStructureClipParticipation" type="checkbox" checked disabled>
+                <span>Follow Directional Cut</span>
+              </label>
             </div>
-            <p class="segmentation-overlay-note">Iso temporarily focuses one structure without overwriting Show/Hide choices; Restore returns the previous visibility state. Selecting a visible structure adds its refined 3D surface. Source labels remain immutable.</p>
+            <p class="segmentation-overlay-note">Iso temporarily focuses one structure without overwriting Show/Hide choices; Restore returns the previous visibility state. Directional Cut participation is display-only and never edits Patient-LPS geometry. Selecting a visible structure adds its refined 3D surface. Source labels remain immutable.</p>
           </section>
 
           <section id="segmentationCorrectionPanel" class="control-section segmentation-correction-panel" data-state="unavailable" aria-labelledby="segmentationCorrectionTitle">
@@ -1109,6 +1113,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1-phase6a-r1-phase6b-r1-phase6c-r2-phase6d0-r1-phase6d0-explicit-r1-phase6d1-r2-phase6d2b-r1-phase6d2c-r1-phase6d2d-r1-phase6e-a-r1-phase6e-b-r1-phase6e-c-r1-phase6e-d-r1-phase6e-e-r1-phase6f-a-r1-phase6f-b-r1-phase6b-fallback-r1-phase6f-c-r3"></script>
+  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1-phase6a-r1-phase6b-r1-phase6c-r2-phase6d0-r1-phase6d0-explicit-r1-phase6d1-r2-phase6d2b-r1-phase6d2c-r1-phase6d2d-r1-phase6e-a-r1-phase6e-b-r1-phase6e-c-r1-phase6e-d-r1-phase6e-e-r1-phase6f-a-r1-phase6f-b-r1-phase6b-fallback-r1-phase6f-c-r3-phase6f-d-r1"></script>
 </body>
 </html>

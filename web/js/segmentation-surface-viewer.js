@@ -6,6 +6,9 @@ import {
 import {
   resolveStructureInteraction,
 } from "./segmentation-structure-interaction.js?v=phase6f-a-r1-phase6f-b-r1";
+import {
+  applySurfaceClippingToMaterial,
+} from "./reconstruction-surface-clipping.js?v=phase6f-d-r1";
 
 const LEGACY_SURFACE_MEDIA_TYPE = "application/x-voxelatlas-surface-v1";
 const ACCURATE_SURFACE_MEDIA_TYPE = "application/x-voxelatlas-surface-v2";
@@ -180,6 +183,7 @@ export class PatientSegmentationSurfaceLayer {
     this.presentation = null;
     this.desiredLabels = new Set();
     this.failedLabels = new Map();
+    this.clipping = Object.freeze({});
   }
 
   _surfaceState(labelId) {
@@ -317,6 +321,28 @@ export class PatientSegmentationSurfaceLayer {
     return this.presentationProfile;
   }
 
+  setClippingPlanes(clipping = {}) {
+    this.clipping = clipping && typeof clipping === "object"
+      ? clipping
+      : Object.freeze({});
+    const structures = this.presentation?.structures;
+    for (const item of this.items.values()) {
+      const structure = structures instanceof Map ? structures.get(item.labelId) : null;
+      const interaction = structure && this.presentation
+        ? resolveStructureInteraction(this.presentation, item.labelId)
+        : null;
+      applySurfaceClippingToMaterial(
+        item.material,
+        this.three,
+        this.readVolumePresentation(),
+        this.clipping,
+        interaction?.clippingEnabled !== false,
+      );
+    }
+    this.requestRender();
+    return this.clipping;
+  }
+
   _makeMaterial(structure) {
     return createSegmentationSurfaceMaterial(
       this.three,
@@ -342,6 +368,13 @@ export class PatientSegmentationSurfaceLayer {
       structure,
       this.presentationProfile,
       structure.labelId === selectedLabelId,
+    );
+    applySurfaceClippingToMaterial(
+      item.material,
+      this.three,
+      this.readVolumePresentation(),
+      this.clipping,
+      interaction.clippingEnabled,
     );
     item.mesh.renderOrder = structure.labelId === selectedLabelId ? 2 : 1;
   }

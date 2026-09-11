@@ -2374,6 +2374,25 @@ button:disabled {
   accent-color: var(--accent);
 }
 
+.structure-clipping-control {
+  min-height: 27px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding-top: 2px;
+  border-top: 1px solid var(--line-soft);
+  color: var(--text-soft);
+  font-size: var(--ui-readable-small, 8px);
+  font-weight: 710;
+}
+
+.structure-clipping-control input {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
 .segmentation-correction-panel {
   display: grid;
   gap: 7px;

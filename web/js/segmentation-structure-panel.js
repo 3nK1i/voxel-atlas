@@ -155,6 +155,7 @@ export class SegmentationStructurePanel {
     this.color = root.querySelector("#segmentationStructureColor");
     this.opacity = root.querySelector("#segmentationStructureOpacity");
     this.opacityValue = root.querySelector("#segmentationStructureOpacityValue");
+    this.clippingParticipation = root.querySelector("#segmentationStructureClipParticipation");
     this.restoreIsolationButton = root.querySelector("#segmentationStructureRestoreIsolation");
     this.presentation = null;
     this.expandedGroups = new Set();
@@ -178,6 +179,12 @@ export class SegmentationStructurePanel {
       if (!structure) return;
       structure.opacity = clamp(Number(this.opacity.value) / 100, 0, 1);
       this.opacityValue.textContent = `${Math.round(structure.opacity * 100)}%`;
+      this.notify();
+    });
+    this.clippingParticipation.addEventListener("change", () => {
+      const structure = this.selectedStructure();
+      if (!structure) return;
+      structure.clippingEnabled = this.clippingParticipation.checked;
       this.notify();
     });
   }
@@ -414,10 +421,12 @@ export class SegmentationStructurePanel {
     const disabled = !structure;
     this.color.disabled = disabled;
     this.opacity.disabled = disabled;
+    this.clippingParticipation.disabled = disabled;
     if (!structure) {
       this.selectedName.textContent = "No structure selected";
       this.selectedMetadata.textContent = "Select a visible structure to edit its presentation.";
       this.opacityValue.textContent = "—";
+      this.clippingParticipation.checked = true;
       return;
     }
     this.selectedName.textContent = structure.displayName;
@@ -425,5 +434,6 @@ export class SegmentationStructurePanel {
     this.color.value = structure.colorHex;
     this.opacity.value = String(Math.round(structure.opacity * 100));
     this.opacityValue.textContent = `${Math.round(structure.opacity * 100)}%`;
+    this.clippingParticipation.checked = structure.clippingEnabled !== false;
   }
 }

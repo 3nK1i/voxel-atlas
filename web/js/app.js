@@ -17,7 +17,7 @@ import {
 } from "./volume-rendering-quality.js?v=phase4h1";
 import {
   PatientVolumeSurfaceLayer,
-} from "./volume-surface-viewer.js?v=phase6d2b-r1-phase6e-b-r1-phase6e-d-r1-phase6e-e-r1-phase6f-c-r3";
+} from "./volume-surface-viewer.js?v=phase6d2b-r1-phase6e-b-r1-phase6e-d-r1-phase6e-e-r1-phase6f-c-r3-phase6f-d-r1";
 import {
   ReconstructionVisualizationModeController,
 } from "./reconstruction-visualization-mode.js?v=phase6d2a-r1";
@@ -27,6 +27,9 @@ import {
 import {
   createSurfaceLightingRig,
 } from "./reconstruction-surface-presentation.js?v=phase6e-b-r1-phase6e-d-r1-phase6f-c-r3";
+import {
+  enableSurfaceLocalClipping,
+} from "./reconstruction-surface-clipping.js?v=phase6f-d-r1";
 import {
   resolveCombinedPresentationBalance,
 } from "./reconstruction-combined-presentation.js?v=phase6e-e-r1";
@@ -44,13 +47,13 @@ import {
 } from "./segmentation-overlay.js?v=phase5e-r1-phase6f-b-r1";
 import {
   SegmentationStructurePanel,
-} from "./segmentation-structure-panel.js?v=phase5e-r1-phase6c-r2-phase6d0-explicit-r1-phase6f-a-r1-phase6f-b-r1";
+} from "./segmentation-structure-panel.js?v=phase5e-r1-phase6c-r2-phase6d0-explicit-r1-phase6f-a-r1-phase6f-b-r1-phase6f-d-r1";
 import {
   resolveStructureInteraction,
 } from "./segmentation-structure-interaction.js?v=phase6f-a-r1-phase6f-b-r1";
 import {
   PatientSegmentationSurfaceLayer,
-} from "./segmentation-surface-viewer.js?v=phase6a-r1-phase6b-r1-phase6c-r2-phase6d2b-r1-phase6e-b-r1-phase6e-d-r1-phase6f-b-r1-phase6b-fallback-r1-phase6f-c-r3";
+} from "./segmentation-surface-viewer.js?v=phase6a-r1-phase6b-r1-phase6c-r2-phase6d2b-r1-phase6e-b-r1-phase6e-d-r1-phase6f-b-r1-phase6b-fallback-r1-phase6f-c-r3-phase6f-d-r1";
 import {
   SegmentationCorrectionPanel,
 } from "./segmentation-correction-panel.js?v=phase5f2-r1";
@@ -405,6 +408,7 @@ renderer.setClearColor(0x000000, 0);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.86;
+enableSurfaceLocalClipping(renderer);
 viewport.appendChild(renderer.domElement);
 const volumeRenderingCapabilities = qualifyVolumeRenderingCapabilities(renderer);
 state.volumeRendering = {
@@ -1276,8 +1280,15 @@ function clippingRequest() {
 
 function applyPatientClipping() {
   updateMprClippingOverlays();
-  if (!volumeRayMarcher.current || !state.mpr.descriptor) return null;
-  const clipping = volumeRayMarcher.setClippingPlanes(clippingRequest());
+  if (!state.mpr.descriptor) return null;
+  const request = clippingRequest();
+  volumeSurfaceLayer?.setClippingPlanes(request);
+  segmentationSurfaceLayer?.setClippingPlanes(request);
+  if (!volumeRayMarcher.current) {
+    requestViewerRender();
+    return request;
+  }
+  const clipping = volumeRayMarcher.setClippingPlanes(request);
   requestViewerRender();
   return clipping;
 }

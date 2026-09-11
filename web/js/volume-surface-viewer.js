@@ -4,6 +4,9 @@ import {
   getSurfacePresentationProfile,
   resolveDirectCtSurfaceCompositionPolicy,
 } from "./reconstruction-surface-presentation.js?v=phase6e-b-r1-phase6e-d-r1-phase6f-c-r3";
+import {
+  applySurfaceClippingToMaterial,
+} from "./reconstruction-surface-clipping.js?v=phase6f-d-r1";
 
 const VOLUME_SURFACE_MEDIA_TYPE = "application/x-voxelatlas-volume-surface-v1";
 const VOLUME_SURFACE_MAGIC = "VXVS";
@@ -108,6 +111,7 @@ export class PatientVolumeSurfaceLayer {
     this.presentationProfile = "fidelity";
     this.presentationOpacity = 1;
     this.semanticOverlayActive = false;
+    this.clipping = Object.freeze({});
     this.group.visible = true;
   }
 
@@ -179,6 +183,23 @@ export class PatientVolumeSurfaceLayer {
     }
     this.requestRender();
     return this.presentationProfile;
+  }
+
+  setClippingPlanes(clipping = {}) {
+    this.clipping = clipping && typeof clipping === "object"
+      ? clipping
+      : Object.freeze({});
+    if (this.current?.material) {
+      applySurfaceClippingToMaterial(
+        this.current.material,
+        this.three,
+        this.readVolumePresentation(),
+        this.clipping,
+        true,
+      );
+    }
+    this.requestRender();
+    return this.clipping;
   }
 
   _applyPresentationOpacity() {
@@ -286,6 +307,13 @@ export class PatientVolumeSurfaceLayer {
       const previous = this.current;
       this.current = { mesh, geometry, material, isovalue: level, triangleCount: decoded.triangleCount, surfaceId };
       this._applyPresentationOpacity();
+      applySurfaceClippingToMaterial(
+        material,
+        this.three,
+        this.readVolumePresentation(),
+        this.clipping,
+        true,
+      );
       this.group.add(mesh);
       if (previous) {
         this.group.remove(previous.mesh);
