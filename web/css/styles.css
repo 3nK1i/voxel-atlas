@@ -4240,3 +4240,78 @@ button:disabled {
 .reconstruction-mode-card[data-active="true"] {
   border-color: var(--line-strong);
 }
+
+/* Post-6F / pre-6G stabilization A — coherent right-sidebar action language. */
+.sidebar-action-button {
+  min-height: 32px;
+  padding: 6px 11px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--panel-raised);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--ui-readable);
+  font-weight: 760;
+  line-height: 1.15;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, color 140ms ease, opacity 140ms ease;
+}
+
+.sidebar-action-button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--line));
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel-raised));
+}
+
+.sidebar-action-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 82%, white 5%);
+  outline-offset: 2px;
+}
+
+.sidebar-action-button.is-primary:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 62%, var(--line));
+  background: linear-gradient(180deg, var(--medical-button-top), var(--medical-button-bottom));
+  color: #f7fbff;
+}
+
+.sidebar-action-button.is-secondary:not(:disabled) {
+  background: color-mix(in srgb, var(--panel-raised) 92%, transparent);
+  color: var(--text-soft);
+}
+
+.sidebar-action-button.is-danger:not(:disabled) {
+  border-color: color-mix(in srgb, var(--danger) 48%, var(--line));
+  color: color-mix(in srgb, var(--danger) 82%, white 12%);
+}
+
+.sidebar-action-button.is-compact {
+  min-height: 28px;
+  padding: 5px 8px;
+  font-size: var(--ui-readable-small);
+}
+
+.sidebar-action-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.volume-surface-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.volume-surface-build,
+.volume-surface-clear {
+  width: 100%;
+}
+
+.volume-surface-clear {
+  padding-inline: 11px;
+}
+
+/* Global-to-specific ordering: quality is the first rendering decision. */
+#volumeRenderingPanel .rendering-quality-label {
+  margin-top: 0;
+}
+
+#volumeRenderingPanel #renderQualityPolicy {
+  margin-bottom: 10px;
+}

@@ -2873,6 +2873,9 @@ async function ensureCanonicalVolume(study) {
       "ready",
       "Canonical patient volume built. Loading synchronized MPR views...",
     );
+    // Post-6F stabilization: start the independent GPU volume path immediately
+    // while synchronized MPR initializes. The later await reuses the same task.
+    void ensureVolumeRenderingFoundation();
     await ensureMprReady();
     setPatientVolumeReadyStatus();
     await ensureVolumeRenderingFoundation();
@@ -2897,6 +2900,9 @@ async function ensureCanonicalVolume(study) {
 
 async function restoreReadyPatientVolume(message) {
   setUploadStatus("ready", message);
+  // Post-6F stabilization: restore MPR and the GPU volume in parallel so the
+  // workspace becomes useful sooner when switching between ready studies.
+  void ensureVolumeRenderingFoundation();
   await ensureMprReady();
   setPatientVolumeReadyStatus();
   await ensureVolumeRenderingFoundation();
