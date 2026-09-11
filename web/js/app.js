@@ -44,7 +44,7 @@ import {
 } from "./segmentation-overlay.js?v=phase5e-r1";
 import {
   SegmentationStructurePanel,
-} from "./segmentation-structure-panel.js?v=phase5e-r1-phase6c-r2-phase6d0-explicit-r1";
+} from "./segmentation-structure-panel.js?v=phase5e-r1-phase6c-r2-phase6d0-explicit-r1-phase6f-a-r1";
 import {
   PatientSegmentationSurfaceLayer,
 } from "./segmentation-surface-viewer.js?v=phase6a-r1-phase6b-r1-phase6c-r2-phase6d2b-r1-phase6e-b-r1-phase6e-d-r1";

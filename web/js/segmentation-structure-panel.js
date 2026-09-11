@@ -1,3 +1,9 @@
+import {
+  createStructureInteractionDefaults,
+  createStructureInteractionState,
+  resetStructureInteractionState,
+} from "./segmentation-structure-interaction.js?v=phase6f-a-r1";
+
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
 function clamp(value, minimum, maximum) {
@@ -35,6 +41,7 @@ export function createStructurePresentation(descriptor) {
     ) {
       throw new Error("Segmentation structure definition is invalid");
     }
+    const interactionDefaults = createStructureInteractionDefaults();
     structures.set(labelId, {
       labelId,
       name: raw.name,
@@ -46,6 +53,8 @@ export function createStructurePresentation(descriptor) {
       visible: raw.default_visible !== false,
       surfaceVisible: false,
       opacity: clamp(raw.default_opacity ?? 1, 0, 1),
+      clippingEnabled: interactionDefaults.clippingEnabled,
+      explodedOffsetLpsMm: interactionDefaults.explodedOffsetLpsMm,
     });
   }
   if (structures.size !== catalog.structure_count) {
@@ -60,6 +69,7 @@ export function createStructurePresentation(descriptor) {
     structures,
     selectedLabelId: null,
     filter: "",
+    interaction: createStructureInteractionState(),
   };
 }
 
@@ -81,6 +91,7 @@ export function resetStructurePresentation(presentation) {
     structure.opacity = 1;
   }
   presentation.selectedLabelId = null;
+  resetStructureInteractionState(presentation);
 }
 
 export function isolateStructure(presentation, labelId) {
