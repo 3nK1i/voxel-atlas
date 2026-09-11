@@ -197,12 +197,15 @@ export class PatientSegmentationSurfaceLayer {
     const presentationStructures = this.presentation?.structures;
     if (presentationStructures instanceof Map) {
       for (const structure of presentationStructures.values()) {
+        const item = this.items.get(structure.labelId) || null;
         labels.push(Object.freeze({
           labelId: structure.labelId,
           displayName: structure.displayName,
           desired: this.desiredLabels.has(structure.labelId),
-          resident: this.items.has(structure.labelId),
+          resident: Boolean(item),
           state: this._surfaceState(structure.labelId),
+          quality: item?.surfaceQuality || null,
+          fallback: Boolean(item?.presentationFallback),
         }));
       }
     }
@@ -221,6 +224,7 @@ export class PatientSegmentationSurfaceLayer {
       queuedCount: countState("queued"),
       buildingCount: countState("building"),
       failedCount: countState("failed"),
+      fallbackCount: labels.filter((entry) => entry.desired && entry.fallback).length,
     }));
   }
 
@@ -370,11 +374,13 @@ export class PatientSegmentationSurfaceLayer {
       return;
     }
     let readyCount = 0;
+    let fallbackCount = 0;
     let triangleCount = 0;
     for (const labelId of this.desiredLabels) {
       const item = this.items.get(labelId);
       if (!item) continue;
       readyCount += 1;
+      if (item.presentationFallback) fallbackCount += 1;
       triangleCount += item.triangleCount;
     }
     const failedCount = Array.from(this.failedLabels.keys())
@@ -399,13 +405,22 @@ export class PatientSegmentationSurfaceLayer {
       return;
     }
     if (failedCount > 0) {
+      const fallbackText = fallbackCount > 0 ? ` · ${fallbackCount} accurate fallback` : "";
       this._status(
         "error",
-        `${readyCount}/${desiredCount} refined surfaces ready · ${failedCount} failed`,
+        `${readyCount}/${desiredCount} surfaces ready${fallbackText} · ${failedCount} failed`,
       );
       return;
     }
     const noun = readyCount === 1 ? "structure" : "structures";
+    if (fallbackCount > 0) {
+      const refinedCount = readyCount - fallbackCount;
+      this._status(
+        "qualified",
+        `${readyCount} ${noun} · ${refinedCount} refined · ${fallbackCount} accurate fallback · ${triangleCount.toLocaleString()} triangles`,
+      );
+      return;
+    }
     this._status(
       "qualified",
       `${readyCount} refined ${noun} · ${triangleCount.toLocaleString()} triangles`,
@@ -452,12 +467,17 @@ export class PatientSegmentationSurfaceLayer {
     this.controllers.set(labelId, controller);
     const fallbackQuality = this.descriptor.default_quality || "accurate";
     const requestedQuality = this.descriptor.presentation_quality || fallbackQuality;
-    const usesV2Surface = requestedQuality === "accurate" || requestedQuality === "refined";
-    const params = new URLSearchParams({
+    const primaryRequest = {
       label_map_id: descriptor.label_map_id,
       quality: requestedQuality,
-    });
-    try {
+    };
+
+    const requestQuality = async (quality) => {
+      const usesV2Surface = quality === "accurate" || quality === "refined";
+      const params = new URLSearchParams({
+        label_map_id: descriptor.label_map_id,
+        quality,
+      });
       const response = await this.fetchImpl(
         `/api/studies/latest/segmentation-surfaces/${labelId}?${params}`,
         {
@@ -471,6 +491,28 @@ export class PatientSegmentationSurfaceLayer {
           signal: controller.signal,
         },
       );
+      return { response, quality, usesV2Surface };
+    };
+
+    try {
+      let result = await requestQuality(primaryRequest.quality);
+      let presentationFallback = false;
+      let presentationFallbackReason = "";
+      if (
+        !result.response.ok
+        && requestedQuality === "refined"
+        && fallbackQuality === "accurate"
+        && result.response.status === 422
+      ) {
+        const detail = await result.response.json().catch(() => ({}));
+        presentationFallbackReason = String(
+          detail?.detail || "Refined segmentation surface unavailable",
+        );
+        result = await requestQuality(fallbackQuality);
+        presentationFallback = true;
+      }
+
+      const { response, quality: servedQuality, usesV2Surface } = result;
       if (!response.ok) {
         const detail = await response.json().catch(() => ({}));
         throw new Error(detail.detail || `Segmentation surface failed (${response.status})`);
@@ -485,7 +527,7 @@ export class PatientSegmentationSurfaceLayer {
         || !headerValue(response, "Cache-Control").toLowerCase().includes("no-store")
         || headerValue(response, "X-VoxelAtlas-Label-Map-Id") !== descriptor.label_map_id
         || Number(headerValue(response, "X-VoxelAtlas-Label-Id")) !== labelId
-        || headerValue(response, "X-VoxelAtlas-Surface-Quality") !== requestedQuality
+        || headerValue(response, "X-VoxelAtlas-Surface-Quality") !== servedQuality
       ) {
         throw new Error("Segmentation surface response binding is invalid");
       }
@@ -517,7 +559,7 @@ export class PatientSegmentationSurfaceLayer {
       )) {
         throw new Error("Patient-LPS segmentation surface provenance binding is invalid");
       }
-      if (requestedQuality === "refined") {
+      if (servedQuality === "refined") {
         const referenceSurfaceId = headerValue(response, "X-VoxelAtlas-Surface-Reference-Id");
         const referenceSha256 = headerValue(response, "X-VoxelAtlas-Surface-Reference-SHA256");
         const maxDisplacementMm = Number(
@@ -587,7 +629,10 @@ export class PatientSegmentationSurfaceLayer {
       mesh.userData.surfaceId = surfaceId;
       mesh.userData.provenanceSha256 = provenanceSha256;
       mesh.userData.surfaceSchemaVersion = decoded.version;
-      mesh.userData.surfaceQuality = requestedQuality;
+      mesh.userData.surfaceQuality = servedQuality;
+      mesh.userData.presentationFallback = presentationFallback;
+      mesh.userData.presentationFallbackFrom = presentationFallback ? requestedQuality : "";
+      mesh.userData.presentationFallbackReason = presentationFallbackReason;
       mesh.userData.refinement = headerValue(response, "X-VoxelAtlas-Surface-Refinement");
       mesh.userData.referenceSurfaceId = headerValue(
         response, "X-VoxelAtlas-Surface-Reference-Id",
@@ -599,6 +644,8 @@ export class PatientSegmentationSurfaceLayer {
         geometry,
         material,
         triangleCount: decoded.triangleCount,
+        surfaceQuality: servedQuality,
+        presentationFallback,
       };
       this.items.set(labelId, item);
       this.failedLabels.delete(labelId);
