@@ -29,7 +29,7 @@ import {
 } from "./reconstruction-surface-presentation.js?v=phase6e-b-r1-phase6e-d-r1-phase6f-c-r3";
 import {
   enableSurfaceLocalClipping,
-} from "./reconstruction-surface-clipping.js?v=phase6f-d-r1";
+} from "./reconstruction-surface-clipping.js?v=phase6f-d-r1-phase6f-e-r1";
 import {
   resolveCombinedPresentationBalance,
 } from "./reconstruction-combined-presentation.js?v=phase6e-e-r1";
@@ -47,13 +47,13 @@ import {
 } from "./segmentation-overlay.js?v=phase5e-r1-phase6f-b-r1";
 import {
   SegmentationStructurePanel,
-} from "./segmentation-structure-panel.js?v=phase5e-r1-phase6c-r2-phase6d0-explicit-r1-phase6f-a-r1-phase6f-b-r1-phase6f-d-r1";
+} from "./segmentation-structure-panel.js?v=phase5e-r1-phase6c-r2-phase6d0-explicit-r1-phase6f-a-r1-phase6f-b-r1-phase6f-d-r1-phase6f-e-r1";
 import {
   resolveStructureInteraction,
 } from "./segmentation-structure-interaction.js?v=phase6f-a-r1-phase6f-b-r1";
 import {
   PatientSegmentationSurfaceLayer,
-} from "./segmentation-surface-viewer.js?v=phase6a-r1-phase6b-r1-phase6c-r2-phase6d2b-r1-phase6e-b-r1-phase6e-d-r1-phase6f-b-r1-phase6b-fallback-r1-phase6f-c-r3-phase6f-d-r1";
+} from "./segmentation-surface-viewer.js?v=phase6a-r1-phase6b-r1-phase6c-r2-phase6d2b-r1-phase6e-b-r1-phase6e-d-r1-phase6f-b-r1-phase6b-fallback-r1-phase6f-c-r3-phase6f-d-r1-phase6f-e-r1";
 import {
   SegmentationCorrectionPanel,
 } from "./segmentation-correction-panel.js?v=phase5f2-r1";

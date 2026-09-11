@@ -7,6 +7,11 @@ import {
   restoreStructureIsolation,
 } from "./segmentation-structure-interaction.js?v=phase6f-a-r1-phase6f-b-r1";
 
+import {
+  MAX_ANATOMICAL_GROUP_EXPLODE_MM,
+  applyAnatomicalGroupExplosion,
+} from "./segmentation-exploded-presentation.js?v=phase6f-e-r1";
+
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
 function clamp(value, minimum, maximum) {
@@ -73,6 +78,7 @@ export function createStructurePresentation(descriptor) {
     selectedLabelId: null,
     filter: "",
     interaction: createStructureInteractionState(),
+    explodedSeparationMm: 0,
   };
 }
 
@@ -94,6 +100,7 @@ export function resetStructurePresentation(presentation) {
     structure.opacity = 1;
   }
   presentation.selectedLabelId = null;
+  presentation.explodedSeparationMm = 0;
   resetStructureInteractionState(presentation);
 }
 
@@ -155,6 +162,8 @@ export class SegmentationStructurePanel {
     this.color = root.querySelector("#segmentationStructureColor");
     this.opacity = root.querySelector("#segmentationStructureOpacity");
     this.opacityValue = root.querySelector("#segmentationStructureOpacityValue");
+    this.explode = root.querySelector("#segmentationStructureExplode");
+    this.explodeValue = root.querySelector("#segmentationStructureExplodeValue");
     this.clippingParticipation = root.querySelector("#segmentationStructureClipParticipation");
     this.restoreIsolationButton = root.querySelector("#segmentationStructureRestoreIsolation");
     this.presentation = null;
@@ -181,6 +190,15 @@ export class SegmentationStructurePanel {
       this.opacityValue.textContent = `${Math.round(structure.opacity * 100)}%`;
       this.notify();
     });
+    this.explode.max = String(MAX_ANATOMICAL_GROUP_EXPLODE_MM);
+    this.explode.addEventListener("input", () => {
+      if (!this.presentation) return;
+      const plan = applyAnatomicalGroupExplosion(this.presentation, Number(this.explode.value));
+      this.explode.value = String(Math.round(plan.amountMm));
+      this.explodeValue.textContent = `${Math.round(plan.amountMm)} mm`;
+      this.renderGroups();
+      this.notify();
+    });
     this.clippingParticipation.addEventListener("change", () => {
       const structure = this.selectedStructure();
       if (!structure) return;
@@ -199,6 +217,9 @@ export class SegmentationStructurePanel {
     );
     this.root.dataset.state = "ready";
     this.search.disabled = false;
+    this.explode.disabled = false;
+    this.explode.value = "0";
+    this.explodeValue.textContent = "0 mm";
     for (const control of this.root.querySelectorAll("button, input")) {
       control.disabled = false;
     }
@@ -212,6 +233,8 @@ export class SegmentationStructurePanel {
     this.surfaceStates.clear();
     this.root.dataset.state = "unavailable";
     this.search.value = "";
+    this.explode.value = "0";
+    this.explodeValue.textContent = "0 mm";
     this.groups.replaceChildren();
     this.summary.textContent = "Available after a canonical label map is loaded.";
     this.selectedName.textContent = "No structure selected";
@@ -336,9 +359,13 @@ export class SegmentationStructurePanel {
       .filter((structure) => (
         resolveStructureInteraction(this.presentation, structure.labelId).effectiveVisible
       )).length;
+    const explodedMm = Number(this.presentation.explodedSeparationMm) || 0;
+    const explodedSuffix = explodedMm > 0 ? ` · groups exploded ${Math.round(explodedMm)} mm` : "";
     this.summary.textContent = isolatedStructure
-      ? `${visible} of ${this.presentation.structures.size} structures shown · ${isolatedStructure.displayName} isolated`
-      : `${visible} of ${this.presentation.structures.size} structures shown`;
+      ? `${visible} of ${this.presentation.structures.size} structures shown · ${isolatedStructure.displayName} isolated${explodedSuffix}`
+      : `${visible} of ${this.presentation.structures.size} structures shown${explodedSuffix}`;
+    this.explode.value = String(Math.round(explodedMm));
+    this.explodeValue.textContent = `${Math.round(explodedMm)} mm`;
     if (this.restoreIsolationButton) {
       this.restoreIsolationButton.disabled = !isolatedStructure;
       this.restoreIsolationButton.setAttribute("aria-disabled", String(!isolatedStructure));
@@ -356,6 +383,7 @@ export class SegmentationStructurePanel {
       const details = document.createElement("details");
       details.className = "structure-group";
       details.dataset.groupId = group.groupId;
+      details.dataset.exploded = String((Number(this.presentation.explodedSeparationMm) || 0) > 0);
       details.open = Boolean(this.presentation.filter)
         || this.expandedGroups.has(group.groupId);
       const summary = document.createElement("summary");

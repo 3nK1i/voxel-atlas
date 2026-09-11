@@ -7,8 +7,11 @@ import {
   resolveStructureInteraction,
 } from "./segmentation-structure-interaction.js?v=phase6f-a-r1-phase6f-b-r1";
 import {
+  patientLpsOffsetToViewer,
+} from "./segmentation-exploded-presentation.js?v=phase6f-e-r1";
+import {
   applySurfaceClippingToMaterial,
-} from "./reconstruction-surface-clipping.js?v=phase6f-d-r1";
+} from "./reconstruction-surface-clipping.js?v=phase6f-d-r1-phase6f-e-r1";
 
 const LEGACY_SURFACE_MEDIA_TYPE = "application/x-voxelatlas-surface-v1";
 const ACCURATE_SURFACE_MEDIA_TYPE = "application/x-voxelatlas-surface-v2";
@@ -331,12 +334,17 @@ export class PatientSegmentationSurfaceLayer {
       const interaction = structure && this.presentation
         ? resolveStructureInteraction(this.presentation, item.labelId)
         : null;
+      const viewerOffset = patientLpsOffsetToViewer(
+        interaction?.explodedOffsetLpsMm,
+        this.readVolumePresentation(),
+      );
       applySurfaceClippingToMaterial(
         item.material,
         this.three,
         this.readVolumePresentation(),
         this.clipping,
         interaction?.clippingEnabled !== false,
+        viewerOffset,
       );
     }
     this.requestRender();
@@ -369,12 +377,19 @@ export class PatientSegmentationSurfaceLayer {
       this.presentationProfile,
       structure.labelId === selectedLabelId,
     );
+    const viewerOffset = patientLpsOffsetToViewer(
+      interaction.explodedOffsetLpsMm,
+      this.readVolumePresentation(),
+    );
+    if (item.mesh.position?.set) item.mesh.position.set(...viewerOffset);
+    item.mesh.userData.explodedOffsetLpsMm = [...interaction.explodedOffsetLpsMm];
     applySurfaceClippingToMaterial(
       item.material,
       this.three,
       this.readVolumePresentation(),
       this.clipping,
       interaction.clippingEnabled,
+      viewerOffset,
     );
     item.mesh.renderOrder = structure.labelId === selectedLabelId ? 2 : 1;
   }

@@ -65,24 +65,38 @@ export function resolvePatientSurfaceClippingDescriptors(presentation, clipping 
   return Object.freeze(descriptors);
 }
 
-export function createThreeSurfaceClippingPlanes(THREE, presentation, clipping = {}) {
+export function createThreeSurfaceClippingPlanes(THREE, presentation, clipping = {}, viewerOffset = [0, 0, 0]) {
   const descriptors = resolvePatientSurfaceClippingDescriptors(presentation, clipping);
   if (descriptors.length === 0) return [];
   if (!THREE?.Plane || !THREE?.Vector3) {
     throw new TypeError("Three.js clipping plane support is required");
   }
-  return descriptors.map((descriptor) => (
-    new THREE.Plane(
+  const offset = Array.isArray(viewerOffset) && viewerOffset.length === 3
+    ? viewerOffset.map((value) => Number.isFinite(Number(value)) ? Number(value) : 0)
+    : [0, 0, 0];
+  return descriptors.map((descriptor) => {
+    const normalDotOffset = descriptor.normal.reduce(
+      (total, component, index) => total + component * offset[index],
+      0,
+    );
+    return new THREE.Plane(
       new THREE.Vector3(...descriptor.normal),
-      descriptor.constant,
-    )
-  ));
+      descriptor.constant - normalDotOffset,
+    );
+  });
 }
 
-export function applySurfaceClippingToMaterial(material, THREE, presentation, clipping, enabled = true) {
+export function applySurfaceClippingToMaterial(
+  material,
+  THREE,
+  presentation,
+  clipping,
+  enabled = true,
+  viewerOffset = [0, 0, 0],
+) {
   if (!material) return Object.freeze([]);
   const planes = enabled
-    ? createThreeSurfaceClippingPlanes(THREE, presentation, clipping)
+    ? createThreeSurfaceClippingPlanes(THREE, presentation, clipping, viewerOffset)
     : [];
   const previousCount = Array.isArray(material.clippingPlanes)
     ? material.clippingPlanes.length
