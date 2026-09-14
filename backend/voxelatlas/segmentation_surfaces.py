@@ -482,7 +482,6 @@ def _safe_surface_temp_root(data_dir: Path) -> Path:
         raise SegmentationValidationError("Segmentation surface temporary repository is unsafe")
     segmentation.mkdir(parents=True, exist_ok=True, mode=0o700)
     root.mkdir(exist_ok=True, mode=0o700)
-    os.chmod(segmentation, 0o700)
     os.chmod(root, 0o700)
     return root
 

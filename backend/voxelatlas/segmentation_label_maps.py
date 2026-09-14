@@ -385,7 +385,6 @@ class SegmentationLabelMapService:
         _safe_repository(self.maps_root)
         self.segmentation_root.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.maps_root.mkdir(exist_ok=True, mode=0o700)
-        os.chmod(self.segmentation_root, 0o700)
         os.chmod(self.maps_root, 0o700)
 
     @staticmethod
