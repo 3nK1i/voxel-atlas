@@ -826,6 +826,37 @@ def create_app(
             },
         )
 
+    @app.get("/api/studies/latest/volume-surface/regions")
+    def latest_direct_ct_region_evidence(
+        surface_id: str,
+        username: str = Depends(require_username),
+    ) -> Response:
+        del username
+        current_service: VolumeSurfaceService = app.state.volume_surface_service
+        try:
+            evidence = current_service.region_evidence_latest(surface_id=surface_id)
+        except VolumeSurfaceUnavailableError as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc),
+                                headers={"Cache-Control": "no-store"}) from exc
+        except VolumeSurfaceValidationError as exc:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc),
+                                headers={"Cache-Control": "no-store"}) from exc
+        return Response(
+            content=evidence.labels,
+            media_type="application/x-voxelatlas-direct-ct-regions-v1",
+            headers={
+                "Cache-Control": "no-store",
+                "X-Content-Type-Options": "nosniff",
+                "X-VoxelAtlas-Volume-Surface-Id": evidence.surface_id,
+                "X-VoxelAtlas-Volume-Surface-SHA256": evidence.surface_sha256,
+                "X-VoxelAtlas-Region-Labels-SHA256": evidence.labels_sha256,
+                "X-VoxelAtlas-Region-Triangles": str(evidence.triangle_count),
+                "X-VoxelAtlas-Region-Face-Counts": ",".join(map(str, evidence.face_counts)),
+                "X-VoxelAtlas-Region-Body-Count": str(evidence.body_region_count),
+                "X-VoxelAtlas-Region-Classification": evidence.classification,
+            },
+        )
+
     @app.get("/api/studies/latest/segmentation-workflow")
     def latest_segmentation_workflow(
         response: Response,

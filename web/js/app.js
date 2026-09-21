@@ -17,7 +17,7 @@ import {
 } from "./volume-rendering-quality.js?v=phase4h1";
 import {
   PatientVolumeSurfaceLayer,
-} from "./volume-surface-viewer.js?v=phase6d2b-r1-phase6e-b-r1-phase6e-d-r1-phase6e-e-r1-phase6f-c-r3-phase6f-d-r1";
+} from "./volume-surface-viewer.js?v=phase6d2b-r1-phase6e-b-r1-phase6e-d-r1-phase6e-e-r1-phase6f-c-r3-phase6f-d-r1-post6f-b1b2b-r1";
 import {
   ReconstructionVisualizationModeController,
 } from "./reconstruction-visualization-mode.js?v=phase6d2a-r1";
@@ -92,6 +92,8 @@ const volumeSurfaceStatus = document.getElementById("volumeSurfaceStatus");
 const volumeSurfaceIsovalue = document.getElementById("volumeSurfaceIsovalue");
 const volumeSurfaceBuild = document.getElementById("volumeSurfaceBuild");
 const volumeSurfaceClear = document.getElementById("volumeSurfaceClear");
+const volumeSurfaceRegionMode = document.getElementById("volumeSurfaceRegionMode");
+const volumeSurfaceRegionStatus = document.getElementById("volumeSurfaceRegionStatus");
 const segmentationOverlayPanel = document.getElementById("segmentationOverlayPanel");
 const segmentationOverlayStatus = document.getElementById("segmentationOverlayStatus");
 const segmentationOverlayToggle = document.getElementById("segmentationOverlayToggle");
@@ -437,6 +439,20 @@ const volumeTextureManager = new PatientVolumeTextureManager({
   initializeTexture: (texture) => renderer.initTexture(texture),
 });
 const volumeRayMarcher = new PatientVolumeRayMarcher({ three: THREE });
+function syncDirectCtRegionControls() {
+  const state = volumeSurfaceLayer?.current?.regionVisibility;
+  const enabled = Boolean(state?.available);
+  volumeSurfaceRegionMode.disabled = !enabled;
+  volumeSurfaceRegionMode.value = enabled ? state.mode : "all";
+  if (!volumeSurfaceLayer?.current) {
+    volumeSurfaceRegionStatus.textContent = "Build a Direct CT surface to inspect regions.";
+  } else if (enabled) {
+    volumeSurfaceRegionStatus.textContent = "Regions are unlabeled; inspect before hiding. Full geometry restores every triangle.";
+  } else {
+    volumeSurfaceRegionStatus.textContent = "Region separation is unavailable for this surface; full geometry remains visible.";
+  }
+}
+
 volumeSurfaceLayer = new PatientVolumeSurfaceLayer({
   three: THREE,
   parent: anatomyGroup,
@@ -450,6 +466,7 @@ volumeSurfaceLayer = new PatientVolumeSurfaceLayer({
     volumeSurfaceBuild.disabled = busy || !available;
     volumeSurfaceIsovalue.disabled = busy || !available;
     volumeSurfaceClear.disabled = busy || !volumeSurfaceLayer?.current;
+    syncDirectCtRegionControls();
     syncReconstructionVisualizationResources();
   },
 });
@@ -1891,12 +1908,27 @@ async function refreshVolumeSurfaceDescriptor() {
 async function requestVolumeSurfaceBuild() {
   const level = Number(volumeSurfaceIsovalue.value);
   try {
-    await volumeSurfaceLayer.build(level);
-    syncReconstructionVisualizationResources();
-    volumeSurfaceClear.disabled = !volumeSurfaceLayer.current;
+    const built = await volumeSurfaceLayer.build(level);
+    if (built && volumeSurfaceLayer.current === built) {
+      volumeSurfaceRegionStatus.textContent = "Qualifying resident Direct CT regions…";
+      try {
+        const evidence = await volumeSurfaceLayer.loadRegionEvidence();
+        if (!evidence.available) {
+          volumeSurfaceRegionStatus.textContent = "This surface has no two distinct qualified regions; full geometry remains visible.";
+        }
+      } catch {
+        // An evidence failure must never alter or prevent the original surface.
+        if (volumeSurfaceLayer.current === built) {
+          volumeSurfaceRegionStatus.textContent = "Region evidence unavailable. Full geometry is retained.";
+        }
+      }
+    }
   } catch {
+    // The volume surface layer owns its actionable build error status.
+  } finally {
     syncReconstructionVisualizationResources();
     volumeSurfaceClear.disabled = !volumeSurfaceLayer.current;
+    if (volumeSurfaceLayer.current?.regionVisibility?.available) syncDirectCtRegionControls();
   }
 }
 
@@ -3069,6 +3101,18 @@ volumeSurfaceBuild.addEventListener("click", () => {
 });
 
 volumeSurfaceClear.addEventListener("click", clearVolumeDerivedSurface);
+
+volumeSurfaceRegionMode.addEventListener("change", () => {
+  try {
+    volumeSurfaceLayer.setRegionDisplayMode(volumeSurfaceRegionMode.value);
+    syncDirectCtRegionControls();
+  } catch {
+    // Fail closed: disable the control rather than guess a region identity.
+    volumeSurfaceRegionMode.disabled = true;
+    volumeSurfaceRegionMode.value = "all";
+    volumeSurfaceRegionStatus.textContent = "Region selection unavailable. Rebuild the full surface if needed.";
+  }
+});
 
 volumeSurfaceIsovalue.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !volumeSurfaceBuild.disabled) {

@@ -7,6 +7,7 @@ import {
 import {
   applySurfaceClippingToMaterial,
 } from "./reconstruction-surface-clipping.js?v=phase6f-d-r1";
+import { createDirectCtRegionVisibility } from "./direct-ct-region-visibility.js?v=post6f-b1b2a-r1-post6f-b1b2b-r1";
 
 const VOLUME_SURFACE_MEDIA_TYPE = "application/x-voxelatlas-volume-surface-v1";
 const VOLUME_SURFACE_MAGIC = "VXVS";
@@ -230,6 +231,74 @@ export class PatientVolumeSurfaceLayer {
     return this.presentationOpacity;
   }
 
+  /** Bind verified per-face region evidence to the resident, exact surface. */
+  bindRegionEvidence(surfaceId, faceRegions) {
+    if (!this.current || surfaceId !== this.current.surfaceId) {
+      throw new Error("Direct CT region evidence does not match the resident surface");
+    }
+    if (this.current.regionVisibility) {
+      // Never rebind while a subset is drawn; restore full geometry first.
+      this.current.regionVisibility.show("all");
+    }
+    const state = createDirectCtRegionVisibility(this.current.geometry, faceRegions);
+    this.current.regionVisibility = state;
+    this.requestRender();
+    return Object.freeze({ available: state.available, faceCounts: state.faceCounts });
+  }
+
+  /** Fetch authenticated labels for the current exact resident surface, never extract. */
+  async loadRegionEvidence() {
+    const target = this.current;
+    if (!target?.surfaceId || !target.payloadSha256) {
+      throw new Error("Direct CT surface must be resident before region qualification");
+    }
+    const response = await this.fetchImpl(
+      `/api/studies/latest/volume-surface/regions?surface_id=${encodeURIComponent(target.surfaceId)}`,
+      { credentials: "same-origin", headers: { "Accept": "application/x-voxelatlas-direct-ct-regions-v1" } },
+    );
+    if (!response.ok) throw new Error(`Direct CT region evidence unavailable (${response.status})`);
+    const contentType = String(response.headers.get("content-type") || "").split(";", 1)[0].trim();
+    const surfaceId = headerValue(response, "X-VoxelAtlas-Volume-Surface-Id");
+    const surfaceSha = headerValue(response, "X-VoxelAtlas-Volume-Surface-SHA256");
+    const labelsSha = headerValue(response, "X-VoxelAtlas-Region-Labels-SHA256");
+    const triangleCountText = headerValue(response, "X-VoxelAtlas-Region-Triangles");
+    const countsText = headerValue(response, "X-VoxelAtlas-Region-Face-Counts");
+    const bodyCountText = headerValue(response, "X-VoxelAtlas-Region-Body-Count");
+    if (contentType !== "application/x-voxelatlas-direct-ct-regions-v1"
+        || surfaceId !== target.surfaceId || surfaceSha !== target.payloadSha256
+        || !/^[0-9a-f]{64}$/.test(labelsSha)
+        || triangleCountText !== String(target.triangleCount)
+        || headerValue(response, "X-VoxelAtlas-Region-Classification") !== "not_anatomical"
+        || !/^[0-9]+$/.test(bodyCountText) || Number(bodyCountText) < 1
+        || !/^[0-9]+,[0-9]+,[0-9]+$/.test(countsText)) {
+      throw new Error("Direct CT region evidence source binding is invalid");
+    }
+    const bytes = await response.arrayBuffer();
+    if (bytes.byteLength !== target.triangleCount || await sha256Hex(bytes, this.crypto) !== labelsSha) {
+      throw new Error("Direct CT region evidence integrity verification failed");
+    }
+    const labels = new Uint8Array(bytes);
+    const counts = [0, 0, 0];
+    for (const label of labels) {
+      if (label > 2) throw new Error("Direct CT region evidence has invalid face labels");
+      counts[label] += 1;
+    }
+    if (counts.join(",") !== countsText || this.current !== target) {
+      throw new Error("Direct CT region evidence does not match the resident surface");
+    }
+    return this.bindRegionEvidence(target.surfaceId, labels);
+  }
+
+  /** Explicit presentation-only choice; never starts a network request or rebuild. */
+  setRegionDisplayMode(mode) {
+    if (!this.current?.regionVisibility) {
+      throw new Error("Direct CT region evidence is not available for the current surface");
+    }
+    const selection = this.current.regionVisibility.show(mode);
+    this.requestRender();
+    return selection;
+  }
+
   async build(isovalue) {
     if (!this.descriptor?.available) throw new Error(this.descriptor?.reason || "Volume-derived surface unavailable");
     const level = Number(isovalue);
@@ -305,7 +374,7 @@ export class PatientVolumeSurfaceLayer {
       mesh.userData.intensityUnits = units;
 
       const previous = this.current;
-      this.current = { mesh, geometry, material, isovalue: level, triangleCount: decoded.triangleCount, surfaceId };
+      this.current = { mesh, geometry, material, isovalue: level, triangleCount: decoded.triangleCount, surfaceId, payloadSha256: expectedSha, regionVisibility: null };
       this._applyPresentationOpacity();
       applySurfaceClippingToMaterial(
         material,

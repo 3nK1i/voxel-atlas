@@ -4315,3 +4315,26 @@ button:disabled {
 #volumeRenderingPanel #renderQualityPolicy {
   margin-bottom: 10px;
 }
+
+/* Post-6F B1B2B: explicit display-only Direct CT region selection. */
+.volume-surface-region-control {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.7rem;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+.volume-surface-region-control span { display: grid; gap: 0.15rem; }
+.volume-surface-region-control small { color: var(--muted); font-size: 0.66rem; }
+.volume-surface-region-control select {
+  min-width: 0;
+  width: 100%;
+  min-height: 2.1rem;
+  padding: 0.32rem 0.48rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.45rem;
+  background: var(--surface-inset);
+  color: var(--text);
+  font: inherit;
+}
+.volume-surface-region-control select:disabled { opacity: 0.48; cursor: not-allowed; }

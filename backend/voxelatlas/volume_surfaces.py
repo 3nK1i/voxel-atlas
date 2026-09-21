@@ -104,6 +104,19 @@ class VolumeDerivedSurface:
     media_type: str = VOLUME_SURFACE_MEDIA_TYPE
 
 
+@dataclass(frozen=True, slots=True)
+class DirectCtRegionEvidence:
+    surface_id: str
+    surface_sha256: str
+    triangle_count: int
+    labels: bytes
+    labels_sha256: str
+    face_counts: tuple[int, int, int]
+    body_region_count: int
+    classification: str = "not_anatomical"
+
+
+
 def _canonical_json(value: object) -> bytes:
     try:
         return json.dumps(
@@ -235,6 +248,7 @@ class VolumeSurfaceService:
         self.runner = runner
         self.timeout_seconds = float(timeout_seconds)
         self._cache: dict[tuple[str, str, str, str], VolumeDerivedSurface] = {}
+        self._region_cache: dict[tuple[str, str], DirectCtRegionEvidence] = {}
 
     def _source_latest(self) -> CanonicalVolumeRenderingSource:
         try:
@@ -507,3 +521,104 @@ class VolumeSurfaceService:
         )
         self._cache[cache_key] = surface
         return surface
+
+    def region_evidence_latest(self, *, surface_id: str) -> DirectCtRegionEvidence:
+        """Return labels for an already-resident, exact surface; NEVER re-extract.
+
+        The source is rechecked against its immutable artifact digest. Isolated
+        worker output is validated and cached only for this study and payload.
+        """
+        if not isinstance(surface_id, str) or not surface_id.startswith("vsurf-") \
+                or len(surface_id) != 38 or any(c not in "0123456789abcdef" for c in surface_id[6:]):
+            raise VolumeSurfaceValidationError("Direct CT surface identity is invalid")
+        source = self._source_latest()
+        self._assert_ct_source(source)
+        source_sha = _sha256_file(source.volume_path)
+        candidates = [entry for key, entry in self._cache.items()
+                      if key[0] == source.study_dir.name and key[1] == source_sha
+                      and entry.surface_id == surface_id]
+        if len(candidates) != 1:
+            raise VolumeSurfaceUnavailableError("Direct CT surface is not resident for the latest study")
+        surface = candidates[0]
+        if surface.source_series_uid != source.source_series_uid:
+            raise VolumeSurfaceUnavailableError("Resident Direct CT surface is not bound to the latest source series")
+        if surface.isovalue <= -500.0:
+            raise VolumeSurfaceUnavailableError("Region separation is not qualified at this isovalue")
+        cache_key = (surface.surface_id, source_sha)
+        cached = self._region_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        if self.worker_script is None:
+            raise VolumeSurfaceUnavailableError("Region evidence worker is not configured")
+        worker = self.worker_script.with_name("phase6b_direct_ct_region_worker.py")
+        if not worker.is_file() or worker.is_symlink() or self.worker_python is None:
+            raise VolumeSurfaceUnavailableError("Region evidence worker is unavailable")
+        if sha256(surface.payload).hexdigest() != surface.payload_sha256:
+            raise VolumeSurfaceValidationError("Resident Direct CT surface changed")
+        request = {
+            "surface_sha256": surface.payload_sha256,
+            "source_sha256": source_sha,
+            "isovalue": surface.isovalue,
+            "triangle_count": surface.triangle_count,
+            "array_index_to_patient_lps": [list(row) for row in source.array_index_to_patient_lps],
+        }
+        with tempfile.TemporaryDirectory(prefix="voxelatlas-direct-ct-regions-") as tmp:
+            root = Path(tmp)
+            request_path = root / "request.json"
+            payload_path = root / "surface.vxvs"
+            output_path = root / "regions.bin"
+            request_path.write_bytes(_canonical_json(request))
+            payload_path.write_bytes(surface.payload)
+            command = [
+                str(self.worker_python), "-I", str(worker),
+                "--volume-npy", str(source.volume_path),
+                "--surface-payload", str(payload_path),
+                "--request-json", str(request_path),
+                "--output-regions", str(output_path),
+            ]
+            try:
+                completed = self.runner(command, check=False, capture_output=True,
+                                        text=True, timeout=self.timeout_seconds, shell=False)
+            except Exception as exc:
+                raise VolumeSurfaceUnavailableError("Region evidence worker is unavailable") from exc
+            if getattr(completed, "returncode", None) != 0:
+                raise VolumeSurfaceUnavailableError("Region evidence worker failed")
+            output = getattr(completed, "stdout", "")
+            if not isinstance(output, str) or len(output.encode("utf-8")) > 4096:
+                raise VolumeSurfaceValidationError("Region evidence report is invalid")
+            try:
+                report = json.loads([line for line in output.splitlines() if line.strip()][-1])
+            except (IndexError, ValueError) as exc:
+                raise VolumeSurfaceValidationError("Region evidence report is invalid") from exc
+            if output_path.is_symlink() or not output_path.is_file() or output_path.stat().st_size != surface.triangle_count:
+                raise VolumeSurfaceValidationError("Region evidence output is invalid")
+            labels = output_path.read_bytes()
+        latest = self._source_latest()
+        if (latest.study_dir.name != source.study_dir.name
+            or latest.source_series_uid != source.source_series_uid
+            or latest.volume_path != source.volume_path
+            or _sha256_file(source.volume_path) != source_sha):
+            raise VolumeSurfaceValidationError("Canonical CT changed during region qualification")
+        face_counts = tuple(labels.count(value) for value in (0, 1, 2))
+        if (not isinstance(report, dict) or any(label > 2 for label in labels)
+            or len(face_counts) != 3 or sum(face_counts) != surface.triangle_count
+            or report.get("schema_version") != 1
+            or report.get("triangle_count") != surface.triangle_count
+            or report.get("face_counts") != list(face_counts)
+            or report.get("labels_sha256") != sha256(labels).hexdigest()
+            or report.get("classification") != "not_anatomical"
+            or report.get("full_geometry_retained") is not True
+            or report.get("source_volume_immutable") is not True
+            or not isinstance(report.get("body_region_count"), int)
+            or report["body_region_count"] < 1):
+            raise VolumeSurfaceValidationError("Region evidence report is invalid")
+        result = DirectCtRegionEvidence(
+            surface_id=surface.surface_id, surface_sha256=surface.payload_sha256,
+            triangle_count=surface.triangle_count, labels=labels,
+            labels_sha256=sha256(labels).hexdigest(), face_counts=face_counts,
+            body_region_count=report["body_region_count"],
+        )
+        if len(self._region_cache) >= 8:
+            self._region_cache.pop(next(iter(self._region_cache)))
+        self._region_cache[cache_key] = result
+        return result
