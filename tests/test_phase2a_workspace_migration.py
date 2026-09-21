@@ -82,8 +82,12 @@ class Phase2AWorkspaceMigrationTests(unittest.TestCase):
         js = (ROOT / "web/js/app.js").read_text(encoding="utf-8")
         model_readme = (ROOT / "web/assets/models/README.md").read_text(encoding="utf-8")
 
-        self.assertEqual(html.count('data-layer="'), 1)
-        self.assertIn('data-layer="volume" disabled', html)
+        # Phase 6 uses live source/mode controls; the retired Phase 2A
+        # disabled data-layer placeholder must not be required.
+        self.assertIn('id="volumeRenderingPanel"', html)
+        self.assertIn('id="reconstructionVisualizationPanel"', html)
+        self.assertIn('id="volumeSurfacePanel"', html)
+        self.assertIn('id="volumeSurfaceBuild"', html)
         self.assertIn("const volumeLayer =", js)
         self.assertNotIn("GLTFLoader", js)
         self.assertNotIn("/assets/models/", js)
@@ -129,7 +133,7 @@ class Phase2AWorkspaceMigrationTests(unittest.TestCase):
 
     def test_login_heading_is_concise(self) -> None:
         html = (ROOT / "web/login.html").read_text(encoding="utf-8")
-        self.assertIn('<h1 id="loginTitle">Login</h1>', html)
+        self.assertIn('<h1 id="loginTitle">VoxelAtlas</h1>', html)
         self.assertNotIn("Welcome Back", html)
 
     def test_initial_camera_framing_preserves_accepted_distance(self) -> None:

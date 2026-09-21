@@ -97,7 +97,7 @@ class Phase1CLoginUIContractTests(unittest.TestCase):
         self.assertEqual(root.status_code, 302)
         self.assertEqual(root.headers["location"], "/login")
         self.assertEqual(login.status_code, 200)
-        self.assertIn('<h1 id="loginTitle">Login</h1>', login.text)
+        self.assertIn('<h1 id="loginTitle">VoxelAtlas</h1>', login.text)
         self.assertEqual(login.headers.get("cache-control"), "no-store")
         self.assertEqual(blocked_workspace.status_code, 302)
         self.assertEqual(blocked_workspace.headers["location"], "/login")

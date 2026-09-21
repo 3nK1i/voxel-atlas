@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from math import isfinite
 import re
 import sys
 from time import perf_counter
@@ -60,7 +61,8 @@ def component_report(volume: np.ndarray, threshold: float, label_name: str, maxi
     boundary_labels = set()
     for face in (labels[0], labels[-1], labels[:, 0], labels[:, -1], labels[:, :, 0], labels[:, :, -1]):
         boundary_labels.update(int(item) for item in np.unique(face) if int(item) != 0)
-    ranking = np.argsort(counts[1:])[::-1] + 1 if len(counts) > 1 else np.asarray([], dtype=np.int64)
+    component_ids = np.arange(1, count + 1, dtype=np.int64)
+    ranking = component_ids[np.lexsort((component_ids, -counts[1:]))]
     total_foreground = int(binary.sum())
     elapsed_ms = (perf_counter() - started) * 1000.0
     print(f"{label_name}_THRESHOLD={threshold:.3f}")
@@ -92,6 +94,77 @@ def component_report(volume: np.ndarray, threshold: float, label_name: str, maxi
     del labels, binary, counts
 
 
+
+def associate_isovalue_components(
+    volume: np.ndarray,
+    *,
+    isovalue: float,
+    body_threshold: float,
+    maximum: int,
+) -> dict[str, object]:
+    """Relate high-HU connected regions to broader support regions, without classifying tissue.
+
+    This is evidence ONLY: the largest region is not automatically patient anatomy,
+    and the source is neither masked nor changed. Bounds and ranks are voxel-index data.
+    """
+    if (
+        volume.ndim != 3
+        or str(volume.dtype) != "float32"
+        or not isfinite(isovalue)
+        or not isfinite(body_threshold)
+        or not body_threshold < isovalue
+        or not isinstance(maximum, int)
+        or isinstance(maximum, bool)
+        or not 1 <= maximum <= 50
+    ):
+        raise ValueError("Direct-CT component association contract is invalid")
+    structure = np.ones((3, 3, 3), dtype=np.uint8)
+    high_labels, high_count = connected_components(
+        np.asarray(volume >= np.float32(isovalue), dtype=np.bool_), structure=structure,
+    )
+    body_labels, body_count = connected_components(
+        np.asarray(volume >= np.float32(body_threshold), dtype=np.bool_), structure=structure,
+    )
+    high_counts = np.bincount(high_labels.ravel())
+    body_counts = np.bincount(body_labels.ravel())
+    high_ids = np.arange(1, high_count + 1, dtype=np.int64)
+    body_ids = np.arange(1, body_count + 1, dtype=np.int64)
+    high_ranking = high_ids[np.lexsort((high_ids, -high_counts[1:]))]
+    body_ranking = body_ids[np.lexsort((body_ids, -body_counts[1:]))]
+    body_ranks = {int(component): rank for rank, component in enumerate(body_ranking, 1)}
+    high_slices = find_objects(high_labels)
+    associations: list[dict[str, object]] = []
+    for rank, component in enumerate(high_ranking[:maximum], 1):
+        region = high_slices[int(component) - 1]
+        if region is None:
+            raise ValueError("Direct-CT high-HU component has no bounds")
+        local_high = high_labels[region] == component
+        parents = np.unique(body_labels[region][local_high])
+        if len(parents) != 1 or int(parents[0]) == 0:
+            # Never guess when the high region cannot be uniquely associated.
+            associations.append({
+                "rank": rank,
+                "voxels": int(high_counts[component]),
+                "association": "ambiguous",
+                "body_support_rank": None,
+                "body_support_voxels": None,
+            })
+            continue
+        parent = int(parents[0])
+        associations.append({
+            "rank": rank,
+            "voxels": int(high_counts[component]),
+            "association": "unique",
+            "body_support_rank": body_ranks[parent],
+            "body_support_voxels": int(body_counts[parent]),
+        })
+    return {
+        "high_component_count": int(high_count),
+        "body_support_component_count": int(body_count),
+        "associations": associations,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Read-only post-6F Direct-CT component diagnostic")
     parser.add_argument("--data-dir", type=Path, required=True)
@@ -102,6 +175,14 @@ def main() -> int:
     args = parser.parse_args()
     if args.max_components < 1 or args.max_components > 50:
         raise SystemExit("--max-components must be between 1 and 50")
+    if (
+        not isfinite(args.isovalue)
+        or not isfinite(args.body_threshold)
+        or not args.body_threshold < args.isovalue
+        or not isfinite(float(np.float32(args.isovalue)))
+        or not isfinite(float(np.float32(args.body_threshold)))
+    ):
+        raise SystemExit("broad-support threshold must be finite and strictly below isovalue")
     manifest = latest_manifest(args.data_dir.expanduser().resolve(), args.study_id)
     volume, _affine = load_source(manifest)
     print("===== POST-6F DIRECT-CT SURFACE DIAGNOSTIC =====")
@@ -112,6 +193,24 @@ def main() -> int:
     print("CANONICAL_VOLUME_MUTATION=NO")
     component_report(volume, float(args.isovalue), "ISOVALUE", args.max_components)
     component_report(volume, float(args.body_threshold), "BODY_SUPPORT", args.max_components)
+    association = associate_isovalue_components(
+        volume,
+        isovalue=float(args.isovalue),
+        body_threshold=float(args.body_threshold),
+        maximum=args.max_components,
+    )
+    print("COMPONENT_ASSOCIATIONS_BEGIN")
+    for item in association["associations"]:
+        body_rank = item["body_support_rank"] if item["body_support_rank"] is not None else "UNKNOWN"
+        body_voxels = item["body_support_voxels"] if item["body_support_voxels"] is not None else "UNKNOWN"
+        print(
+            f"COMPONENT_ASSOCIATION high_rank={item['rank']} high_voxels={item['voxels']} "
+            f"body_support_rank={body_rank} body_support_voxels={body_voxels} "
+            f"association={item['association']}"
+        )
+    print("COMPONENT_ASSOCIATIONS_END")
+    print("COMPONENT_ASSOCIATION_SCOPE=VOXEL_INDEX_EVIDENCE_ONLY")
+    print("COMPONENT_ANATOMICAL_CLASSIFICATION=NOT_CLAIMED")
     print("ISOVALUE_COMPONENTS=REPORTED")
     print("BODY_SUPPORT_COMPONENTS=REPORTED")
     print("ARBITRARY_LARGEST_COMPONENT_REMOVAL=NOT_APPLIED")

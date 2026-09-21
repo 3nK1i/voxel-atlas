@@ -57,7 +57,7 @@ def main() -> int:
 
     checks = [
         (root.status_code == 302 and root.headers.get("location") == "/login", "anonymous_root=login_redirect"),
-        (login_page.status_code == 200 and '<h1 id="loginTitle">Login</h1>' in login_page.text, "login_page=real_html_controls"),
+        (login_page.status_code == 200 and '<h1 id="loginTitle">VoxelAtlas</h1>' in login_page.text, "login_page=real_html_controls"),
         (blocked.status_code == 302 and blocked.headers.get("location") == "/login", "workspace_anonymous=blocked"),
         (auth.status_code == 200, "login_api=authenticated"),
         (workspace.status_code == 200 and 'data-workspace="voxelatlas-v1"' in workspace.text, "workspace_authenticated=served"),
