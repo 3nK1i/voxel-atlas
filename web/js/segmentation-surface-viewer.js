@@ -13,6 +13,8 @@ import {
   applySurfaceClippingToMaterial,
 } from "./reconstruction-surface-clipping.js?v=phase6f-d-r1-phase6f-e-r1";
 
+import { segmentationViewerWinding } from "./segmentation-viewer-winding.js?v=post6f-pre6g-b2a-r1";
+
 const LEGACY_SURFACE_MEDIA_TYPE = "application/x-voxelatlas-surface-v1";
 const ACCURATE_SURFACE_MEDIA_TYPE = "application/x-voxelatlas-surface-v2";
 const SURFACE_MAGIC = "VXSF";
@@ -124,7 +126,7 @@ export function decodeSegmentationSurface(buffer, expected = {}) {
 }
 
 
-function patientLpsToViewerMatrix(THREE, presentation) {
+export function patientLpsToViewerMatrix(THREE, presentation) {
   const center = presentation?.viewerCenterLpsMm;
   const maximumExtentMm = Number(presentation?.maximumExtentMm);
   if (
@@ -662,7 +664,7 @@ export class PatientSegmentationSurfaceLayer {
       if (decoded.normals) {
         geometry.setAttribute("normal", new this.three.BufferAttribute(decoded.normals, 3));
       }
-      geometry.setIndex(new this.three.BufferAttribute(decoded.indices, 1));
+      geometry.setIndex(new this.three.BufferAttribute(segmentationViewerWinding(decoded.indices), 1));
       geometry.applyMatrix4(presentationTransform);
       if (!decoded.normals) geometry.computeVertexNormals();
       geometry.computeBoundingSphere();
