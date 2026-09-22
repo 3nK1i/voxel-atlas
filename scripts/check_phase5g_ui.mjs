@@ -32,7 +32,7 @@ for (const selector of [
   ".clip-range-summary",
   ".clip-boundary-labels",
   ".clip-boundary-values strong",
-  ".clip-plane-toggle",
+  ".clip-plane-label",
   ".mpr-clipping-toggle",
   ".mpr-clipping-legend",
 ]) assert(css.includes(selector));

@@ -946,7 +946,7 @@ button:disabled {
   transition: border-color 130ms ease, background 130ms ease;
 }
 
-.clip-plane-control:has([data-clip-enabled]:checked) {
+.clip-plane-control[data-clipping-active="true"] {
   border-color: var(--line-strong);
   background: var(--accent-bg);
 }
@@ -1016,7 +1016,7 @@ button:disabled {
 
 .clip-plane-heading strong {
   color: var(--text-soft);
-  font-size: 8px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1032,39 +1032,43 @@ button:disabled {
 }
 
 .clip-range-summary {
-  font-size: 8px;
+  font-size: 11px;
   justify-content: flex-end;
   gap: 5px;
   white-space: nowrap;
 }
 
 .clip-boundary-labels {
-  font-size: 8.5px;
+  font-size: 11px;
   font-weight: 600;
   margin-top: 8px;
 }
 
 .clip-boundary-values strong {
   color: var(--text-soft);
-  font-size: 8px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
 
-.clip-plane-toggle {
+.clip-plane-label {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   color: var(--text-soft);
-  font-size: 8.5px;
+  font-size: 11px;
   font-weight: 760;
-  cursor: pointer;
 }
 
-.clip-plane-toggle input {
-  width: 13px;
-  height: 13px;
-  margin: 0;
-  accent-color: var(--accent);
+.clip-plane-state {
+  border-radius: 4px;
+  padding: 2px 5px;
+  color: var(--text-soft);
+  font-size: 10px;
+  white-space: nowrap;
+}
+.clip-plane-state[data-active="true"] {
+  color: var(--text);
+  background: var(--accent-bg);
 }
 
 .clip-dual-range {
