@@ -22,6 +22,7 @@ import {
   ReconstructionVisualizationModeController,
 } from "./reconstruction-visualization-mode.js?v=phase6d2a-r1";
 import { AutomaticSurfaceModeCoordinator } from "./automatic-surface-mode.js?v=phase6i-b1-r1";
+import { ExistingSegmentationSurfaceGate } from "./existing-segmentation-mode.js?v=phase6i-b2-r1";
 import {
   ReconstructionPresentationProfileController,
 } from "./reconstruction-presentation-profile.js?v=phase6e-a-r1-phase6e-c-r1";
@@ -323,6 +324,7 @@ let volumeSurfaceDescriptorPromise = null;
 let volumeSurfaceLayer = null;
 let reconstructionVisualizationController = null;
 let automaticSurfaceMode = null;
+let segmentationSurfaceGate = null;
 let autoSurfacePendingMode = null;
 let autoSurfaceBuildPromise = null;
 let autoSurfaceBuildStudyId = null;
@@ -486,6 +488,7 @@ segmentationSurfaceLayer = new PatientSegmentationSurfaceLayer({
     segmentationSurfaceStatus.setAttribute("aria-live", surfaceStatus.state === "loading" ? "polite" : "off");
     segmentationStructurePanel.setSurfaceStatusSnapshot(surfaceStatus);
     syncReconstructionVisualizationResources();
+    segmentationSurfaceGate?.notify(surfaceStatus);
   },
 });
 reconstructionVisualizationController = new ReconstructionVisualizationModeController({
@@ -498,14 +501,21 @@ automaticSurfaceMode = new AutomaticSurfaceModeCoordinator({
     const snapshot = reconstructionVisualizationController.snapshot();
     return modeId === "surface" ? snapshot.canSurface : snapshot.canCombined;
   },
-  ensureSurface: () => ensureAutomaticDirectCtSurface(),
+  ensureSurface: () => ensureAutomaticSelectedSurface(),
   onPending: (modeId) => {
     autoSurfacePendingMode = modeId;
     applyReconstructionVisualizationSnapshot(reconstructionVisualizationController.snapshot());
   },
   onFailure: () => {
-    // The surface layer retains its actionable error message. No implicit retry.
+    // Surface layers retain their actionable errors; no implicit segmentation retry.
   },
+});
+segmentationSurfaceGate = new ExistingSegmentationSurfaceGate({
+  readIdentity: () => canPrepareAutomaticSegmentationSurface()
+    ? `${state.study.study_id}/${state.segmentationSurface.descriptor.label_map_id}` : null,
+  hasResident: () => hasSelectedResidentSegmentationSurface(),
+  hasDesiredStructures: () => Boolean(segmentationSurfaceLayer?.desiredLabels?.size),
+  startSurface: () => syncSegmentationSurface(),
 });
 reconstructionPresentationProfileController = new ReconstructionPresentationProfileController({
   onChange: (snapshot) => applyReconstructionPresentationProfileSnapshot(snapshot),
@@ -1018,6 +1028,27 @@ function canPrepareAutomaticDirectCtSurface(snapshot) {
   );
 }
 
+function hasSelectedResidentSegmentationSurface() {
+  const layer = segmentationSurfaceLayer;
+  if (!layer?.descriptor?.label_map_id || !layer.desiredLabels?.size) return false;
+  if (layer.descriptor.label_map_id !== state.segmentationSurface.descriptor?.label_map_id) return false;
+  return Array.from(layer.desiredLabels).some((labelId) => layer.items.has(labelId));
+}
+
+function canPrepareAutomaticSegmentationSurface() {
+  return Boolean(
+    volumeLayer.available
+    && volumeRayMarcher.current
+    && state.segmentationSurface.descriptor?.ready
+    && state.segmentationSurface.descriptor?.source_study_id === state.study?.study_id
+    && state.segmentationSurface.descriptor?.label_map_id === activeSegmentationLabelMapId
+    && state.segmentationOverlay.presentation?.structures instanceof Map
+    && state.segmentationSurface.enabled
+    && state.reconstructionVisualization.surfaceSourceSelection["segmentation-derived"]
+    && segmentationSurfaceLayer.desiredLabels.size > 0
+  );
+}
+
 function applyReconstructionVisualizationSnapshot(snapshot) {
   if (!snapshot) return;
   if (volumeLayer.root) {
@@ -1039,13 +1070,16 @@ function applyReconstructionVisualizationSnapshot(snapshot) {
       : "unavailable";
   }
   const canPrepareDirectCt = canPrepareAutomaticDirectCtSurface(snapshot);
+  const canPrepareSegmentation = canPrepareAutomaticSegmentationSurface();
+  const preparatory = canPrepareDirectCt || canPrepareSegmentation;
+  const pendingSource = canPrepareDirectCt ? "Direct CT" : "selected segmentation";
   for (const button of reconstructionModeButtons) {
     const modeId = button.dataset.reconstructionMode;
     const available = modeId === "volume"
       ? snapshot.canVolume
       : (modeId === "surface"
-        ? snapshot.canSurface || canPrepareDirectCt
-        : snapshot.canCombined || (snapshot.canVolume && canPrepareDirectCt));
+        ? snapshot.canSurface || preparatory
+        : snapshot.canCombined || (snapshot.canVolume && preparatory));
     button.disabled = !available;
     button.dataset.active = String(snapshot.mode === modeId && available);
     button.dataset.capability = available ? "ready" : "unavailable";
@@ -1056,15 +1090,15 @@ function applyReconstructionVisualizationSnapshot(snapshot) {
   const sourceSummary = selectedResidentLabels.join(" + ");
   if (surfaceModeStatusText) {
     surfaceModeStatusText.textContent = autoSurfacePendingMode === "surface"
-      ? "Preparing Direct CT surface…"
+      ? `Preparing ${pendingSource} surface…`
       : (snapshot.canSurface ? `${sourceSummary || "Surface"} ready`
-        : (canPrepareDirectCt ? "Select to prepare Direct CT" : "Select a surface source"));
+        : (preparatory ? (canPrepareDirectCt ? "Select to prepare Direct CT" : "Select to prepare selected segmentation") : "Select a surface source"));
   }
   if (combinedModeStatusText) {
     combinedModeStatusText.textContent = autoSurfacePendingMode === "combined"
-      ? "Preparing Direct CT surface…"
+      ? `Preparing ${pendingSource} surface…`
       : (snapshot.canCombined ? "Volume + selected surface ready"
-        : (snapshot.canVolume && canPrepareDirectCt ? "Select to prepare volume + CT surface" : "Requires volume + surface"));
+        : (snapshot.canVolume && preparatory ? `Select to prepare volume + ${pendingSource}` : "Requires volume + surface"));
   }
   for (const input of reconstructionSurfaceSourceInputs) {
     const sourceId = input.dataset.reconstructionSurfaceSource;
@@ -1074,12 +1108,17 @@ function applyReconstructionVisualizationSnapshot(snapshot) {
       snapshot.volumeAvailable && state.volumeSurface.descriptor?.available
       && state.volumeSurface.descriptor.study_id === state.study?.study_id
     );
-    const selectable = Boolean(semanticEnabled && (sourceState?.resident || directCtPreparatory));
+    const segmentationPreparatory = sourceId === "segmentation-derived" && Boolean(
+      state.segmentationSurface.descriptor?.ready
+      && state.segmentationSurface.descriptor?.source_study_id === state.study?.study_id
+      && state.segmentationSurface.descriptor?.label_map_id === activeSegmentationLabelMapId
+    );
+    const selectable = Boolean(semanticEnabled && (sourceState?.resident || directCtPreparatory || segmentationPreparatory));
     input.disabled = !selectable;
-    input.checked = Boolean(selectable && (sourceState?.selected || (directCtPreparatory && state.reconstructionVisualization.surfaceSourceSelection[sourceId])));
+    input.checked = Boolean(selectable && state.reconstructionVisualization.surfaceSourceSelection[sourceId]);
     const row = input.closest("[data-reconstruction-source-row]");
     if (row) {
-      row.dataset.state = !selectable ? "unavailable" : (sourceState.selected ? "selected" : "ready");
+      row.dataset.state = !selectable ? "unavailable" : (input.checked ? "selected" : "ready");
     }
   }
   if (reconstructionVisualizationStatus) {
@@ -1092,8 +1131,8 @@ function applyReconstructionVisualizationSnapshot(snapshot) {
     } else {
       reconstructionVisualizationStatus.textContent = snapshot.canSurface
         ? "Volume view · resident surface sources are ready for Surface or Combined."
-        : (canPrepareDirectCt
-          ? "Volume view · choose Surface or Combined to prepare the selected Direct CT surface."
+        : (preparatory
+          ? `Volume view · choose Surface or Combined to prepare the selected ${pendingSource} surface.`
           : "Volume view · select an available surface source to enable Surface and Combined.");
     }
   }
@@ -1105,7 +1144,7 @@ function syncReconstructionVisualizationResources() {
   if (!reconstructionVisualizationController) return null;
   const volumeAvailable = Boolean(volumeLayer.available && volumeLayer.root);
   const volumeDerivedResident = Boolean(volumeSurfaceLayer?.current);
-  const segmentationDerivedResident = Boolean(segmentationSurfaceLayer?.items?.size);
+  const segmentationDerivedResident = hasSelectedResidentSegmentationSurface();
   const sourceSelection = state.reconstructionVisualization.surfaceSourceSelection;
 
   reconstructionVisualizationController.setVolumeAvailable(volumeAvailable);
@@ -1129,6 +1168,7 @@ function requestReconstructionVisualizationMode(modeId) {
   const snapshot = reconstructionVisualizationController.snapshot();
   if (modeId === "volume" || (modeId === "surface" ? snapshot.canSurface : snapshot.canCombined)) {
     automaticSurfaceMode?.invalidate();
+    segmentationSurfaceGate?.invalidate();
     const result = reconstructionVisualizationController.requestMode(modeId);
     // A resident segmentation surface can be shown immediately; prepare the
     // separately selected Direct CT source in the background without replacing it.
@@ -1136,9 +1176,32 @@ function requestReconstructionVisualizationMode(modeId) {
         && canPrepareAutomaticDirectCtSurface(snapshot)) {
       void ensureAutomaticDirectCtSurface();
     }
+    if (result.accepted && modeId !== "volume" && canPrepareAutomaticSegmentationSurface()) {
+      void syncSegmentationSurface();
+    }
     return result;
   }
   return automaticSurfaceMode.request(modeId);
+}
+
+function ensureAutomaticSelectedSurface() {
+  const snapshot = reconstructionVisualizationController.snapshot();
+  if (canPrepareAutomaticDirectCtSurface(snapshot)) {
+    const build = ensureAutomaticDirectCtSurface();
+    if (!build) return null;
+    return Promise.resolve(build).then((ready) => {
+      if (ready || reconstructionVisualizationController.snapshot().canSurface) return true;
+      return canPrepareAutomaticSegmentationSurface()
+        ? ensureAutomaticSegmentationSurface() : false;
+    });
+  }
+  if (canPrepareAutomaticSegmentationSurface()) return ensureAutomaticSegmentationSurface();
+  return null;
+}
+
+function ensureAutomaticSegmentationSurface() {
+  if (!canPrepareAutomaticSegmentationSurface()) return null;
+  return segmentationSurfaceGate?.request() || null;
 }
 
 function ensureAutomaticDirectCtSurface() {
@@ -1171,7 +1234,12 @@ function requestReconstructionSurfaceSourceSelection(sourceId, selected) {
   const sourceState = snapshot.surfaceSources[sourceId];
   const semanticEnabled = sourceId !== "segmentation-derived" || state.segmentationSurface.enabled;
   const effectiveSelection = Boolean(selected && sourceState?.resident && semanticEnabled);
-  return reconstructionVisualizationController.selectSurfaceSource(sourceId, effectiveSelection);
+  if (sourceId === "segmentation-derived" && !selected) segmentationSurfaceGate?.invalidate();
+  const result = reconstructionVisualizationController.selectSurfaceSource(sourceId, effectiveSelection);
+  if (sourceId === "segmentation-derived" && selected && canPrepareAutomaticSegmentationSurface()) {
+    void syncSegmentationSurface();
+  }
+  return result;
 }
 
 function setVolumeAvailability(available) {
@@ -1467,6 +1535,7 @@ function applyOpacity() {
 
 function resetReconstructionVisualizationForStudy() {
   automaticSurfaceMode?.invalidate();
+  segmentationSurfaceGate?.invalidate();
   autoSurfaceBuildPromise = null;
   autoSurfaceBuildStudyId = null;
   state.reconstructionVisualization.surfaceSourceSelection = {
@@ -2062,6 +2131,7 @@ async function activateSegmentationResult(labelMapId) {
   const descriptor = await refreshSegmentationOverlayDescriptor(requestedLabelMapId);
   if (!descriptor) return null;
   activeSegmentationLabelMapId = requestedLabelMapId;
+  syncReconstructionVisualizationResources();
   segmentationWorkflowPanel.setActivated(requestedLabelMapId);
   scheduleMprRender();
   return descriptor;
@@ -2175,6 +2245,7 @@ async function requestSegmentationCancel() {
 }
 
 function setSegmentationSurfaceAvailability(descriptor) {
+  segmentationSurfaceGate?.invalidate();
   const ready = Boolean(descriptor?.ready);
   state.segmentationSurface.descriptor = ready ? descriptor : null;
   segmentationSurfaceToggle.disabled = !ready;
@@ -3241,6 +3312,7 @@ segmentationOverlayOpacity.addEventListener("input", () => {
 
 segmentationSurfaceToggle.addEventListener("change", () => {
   state.segmentationSurface.enabled = segmentationSurfaceToggle.checked;
+  if (!state.segmentationSurface.enabled) segmentationSurfaceGate?.invalidate();
   segmentationSurfaceLayer.setEnabled(state.segmentationSurface.enabled);
   syncReconstructionVisualizationResources();
   if (state.segmentationSurface.enabled) void syncSegmentationSurface();

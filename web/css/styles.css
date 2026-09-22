@@ -4466,3 +4466,21 @@ button:disabled {
 
 /* Phase 6I-B1: legacy actions remain DOM-stable for prior contracts, but are not user-facing. */
 .volume-surface-actions[hidden] { display: none !important; }
+
+/* Phase 6I-B2: existing-result activation uses the same action language as the
+   reconstruction sidebar; this does not change its on-demand job handler. */
+.segmentation-workflow-panel[data-state="available"] .segmentation-workflow-primary:not(:disabled) {
+  flex: 1 1 auto;
+  min-height: 34px;
+  border-color: color-mix(in srgb, var(--accent) 70%, var(--line));
+  border-radius: 8px;
+  background: linear-gradient(180deg, var(--medical-button-top), var(--medical-button-bottom));
+  color: #f7fbff;
+  font-size: var(--ui-readable, 12px);
+  font-weight: 760;
+  text-align: center;
+}
+.segmentation-workflow-primary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
