@@ -26,7 +26,7 @@
     })();
   </script>
 
-  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1-phase6c-r2-phase6d0-r1-phase6d1-r1-phase6d2b-r1-phase6d2c-r1-phase6d2d-r1-phase6e-c-r1-phase6f-b-r1-phase6f-d-r1-phase6f-e-r1-post6f-stab-a-r1-post6f-b1b2b-r1">
+  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1-phase6c-r2-phase6d0-r1-phase6d1-r1-phase6d2b-r1-phase6d2c-r1-phase6d2d-r1-phase6e-c-r1-phase6f-b-r1-phase6f-d-r1-phase6f-e-r1-post6f-stab-a-r1-post6f-b1b2b-r1-phase6i-a-r3">
 
   <script type="importmap">
   {
@@ -179,6 +179,7 @@
           <section id="reconstructionPanel" class="info-section">
             <div class="section-kicker">Reconstruction</div>
             <div class="status-list reconstruction-mode-list" role="group" aria-label="3D reconstruction visualization mode">
+              <div class="va-reconstruction-mode-help-row" data-help-reconstruction-mode="volume">
               <button
                 id="volumeStatusRow"
                 class="status-row reconstruction-mode-card"
@@ -203,7 +204,9 @@
                   </svg>
                 </span>
               </button>
+              </div>
 
+              <div class="va-reconstruction-mode-help-row" data-help-reconstruction-mode="surface">
               <button
                 class="status-row reconstruction-mode-card"
                 type="button"
@@ -226,7 +229,9 @@
                   </svg>
                 </span>
               </button>
+              </div>
 
+              <div class="va-reconstruction-mode-help-row" data-help-reconstruction-mode="combined">
               <button
                 class="status-row reconstruction-mode-card"
                 type="button"
@@ -250,6 +255,7 @@
                   </svg>
                 </span>
               </button>
+              </div>
             </div>
           </section>
 
@@ -1035,14 +1041,14 @@
               <button id="segmentationCorrectionStart" class="sidebar-action-button is-secondary correction-start" type="button" disabled>Start review</button>
             </div>
             <div class="correction-controls">
-              <label>Action
+              <label><span class="va-correction-action-caption">Action</span>
                 <select id="segmentationCorrectionKind" disabled>
                   <option value="review">Review mark</option>
                   <option value="include">Include intent</option>
                   <option value="exclude">Exclude intent</option>
                 </select>
               </label>
-              <label class="slider-label" for="segmentationCorrectionRadius">Radius <strong id="segmentationCorrectionRadiusValue">3.0 mm</strong></label>
+              <label class="slider-label va-correction-radius-label" for="segmentationCorrectionRadius"><span class="va-correction-radius-caption">Radius</span><strong id="segmentationCorrectionRadiusValue">3.0 mm</strong></label>
               <input id="segmentationCorrectionRadius" type="range" min="0.5" max="25" step="0.5" value="3" disabled>
               <button id="segmentationCorrectionApply" class="sidebar-action-button is-primary correction-apply" type="button" disabled>Apply at MPR crosshair</button>
               <div class="correction-history" aria-label="Correction history controls">
@@ -1129,6 +1135,7 @@
     </div>
   </dialog>
 
+  <script type="module" src="/js/parameter-help.js?v=phase6i-a-r3"></script>
   <script type="module" src="/js/app.js?v=phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1-phase6a-r1-phase6b-r1-phase6c-r2-phase6d0-r1-phase6d0-explicit-r1-phase6d1-r2-phase6d2b-r1-phase6d2c-r1-phase6d2d-r1-phase6e-a-r1-phase6e-b-r1-phase6e-c-r1-phase6e-d-r1-phase6e-e-r1-phase6f-a-r1-phase6f-b-r1-phase6b-fallback-r1-phase6f-c-r3-phase6f-d-r1-phase6f-e-r1-post6f-stab-a-r1-post6f-b1b2b-r1-post6f-b2a-r1"></script>
 </body>
 </html>
