@@ -21,6 +21,7 @@ import {
 import {
   ReconstructionVisualizationModeController,
 } from "./reconstruction-visualization-mode.js?v=phase6d2a-r1";
+import { AutomaticSurfaceModeCoordinator } from "./automatic-surface-mode.js?v=phase6i-b1-r1";
 import {
   ReconstructionPresentationProfileController,
 } from "./reconstruction-presentation-profile.js?v=phase6e-a-r1-phase6e-c-r1";
@@ -321,6 +322,10 @@ let segmentationSurfaceLayer = null;
 let volumeSurfaceDescriptorPromise = null;
 let volumeSurfaceLayer = null;
 let reconstructionVisualizationController = null;
+let automaticSurfaceMode = null;
+let autoSurfacePendingMode = null;
+let autoSurfaceBuildPromise = null;
+let autoSurfaceBuildStudyId = null;
 let reconstructionPresentationProfileController = null;
 let viewerRenderRequested = true;
 let lastRenderedTimestamp = null;
@@ -487,6 +492,21 @@ reconstructionVisualizationController = new ReconstructionVisualizationModeContr
   onChange: (snapshot) => applyReconstructionVisualizationSnapshot(snapshot),
 });
 applyReconstructionVisualizationSnapshot(reconstructionVisualizationController.snapshot());
+automaticSurfaceMode = new AutomaticSurfaceModeCoordinator({
+  requestMode: (modeId) => reconstructionVisualizationController.requestMode(modeId),
+  canActivate: (modeId) => {
+    const snapshot = reconstructionVisualizationController.snapshot();
+    return modeId === "surface" ? snapshot.canSurface : snapshot.canCombined;
+  },
+  ensureSurface: () => ensureAutomaticDirectCtSurface(),
+  onPending: (modeId) => {
+    autoSurfacePendingMode = modeId;
+    applyReconstructionVisualizationSnapshot(reconstructionVisualizationController.snapshot());
+  },
+  onFailure: () => {
+    // The surface layer retains its actionable error message. No implicit retry.
+  },
+});
 reconstructionPresentationProfileController = new ReconstructionPresentationProfileController({
   onChange: (snapshot) => applyReconstructionPresentationProfileSnapshot(snapshot),
 });
@@ -987,6 +1007,17 @@ function requestReconstructionPresentationProfile(profileId) {
   return reconstructionPresentationProfileController.requestProfile(profileId);
 }
 
+function canPrepareAutomaticDirectCtSurface(snapshot) {
+  const descriptor = state.volumeSurface.descriptor;
+  return Boolean(
+    snapshot.volumeAvailable
+    && state.study?.study_id
+    && descriptor?.available
+    && descriptor.study_id === state.study.study_id
+    && state.reconstructionVisualization.surfaceSourceSelection["volume-derived"]
+  );
+}
+
 function applyReconstructionVisualizationSnapshot(snapshot) {
   if (!snapshot) return;
   if (volumeLayer.root) {
@@ -1007,35 +1038,45 @@ function applyReconstructionVisualizationSnapshot(snapshot) {
       ? "ready"
       : "unavailable";
   }
+  const canPrepareDirectCt = canPrepareAutomaticDirectCtSurface(snapshot);
   for (const button of reconstructionModeButtons) {
     const modeId = button.dataset.reconstructionMode;
     const available = modeId === "volume"
       ? snapshot.canVolume
-      : (modeId === "surface" ? snapshot.canSurface : snapshot.canCombined);
+      : (modeId === "surface"
+        ? snapshot.canSurface || canPrepareDirectCt
+        : snapshot.canCombined || (snapshot.canVolume && canPrepareDirectCt));
     button.disabled = !available;
     button.dataset.active = String(snapshot.mode === modeId && available);
     button.dataset.capability = available ? "ready" : "unavailable";
+    button.dataset.pending = String(autoSurfacePendingMode === modeId);
     button.setAttribute("aria-pressed", String(snapshot.mode === modeId && available));
   }
   const selectedResidentLabels = snapshot.selectedResidentSurfaceSources.map(reconstructionSurfaceSourceLabel);
   const sourceSummary = selectedResidentLabels.join(" + ");
   if (surfaceModeStatusText) {
-    surfaceModeStatusText.textContent = snapshot.canSurface
-      ? `${sourceSummary || "Surface"} ready`
-      : "Build or select a surface";
+    surfaceModeStatusText.textContent = autoSurfacePendingMode === "surface"
+      ? "Preparing Direct CT surface…"
+      : (snapshot.canSurface ? `${sourceSummary || "Surface"} ready`
+        : (canPrepareDirectCt ? "Select to prepare Direct CT" : "Select a surface source"));
   }
   if (combinedModeStatusText) {
-    combinedModeStatusText.textContent = snapshot.canCombined
-      ? "Volume + selected surface ready"
-      : "Requires volume + surface";
+    combinedModeStatusText.textContent = autoSurfacePendingMode === "combined"
+      ? "Preparing Direct CT surface…"
+      : (snapshot.canCombined ? "Volume + selected surface ready"
+        : (snapshot.canVolume && canPrepareDirectCt ? "Select to prepare volume + CT surface" : "Requires volume + surface"));
   }
   for (const input of reconstructionSurfaceSourceInputs) {
     const sourceId = input.dataset.reconstructionSurfaceSource;
     const sourceState = snapshot.surfaceSources[sourceId];
     const semanticEnabled = sourceId !== "segmentation-derived" || state.segmentationSurface.enabled;
-    const selectable = Boolean(sourceState?.resident && semanticEnabled);
+    const directCtPreparatory = sourceId === "volume-derived" && Boolean(
+      snapshot.volumeAvailable && state.volumeSurface.descriptor?.available
+      && state.volumeSurface.descriptor.study_id === state.study?.study_id
+    );
+    const selectable = Boolean(semanticEnabled && (sourceState?.resident || directCtPreparatory));
     input.disabled = !selectable;
-    input.checked = Boolean(selectable && sourceState?.selected);
+    input.checked = Boolean(selectable && (sourceState?.selected || (directCtPreparatory && state.reconstructionVisualization.surfaceSourceSelection[sourceId])));
     const row = input.closest("[data-reconstruction-source-row]");
     if (row) {
       row.dataset.state = !selectable ? "unavailable" : (sourceState.selected ? "selected" : "ready");
@@ -1051,7 +1092,9 @@ function applyReconstructionVisualizationSnapshot(snapshot) {
     } else {
       reconstructionVisualizationStatus.textContent = snapshot.canSurface
         ? "Volume view · resident surface sources are ready for Surface or Combined."
-        : "Volume view · build or select a surface to enable Surface and Combined.";
+        : (canPrepareDirectCt
+          ? "Volume view · choose Surface or Combined to prepare the selected Direct CT surface."
+          : "Volume view · select an available surface source to enable Surface and Combined.");
     }
   }
   applyCombinedPresentationBalance(snapshot, null);
@@ -1083,7 +1126,40 @@ function syncReconstructionVisualizationResources() {
 
 function requestReconstructionVisualizationMode(modeId) {
   if (!reconstructionVisualizationController) return null;
-  return reconstructionVisualizationController.requestMode(modeId);
+  const snapshot = reconstructionVisualizationController.snapshot();
+  if (modeId === "volume" || (modeId === "surface" ? snapshot.canSurface : snapshot.canCombined)) {
+    automaticSurfaceMode?.invalidate();
+    const result = reconstructionVisualizationController.requestMode(modeId);
+    // A resident segmentation surface can be shown immediately; prepare the
+    // separately selected Direct CT source in the background without replacing it.
+    if (result.accepted && modeId !== "volume" && !volumeSurfaceLayer.current
+        && canPrepareAutomaticDirectCtSurface(snapshot)) {
+      void ensureAutomaticDirectCtSurface();
+    }
+    return result;
+  }
+  return automaticSurfaceMode.request(modeId);
+}
+
+function ensureAutomaticDirectCtSurface() {
+  const snapshot = reconstructionVisualizationController.snapshot();
+  if (!canPrepareAutomaticDirectCtSurface(snapshot)) return null;
+  const studyId = state.study.study_id;
+  const requestedLevel = Number(volumeSurfaceIsovalue.value);
+  if (volumeSurfaceLayer.current?.isovalue === requestedLevel) return Promise.resolve(true);
+  if (autoSurfaceBuildPromise && autoSurfaceBuildStudyId === studyId) return autoSurfaceBuildPromise;
+  autoSurfaceBuildStudyId = studyId;
+  const buildPromise = requestVolumeSurfaceBuild().then((built) => (
+    Boolean(built && state.study?.study_id === studyId && volumeSurfaceLayer.current === built)
+  ));
+  autoSurfaceBuildPromise = buildPromise;
+  void buildPromise.finally(() => {
+    if (autoSurfaceBuildPromise === buildPromise) {
+      autoSurfaceBuildPromise = null;
+      autoSurfaceBuildStudyId = null;
+    }
+  });
+  return buildPromise;
 }
 
 function requestReconstructionSurfaceSourceSelection(sourceId, selected) {
@@ -1390,6 +1466,9 @@ function applyOpacity() {
 }
 
 function resetReconstructionVisualizationForStudy() {
+  automaticSurfaceMode?.invalidate();
+  autoSurfaceBuildPromise = null;
+  autoSurfaceBuildStudyId = null;
   state.reconstructionVisualization.surfaceSourceSelection = {
     ...DEFAULT_RECONSTRUCTION_SURFACE_SOURCE_SELECTION,
   };
@@ -1882,29 +1961,35 @@ async function refreshVolumeSurfaceDescriptor() {
     return null;
   }
   if (volumeSurfaceDescriptorPromise) return volumeSurfaceDescriptorPromise;
-  volumeSurfaceDescriptorPromise = (async () => {
+  const studyId = state.study.study_id;
+  const request = (async () => {
     try {
       const response = await fetch("/api/studies/latest/volume-surface", {
         credentials: "same-origin",
         headers: { "Accept": "application/json" },
       });
       const payload = await response.json().catch(() => ({}));
+      // An earlier study's delayed response may never replace the active study.
+      if (studyId !== state.study?.study_id) return null;
       if (!response.ok) throw new Error(payload.detail || `Volume surface availability failed (${response.status})`);
-      if (payload.volume_surface?.study_id !== state.study?.study_id) return null;
+      if (payload.volume_surface?.study_id !== studyId) return null;
       setVolumeSurfaceDescriptor(payload.volume_surface);
       return payload.volume_surface;
     } catch (error) {
+      if (studyId !== state.study?.study_id) return null;
       setVolumeSurfaceDescriptor(null);
       volumeSurfacePanel.dataset.state = "error";
       volumeSurfaceStatus.textContent = error instanceof Error ? error.message : "Volume-derived surface availability failed";
       return null;
-    } finally {
-      volumeSurfaceDescriptorPromise = null;
     }
   })();
-  return volumeSurfaceDescriptorPromise;
+  volumeSurfaceDescriptorPromise = request;
+  try {
+    return await request;
+  } finally {
+    if (volumeSurfaceDescriptorPromise === request) volumeSurfaceDescriptorPromise = null;
+  }
 }
-
 async function requestVolumeSurfaceBuild() {
   const level = Number(volumeSurfaceIsovalue.value);
   try {
@@ -1923,8 +2008,10 @@ async function requestVolumeSurfaceBuild() {
         }
       }
     }
+    return built;
   } catch {
     // The volume surface layer owns its actionable build error status.
+    return null;
   } finally {
     syncReconstructionVisualizationResources();
     volumeSurfaceClear.disabled = !volumeSurfaceLayer.current;
@@ -3111,6 +3198,16 @@ volumeSurfaceRegionMode.addEventListener("change", () => {
     volumeSurfaceRegionMode.disabled = true;
     volumeSurfaceRegionMode.value = "all";
     volumeSurfaceRegionStatus.textContent = "Region selection unavailable. Rebuild the full surface if needed.";
+  }
+});
+
+volumeSurfaceIsovalue.addEventListener("change", () => {
+  const snapshot = reconstructionVisualizationController?.snapshot();
+  if ((snapshot?.mode === "surface" || snapshot?.mode === "combined")
+      && state.reconstructionVisualization.surfaceSourceSelection["volume-derived"]
+      && Number(volumeSurfaceIsovalue.value) !== volumeSurfaceLayer.current?.isovalue
+      && !volumeSurfaceIsovalue.disabled) {
+    void requestVolumeSurfaceBuild();
   }
 });
 

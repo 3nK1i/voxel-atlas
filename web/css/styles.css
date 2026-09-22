@@ -4463,3 +4463,6 @@ button:disabled {
   margin: 0;
   justify-self: center;
 }
+
+/* Phase 6I-B1: legacy actions remain DOM-stable for prior contracts, but are not user-facing. */
+.volume-surface-actions[hidden] { display: none !important; }

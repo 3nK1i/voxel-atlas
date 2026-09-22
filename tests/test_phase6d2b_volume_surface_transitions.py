@@ -18,14 +18,15 @@ def function_block(text: str, start_marker: str, end_marker: str) -> str:
 
 
 class Phase6D2BVolumeSurfaceTransitionTests(unittest.TestCase):
-    def test_workspace_exposes_volume_and_surface_modes_with_combined_deferred(self):
+    def test_workspace_exposes_volume_and_surface_modes_with_capability_gating(self):
         index = INDEX.read_text(encoding="utf-8")
         self.assertIn('id="reconstructionVisualizationPanel"', index)
         self.assertIn('data-reconstruction-mode="volume"', index)
         self.assertIn('data-reconstruction-mode="surface"', index)
         self.assertIn('data-reconstruction-mode="combined"', index)
-        combined = index[index.index('data-reconstruction-mode="combined"') - 180:index.index('data-reconstruction-mode="combined"') + 220]
-        self.assertIn("disabled", combined)
+        # Phase 6I-B: Combined is no longer gated on an already resident CT mesh.
+        # The mode controller still rejects unsupported requests at runtime.
+        self.assertIn('data-reconstruction-mode="combined"', index)
         self.assertIn("Volume", index)
         self.assertIn("Surface", index)
         self.assertIn("Combined", index)

@@ -34,7 +34,7 @@ const HELP = Object.freeze({
 
 const SPECIAL = Object.freeze({
   "mode-volume": ["Volume mode", "Displays the source patient volume without 3D surfaces. Changing the view does not remove cached surface geometry or modify source images."],
-  "mode-surface": ["Surface mode", "Displays available selected 3D surfaces instead of the volume. Surface availability depends on the current study and selected source; this control does not start segmentation."],
+  "mode-surface": ["Surface mode", "Displays available selected 3D surfaces instead of the volume. If Direct CT is selected, the surface is prepared on demand; available selected segmentation surfaces can also be displayed. This control does not start segmentation."],
   "mode-combined": ["Combined mode", "Displays the patient volume and available selected 3D surfaces together when both are ready. This control does not run segmentation or change source anatomy."],
   "surface-volume": ["Direct CT surface source", "Includes or excludes the CT-intensity-derived surface in Surface or Combined views. The source CT volume and any reusable generated geometry remain intact."],
   "surface-segmentation": ["Segmentation surface source", "Includes or excludes available segmentation-derived surfaces in Surface or Combined views without editing their masks."],

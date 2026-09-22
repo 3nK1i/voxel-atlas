@@ -810,7 +810,7 @@
                 </label>
               </div>
             </div>
-            <p class="segmentation-overlay-note">Surface source selections apply in Surface and Combined modes. Mode and source choices only change presentation and reuse resident geometry.</p>
+            <p class="segmentation-overlay-note">Surface source selections apply in Surface and Combined modes. Selected Direct CT geometry is prepared on demand; existing resident geometry is reused. Switching modes never starts segmentation.</p>
           </section>
 
           <section id="volumeSurfacePanel" class="control-section volume-surface-panel" data-state="unavailable" aria-labelledby="volumeSurfaceTitle">
@@ -828,7 +828,7 @@
                 <strong>HU</strong>
               </span>
             </label>
-            <div class="volume-surface-actions">
+            <div class="volume-surface-actions" hidden>
               <button id="volumeSurfaceBuild" class="sidebar-action-button is-primary volume-surface-build" type="button" disabled>Build Surface</button>
               <button id="volumeSurfaceClear" class="sidebar-action-button is-secondary volume-surface-clear" type="button" disabled>Remove Surface</button>
             </div>
@@ -1136,6 +1136,6 @@
   </dialog>
 
   <script type="module" src="/js/parameter-help.js?v=phase6i-a-r3"></script>
-  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1-phase6a-r1-phase6b-r1-phase6c-r2-phase6d0-r1-phase6d0-explicit-r1-phase6d1-r2-phase6d2b-r1-phase6d2c-r1-phase6d2d-r1-phase6e-a-r1-phase6e-b-r1-phase6e-c-r1-phase6e-d-r1-phase6e-e-r1-phase6f-a-r1-phase6f-b-r1-phase6b-fallback-r1-phase6f-c-r3-phase6f-d-r1-phase6f-e-r1-post6f-stab-a-r1-post6f-b1b2b-r1-post6f-b2a-r1"></script>
+  <script type="module" src="/js/app.js?v=phase6i-b1-r1-phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1-phase6a-r1-phase6b-r1-phase6c-r2-phase6d0-r1-phase6d0-explicit-r1-phase6d1-r2-phase6d2b-r1-phase6d2c-r1-phase6d2d-r1-phase6e-a-r1-phase6e-b-r1-phase6e-c-r1-phase6e-d-r1-phase6e-e-r1-phase6f-a-r1-phase6f-b-r1-phase6b-fallback-r1-phase6f-c-r3-phase6f-d-r1-phase6f-e-r1-post6f-stab-a-r1-post6f-b1b2b-r1-post6f-b2a-r1"></script>
 </body>
 </html>

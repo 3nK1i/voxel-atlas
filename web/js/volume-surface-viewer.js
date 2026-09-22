@@ -161,7 +161,7 @@ export class PatientVolumeSurfaceLayer {
     }
     this.descriptor = descriptor;
     if (descriptor.available) {
-      this._status("ready", "CT volume surface ready to build without segmentation.");
+      this._status("ready", "Select Surface or Combined to prepare the Direct CT surface without segmentation.");
     } else {
       this._status("unavailable", descriptor.reason || "Volume-derived surface unavailable.");
     }

@@ -64,7 +64,8 @@ class Phase6D2DResetStudyErrorClosureTests(unittest.TestCase):
         )
         self.assertIn("surfaceModeStatusText", block)
         self.assertIn("combinedModeStatusText", block)
-        self.assertIn("Build or select a surface", block)
+        # Phase 6I-B replaces manual Build Surface with on-demand Direct CT preparation.
+        self.assertIn("Select to prepare Direct CT", block)
         self.assertIn("Volume + selected surface ready", block)
 
     def test_workspace_reset_returns_to_volume_without_destroying_or_building_geometry(self):
