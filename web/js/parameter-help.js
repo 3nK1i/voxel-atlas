@@ -95,7 +95,9 @@ function installStatic(dialogId) {
     if (!control) continue;
     const label = document.querySelector(`label[for="${id}"]`) || control.closest("label");
     if (!label) continue;
-    const caption = Array.from(label.children).find((child) => (
+    // CT titles use a dedicated inline caption so their help never slips below
+    // the label or detaches from the editable HU value / visibility selector.
+    const caption = label.querySelector(".va-volume-surface-caption-title") || Array.from(label.children).find((child) => (
       child.tagName === "SPAN"
       && !child.classList.contains("sr-only")
       && !child.querySelector("input,select,textarea")

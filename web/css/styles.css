@@ -4453,20 +4453,6 @@ button:disabled {
 .structure-row { grid-template-columns: 16px 12px minmax(0, 1fr) 14px 30px 16px; }
 .structure-row > .va-parameter-help { width: 14px; height: 14px; margin: 0; font-size: 9px; }
 
-/* Phase 6I-A: mode help stays independent of disabled/active mode buttons. */
-.va-reconstruction-mode-help-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 19px;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-}
-.va-reconstruction-mode-help-row > .va-parameter-help {
-  width: 18px;
-  height: 18px;
-  margin: 0;
-  justify-self: center;
-}
 
 /* Phase 6I-B1: legacy actions remain DOM-stable for prior contracts, but are not user-facing. */
 .volume-surface-actions[hidden] { display: none !important; }
@@ -4519,4 +4505,86 @@ button:disabled {
 .volume-surface-region-control select:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* Phase 6I integrated ergonomic polish — full-width cards and compact CT control rows.
+   The help icon remains a focusable sibling of each (possibly disabled) mode
+   button, but is positioned *within* the card outline without enlarging it. */
+.va-reconstruction-mode-help-row {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+.va-reconstruction-mode-help-row > .reconstruction-mode-card {
+  width: 100%;
+  padding-right: 31px; /* reserve the existing status mark plus inset help */
+}
+.va-reconstruction-mode-help-row > .va-parameter-help {
+  position: absolute;
+  top: 50%;
+  right: 9px;
+  transform: translateY(-50%);
+  z-index: 1;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+/* Keep the ? on the same typographic line as the control title; small supporting
+   copy remains separate and may wrap rather than squeezing the numeric value. */
+.volume-surface-panel .va-volume-surface-caption {
+  min-width: 0;
+}
+.va-volume-surface-caption-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: max-content;
+  max-width: 100%;
+  white-space: nowrap;
+}
+.volume-surface-panel .va-volume-surface-caption-title > .va-parameter-help {
+  margin: 0;
+}
+.volume-surface-isovalue {
+  gap: 8px;
+}
+.volume-surface-isovalue-entry {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  gap: 5px;
+  padding: 3px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--panel-soft);
+  color: var(--text);
+}
+.volume-surface-isovalue-entry input {
+  box-sizing: border-box;
+  width: 4.1rem;
+  min-width: 0;
+  min-height: 1.65rem;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+}
+.volume-surface-isovalue-entry strong {
+  color: var(--text-soft);
+  font-weight: 750;
+  white-space: nowrap;
+}
+.volume-surface-isovalue-entry:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.volume-surface-isovalue-entry input:focus-visible {
+  outline: 0; /* a single visible focus ring around the number + HU */
+}
+.volume-surface-region-control .va-volume-surface-caption-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
