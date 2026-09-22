@@ -1,0 +1,24 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { ReconstructionPresentationProfileController } from "../web/js/reconstruction-presentation-profile.js";
+import { getSurfacePresentationProfile } from "../web/js/reconstruction-surface-presentation.js";
+import { getCombinedPresentationPolicy } from "../web/js/reconstruction-combined-presentation.js";
+
+const events = [];
+const controller = new ReconstructionPresentationProfileController({onChange: snapshot => events.push(snapshot.profile)});
+assert.equal(controller.snapshot().profile, "fidelity");
+assert.equal(controller.requestProfile("presentation").snapshot.profile, "presentation");
+assert.deepEqual(events, ["presentation"]);
+assert.equal(controller.reset().profile, "fidelity");
+assert.equal(controller.requestProfile("fidelity").snapshot.profile, "fidelity");
+assert.notDeepEqual(getSurfacePresentationProfile("fidelity"), getSurfacePresentationProfile("presentation"));
+assert.notDeepEqual(getCombinedPresentationPolicy("fidelity"), getCombinedPresentationPolicy("presentation"));
+const html = readFileSync(new URL("../web/index.html", import.meta.url), "utf8");
+const app = readFileSync(new URL("../web/js/app.js", import.meta.url), "utf8");
+const panel = html.split('id="reconstructionVisualizationPanel"')[1].split('</section>')[0];
+assert.ok(!panel.includes('data-reconstruction-presentation-profile='));
+assert.ok(app.includes('reconstructionPresentationProfileController.requestProfile("presentation");'));
+assert.ok(app.includes('volumeSurfaceLayer.setRegionDisplayMode(volumeSurfaceRegionMode.value)'));
+console.log("PHASE6I_D_PROFILE_INTERNAL_FIDELITY_PRESERVED=PASS");
+console.log("PHASE6I_D_PRESENTATION_UI=PASS");
+console.log("PHASE6I_D_REGION_REVERSE_SELECTION_CONTRACT=PASS");

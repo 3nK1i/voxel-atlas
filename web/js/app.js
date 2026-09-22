@@ -520,7 +520,9 @@ segmentationSurfaceGate = new ExistingSegmentationSurfaceGate({
 reconstructionPresentationProfileController = new ReconstructionPresentationProfileController({
   onChange: (snapshot) => applyReconstructionPresentationProfileSnapshot(snapshot),
 });
-applyReconstructionPresentationProfileSnapshot(reconstructionPresentationProfileController.snapshot());
+// Presentation is the normal UI intent. The internal Fidelity profile and
+// scientific reference settings remain available for qualification workflows.
+reconstructionPresentationProfileController.requestProfile("presentation");
 const sampleStudyCatalogClient = new SampleStudyCatalogClient();
 let sampleReplacementResolver = null;
 let sampleCatalogLoading = false;

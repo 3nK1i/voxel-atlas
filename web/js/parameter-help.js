@@ -38,7 +38,7 @@ const SPECIAL = Object.freeze({
   "mode-combined": ["Combined mode", "Displays the patient volume and available selected 3D surfaces together when both are ready. This control does not run segmentation or change source anatomy."],
   "surface-volume": ["Direct CT surface source", "Includes or excludes the CT-intensity-derived surface in Surface or Combined views. The source CT volume and any reusable generated geometry remain intact."],
   "surface-segmentation": ["Segmentation surface source", "Includes or excludes available segmentation-derived surfaces in Surface or Combined views without editing their masks."],
-  "profile": ["Presentation profile", "Selects the rendering intent for visible surfaces: neutral fidelity-oriented viewing or a more polished presentation. Neither profile modifies source anatomy or mesh coordinates."],
+  "profile": ["Presentation", "The normal viewing intent uses polished surface lighting and materials. It changes only how existing surfaces appear; source anatomy and mesh coordinates remain unchanged."],
   "source": ["Surface sources", "Choose which kinds of 3D surfaces appear in Surface and Combined modes: direct CT and/or segmentation-derived."],
   "workflow": ["Segmentation workflow", "Starts on-demand segmentation for the current study when supported. Volume and MPR visualization remain available while it runs."],
   "structure-row": ["Structure row controls", "The checkbox shows or hides this structure; selecting its name opens its presentation controls; Iso temporarily isolates it. These actions do not alter the stored label map."],
