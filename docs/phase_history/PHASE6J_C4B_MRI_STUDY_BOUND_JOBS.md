@@ -1,0 +1,9 @@
+# Phase 6J-C4B — MRI study-bound job adapter
+
+Baseline: branch `phase6-accurate-surfaces`, commit `ef044c0c56b2c9797249e4dd244835ca8691cbf0`.
+
+A distinct MR-only provider adapter now implements the existing `SegmentationJobService` provider protocol. It checks the validated immutable job provenance against the selected canonical MR study and source series, checks the B2A stored-series qualification and source artifact hash, constrains the selected GPU/mode, passes cancellation to the C3B supervised worker, and independently checks returned mask artifact identity, hashes and 50-class label inventory. The existing job service supplies state transitions, terminal-provenance sealing, cancellation and safe failure reporting. No patient data, model weights or logs are committed.
+
+**C4B remains non-executable in the normal application:** `create_app()` does not construct/register this adapter; the C4A MRI descriptor stays `available=False`; the adapter's independent per-run permission defaults to false. A controlled, mock-only test explicitly grants permission with an entirely synthetic in-memory executor. That test demonstrates job routing and lifecycle contracts, **not real MRI model inference**. C4C owns subsequent UI integration; C5 separately requires a controlled actual model invocation and GPU/disk and scientific acceptance. Do not enable MRI model execution or present synthetic tests as successful real inference.
+
+The CT provider, existing CT job outputs, CT label-map import worker, application configuration and UI remain unchanged. The MRI mask is bound to its own `provider/totalsegmentator-mri/` artifact path and source/job identity. MRI label-map import and segmentation visualization are not activated by this step. Full local targeted/CT regression and exact four-file change-set review are required before any commit/push.
