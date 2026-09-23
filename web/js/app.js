@@ -51,11 +51,14 @@ import {
   SegmentationStructurePanel,
 } from "./segmentation-structure-panel.js?v=phase5e-r1-phase6c-r2-phase6d0-explicit-r1-phase6f-a-r1-phase6f-b-r1-phase6f-d-r1-phase6f-e-r1";
 import {
+  resolve3dAppearanceContext,
+} from "./segmentation-anatomical-appearance.js?v=ctb2-r1";
+import {
   resolveStructureInteraction,
 } from "./segmentation-structure-interaction.js?v=phase6f-a-r1-phase6f-b-r1";
 import {
   PatientSegmentationSurfaceLayer,
-} from "./segmentation-surface-viewer.js?v=phase6a-r1-phase6b-r1-phase6c-r2-phase6d2b-r1-phase6e-b-r1-phase6e-d-r1-phase6f-b-r1-phase6b-fallback-r1-phase6f-c-r3-phase6f-d-r1-phase6f-e-r1-post6f-b2a-r1";
+} from "./segmentation-surface-viewer.js?v=phase6a-r1-phase6b-r1-phase6c-r2-phase6d2b-r1-phase6e-b-r1-phase6e-d-r1-phase6f-b-r1-phase6b-fallback-r1-phase6f-c-r3-phase6f-d-r1-phase6f-e-r1-post6f-b2a-r1-ctb2-r1";
 import {
   SegmentationCorrectionPanel,
 } from "./segmentation-correction-panel.js?v=phase5f2-r1";
@@ -104,6 +107,8 @@ const segmentationOverlayOpacityValue = document.getElementById("segmentationOve
 const segmentationSurfacePanel = document.getElementById("segmentationSurfacePanel");
 const segmentationSurfaceToggle = document.getElementById("segmentationSurfaceToggle");
 const segmentationSurfaceStatus = document.getElementById("segmentationSurfaceStatus");
+const segmentation3dAppearance = document.getElementById("segmentation3dAppearance");
+const segmentation3dAppearanceNote = document.getElementById("segmentation3dAppearanceNote");
 const segmentationStructurePanelRoot = document.getElementById("segmentationStructurePanel");
 const segmentationCorrectionPanelRoot = document.getElementById("segmentationCorrectionPanel");
 const CLIPPING_PLANES = Object.freeze({
@@ -337,6 +342,29 @@ let segmentationWorkflowSnapshot = null;
 let segmentationWorkflowPollTimer = null;
 let segmentationWorkflowGeneration = 0;
 let activeSegmentationLabelMapId = null;
+let segmentation3dAppearanceMode = "scientific";
+let segmentation3dAppearanceLabelMapId = null;
+
+function syncSegmentation3dAppearance() {
+  const { ready, overrides } = resolve3dAppearanceContext(
+    segmentation3dAppearanceMode,
+    state.segmentationSurface.descriptor,
+    state.segmentationOverlay.presentation,
+  );
+  segmentation3dAppearance.disabled = !ready;
+  segmentation3dAppearance.value = segmentation3dAppearanceMode;
+  // When a new label map is loading, the surface layer clears its old overrides.
+  // Reapply only after the current surface and overlay descriptors agree.
+  if (!ready) {
+    segmentation3dAppearanceNote.textContent = "Available after a segmentation surface is ready. 3D colors only; MPR colors are unchanged.";
+    return;
+  }
+  segmentationSurfaceLayer.set3dColorOverrides(overrides);
+  segmentation3dAppearanceNote.textContent = segmentation3dAppearanceMode === "anatomical"
+    ? `${overrides.size} structures use 3D anatomical colors; others retain their label colors. MPR colors are unchanged.`
+    : "Original structure colors in 3D and MPR. Existing custom colors are preserved.";
+}
+
 
 function syncSegmentationCorrectionContext(presentation) {
   const descriptor = state.segmentationOverlay.descriptor;
@@ -381,6 +409,7 @@ const segmentationStructurePanel = new SegmentationStructurePanel(
     syncSegmentationOverlayPresentationStatus(presentation);
     redrawSegmentationOverlays();
     syncSegmentationSurface();
+    syncSegmentation3dAppearance();
     syncSegmentationCorrectionContext(presentation);
   },
 );
@@ -2265,6 +2294,7 @@ function setSegmentationSurfaceAvailability(descriptor) {
   } else {
     segmentationSurfaceLayer.clear();
   }
+  syncSegmentation3dAppearance();
   syncReconstructionVisualizationResources();
 }
 
@@ -2327,6 +2357,13 @@ async function refreshSegmentationSurfaceDescriptor(labelMapId) {
 
 function setSegmentationOverlayAvailability(descriptor) {
   const ready = Boolean(descriptor?.ready);
+  const nextLabelMapId = ready ? descriptor.label_map_id : null;
+  if (segmentation3dAppearanceLabelMapId !== nextLabelMapId) {
+    segmentation3dAppearanceMode = "scientific";
+    segmentation3dAppearanceLabelMapId = nextLabelMapId;
+    segmentation3dAppearance.value = "scientific";
+    segmentationSurfaceLayer?.set3dColorOverrides(new Map());
+  }
   state.segmentationOverlay.descriptor = ready ? descriptor : null;
   state.segmentationOverlay.presentation = null;
   segmentationOverlayPanel.dataset.state = ready ? "ready" : "unavailable";
@@ -2348,6 +2385,7 @@ function setSegmentationOverlayAvailability(descriptor) {
     clearAllSegmentationOverlays();
     setSegmentationSurfaceAvailability(null);
   }
+  syncSegmentation3dAppearance();
 }
 
 async function refreshSegmentationOverlayDescriptor(labelMapId) {
@@ -3311,6 +3349,14 @@ segmentationOverlayOpacity.addEventListener("input", () => {
   for (const entry of mprRegistry.values()) {
     entry.overlayCanvas.style.opacity = String(state.segmentationOverlay.opacity);
   }
+});
+
+segmentation3dAppearance.addEventListener("change", () => {
+  if (segmentation3dAppearance.disabled) return;
+  const requested = segmentation3dAppearance.value;
+  if (requested !== "scientific" && requested !== "anatomical") return;
+  segmentation3dAppearanceMode = requested;
+  syncSegmentation3dAppearance();
 });
 
 segmentationSurfaceToggle.addEventListener("change", () => {
