@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 import re
 
+from .mri_task_contract import TOTAL_SEGMENTATOR_MRI_STRUCTURES
+
 
 STRUCTURE_CATALOG_SCHEMA_VERSION = 1
 _HEX_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
@@ -164,6 +166,24 @@ def _group_for_total_label(label_id: int) -> str:
     return "other"
 
 
+def _group_for_total_mr_label(label_id: int) -> str:
+    """MRI task IDs are not arranged like CT total; classify by verified name."""
+    identifier = TOTAL_SEGMENTATOR_MRI_STRUCTURES[label_id]
+    if identifier.startswith("lung_") or identifier == "esophagus":
+        return "respiratory"
+    if identifier in {"sacrum", "vertebrae", "intervertebral_discs"}:
+        return "spine"
+    if identifier in {"spinal_cord", "brain"}:
+        return "nervous_system"
+    if identifier in {"heart", "aorta", "inferior_vena_cava", "portal_vein_and_splenic_vein"} or identifier.startswith(("iliac_artery_", "iliac_vena_")):
+        return "cardiovascular"
+    if identifier.startswith(("humerus_", "scapula_", "clavicula_", "femur_", "hip_")):
+        return "skeletal"
+    if identifier.startswith(("gluteus_", "autochthon_", "iliopsoas_")):
+        return "muscles"
+    return "organs"
+
+
 def _display_name(identifier: str) -> str:
     tokens = identifier.split("_")
     side = next((token for token in tokens if token in {"left", "right"}), None)
@@ -204,6 +224,7 @@ def build_structure_catalog(
         raise ValueError("Present segmentation labels are invalid")
 
     total_contract = provider_id == "totalsegmentator" and model_id == "total"
+    mr_contract = provider_id == "totalsegmentator" and model_id == "total_mr"
     structures: list[dict[str, object]] = []
     group_counts: dict[str, int] = {}
     for label_id in labels:
@@ -215,6 +236,11 @@ def build_structure_catalog(
             if name is None:
                 raise ValueError("TotalSegmentator label is outside the total task contract")
             group_id = _group_for_total_label(label_id)
+        elif mr_contract:
+            name = TOTAL_SEGMENTATOR_MRI_STRUCTURES.get(label_id)
+            if name is None:
+                raise ValueError("TotalSegmentator label is outside the total_mr task contract")
+            group_id = _group_for_total_mr_label(label_id)
         else:
             name = f"label_{label_id}"
             group_id = "other"

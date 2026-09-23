@@ -67,16 +67,16 @@ export class SegmentationWorkflowPanel {
       && this.activatedLabelMapId
       && this.activatedLabelMapId === String(workflow.label_map_id || "");
     const providerName = workflow.provider_id === "totalsegmentator"
-      ? "TotalSegmentator · CT"
+      ? (workflow.modality === "MR" && workflow.model_id === "total_mr"
+        ? "TotalSegmentator · MRI (total_mr)"
+        : "TotalSegmentator · CT")
       : String(workflow.provider_id || "Segmentation provider");
 
     this.root.dataset.state = activated ? "active" : state;
     this.status.textContent = activated
       ? `${Number(workflow.present_label_count) || 0} structures available · segmentation active`
       : String(workflow.message || "Segmentation status unavailable");
-    this.provider.textContent = workflow.modality === "MR"
-      ? "MRI segmentation provider is deferred to Phase 7."
-      : providerName;
+    this.provider.textContent = providerName;
 
     const percent = finitePercent(workflow.progress);
     this.progress.hidden = !active || percent === null;

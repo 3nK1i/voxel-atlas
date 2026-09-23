@@ -17,6 +17,7 @@ from .segmentation import (
     SegmentationValidationError,
 )
 from .segmentation_label_maps import SegmentationLabelMapService
+from .mri_task_contract import model_for_source_modality
 
 
 WORKFLOW_SCHEMA_VERSION = 1
@@ -78,11 +79,12 @@ class SegmentationWorkflowService:
     def _source(self):
         return self.job_service.sources.latest()
 
-    def _matching_model(self) -> dict[str, object] | None:
+    def _matching_model(self, model_id: str | None = None) -> dict[str, object] | None:
+        requested_model_id = self.model_id if model_id is None else model_id
         for model in self.job_service.list_models():
             if (
                 model.get("provider_id") == self.provider_id
-                and model.get("model_id") == self.model_id
+                and model.get("model_id") == requested_model_id
             ):
                 return dict(model)
         return None
@@ -166,15 +168,17 @@ class SegmentationWorkflowService:
             "message": str(progress.get("message") or "Segmentation in progress"),
         }
 
-    def _base_snapshot(self, source: Any, model: dict[str, object] | None) -> dict[str, object]:
+    def _base_snapshot(self, source: Any, model: dict[str, object] | None, model_id: str) -> dict[str, object]:
         modality = str(source.modality).upper()
         supported = isinstance(model, dict) and modality in tuple(model.get("supported_modalities") or ())
         available = bool(model and model.get("available") is True and supported)
         reason = None
         if model is None:
-            reason = "Segmentation provider is not registered"
+            reason = ("MRI TotalSegmentator total_mr provider is not qualified for execution"
+                      if modality == "MR" and model_id == "total_mr"
+                      else "Segmentation provider is not registered")
         elif not supported:
-            reason = f"{modality} segmentation provider is not available in Phase 6D0"
+            reason = f"The selected segmentation model does not support {modality} input"
         elif model.get("available") is not True:
             reason = str(model.get("availability_reason") or "Segmentation runtime is unavailable")
         return {
@@ -182,7 +186,7 @@ class SegmentationWorkflowService:
             "study_id": str(source.study_id),
             "modality": modality,
             "provider_id": self.provider_id,
-            "model_id": self.model_id,
+            "model_id": model_id,
             "provider_available": available,
             "provider_reason": reason,
             "clinical_validation": "not_claimed",
@@ -191,8 +195,13 @@ class SegmentationWorkflowService:
     def snapshot_latest(self) -> dict[str, object]:
         with self._lock:
             source = self._source()
-            model = self._matching_model()
-            base = self._base_snapshot(source, model)
+            model_id = model_for_source_modality(
+                provider_id=self.provider_id,
+                default_model_id=self.model_id,
+                modality=str(source.modality).upper(),
+            )
+            model = self._matching_model(model_id)
+            base = self._base_snapshot(source, model, model_id)
             study_id = str(source.study_id)
 
             maps = self.label_map_service.list(study_id=study_id)
@@ -331,7 +340,7 @@ class SegmentationWorkflowService:
                 raise SegmentationUnavailableError(str(snapshot.get("provider_reason") or "Segmentation is unavailable"))
             job = self.job_service.create_job(
                 provider_id=self.provider_id,
-                model_id=self.model_id,
+                model_id=str(snapshot["model_id"]),
                 device_request="auto",
                 parameters={},
                 source_study_id=str(source.study_id),

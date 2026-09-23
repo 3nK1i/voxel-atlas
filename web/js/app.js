@@ -64,7 +64,7 @@ import {
 } from "./segmentation-correction-panel.js?v=phase5f2-r1";
 import {
   SegmentationWorkflowPanel,
-} from "./segmentation-workflow-panel.js?v=phase6d0-r1";
+} from "./segmentation-workflow-panel.js?v=phase6d0-r1-phase6j-b1-r1";
 
 const THEME_KEY = "voxelatlas-theme";
 const DEFAULT_OPACITY = 1.0;
