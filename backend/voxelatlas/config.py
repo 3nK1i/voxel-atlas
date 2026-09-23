@@ -32,6 +32,7 @@ class AppSettings(NamedTuple):
     session_ttl_minutes: int
     surface_worker_python: str | None = None
     segmentation_worker_python: str | None = None
+    mri_worker_python: str | None = None
 
 
 def _parse_bool(name: str, raw_value: str) -> bool:
@@ -145,6 +146,11 @@ def load_settings(environ: dict[str, str] | None = None) -> AppSettings:
         raise ConfigurationError("VOXELATLAS_SEGMENTATION_PYTHON contains invalid characters")
     segmentation_worker_python = raw_segmentation_worker_python or None
 
+    raw_mri_worker_python = env.get("VOXELATLAS_MRI_PYTHON", "").strip()
+    if any(ord(character) < 32 for character in raw_mri_worker_python):
+        raise ConfigurationError("VOXELATLAS_MRI_PYTHON contains invalid characters")
+    mri_worker_python = raw_mri_worker_python or None
+
     return AppSettings(
         environment=environment,
         session_secret=session_secret,
@@ -158,4 +164,5 @@ def load_settings(environ: dict[str, str] | None = None) -> AppSettings:
         session_ttl_minutes=session_ttl_minutes,
         surface_worker_python=surface_worker_python,
         segmentation_worker_python=segmentation_worker_python,
+        mri_worker_python=mri_worker_python,
     )

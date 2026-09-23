@@ -48,6 +48,7 @@ from .segmentation import (
     SegmentationConflictError,
     SegmentationError,
     SegmentationJobService,
+    build_default_segmentation_registry,
     SegmentationModelRegistry,
     SegmentationNotFoundError,
     SegmentationUnavailableError,
@@ -60,6 +61,7 @@ from .segmentation_overlays import (
     SegmentationOverlayService,
 )
 from .segmentation_workflow import SegmentationWorkflowService
+from .mri_provider_qualification import build_mri_model_descriptor
 from .totalsegmentator_execution import TotalSegmentatorProvider
 from .segmentation_surfaces import (
     SURFACE_MEDIA_TYPE,
@@ -213,22 +215,27 @@ def create_app(
         )
     )
     if segmentation_service is not None:
+        # Preserve explicitly injected services and their registry untouched.
         patient_segmentation_service = segmentation_service
-    elif runtime_settings.segmentation_worker_python is not None:
-        provider = TotalSegmentatorProvider(
-            data_dir=runtime_settings.data_dir,
-            python_executable=runtime_settings.segmentation_worker_python,
-            bridge_script=REPOSITORY_ROOT / "scripts" / "phase5b2_nifti_worker.py",
-        )
-        registry = SegmentationModelRegistry()
-        registry.register_provider(provider)
-        patient_segmentation_service = SegmentationJobService(
-            data_dir=runtime_settings.data_dir,
-            registry=registry,
-        )
     else:
+        if runtime_settings.segmentation_worker_python is not None:
+            provider = TotalSegmentatorProvider(
+                data_dir=runtime_settings.data_dir,
+                python_executable=runtime_settings.segmentation_worker_python,
+                bridge_script=REPOSITORY_ROOT / "scripts" / "phase5b2_nifti_worker.py",
+            )
+            registry = SegmentationModelRegistry()
+            registry.register_provider(provider)
+        else:
+            registry = build_default_segmentation_registry()
+        # A descriptive, unavailable MRI model is not an executable provider.
+        # Keep the CT runtime and source selection unchanged until C4B/C5.
+        registry.register_descriptor(build_mri_model_descriptor(
+            data_dir=runtime_settings.data_dir,
+            python_executable=runtime_settings.mri_worker_python,
+        ))
         patient_segmentation_service = SegmentationJobService(
-            data_dir=runtime_settings.data_dir
+            data_dir=runtime_settings.data_dir, registry=registry,
         )
     patient_segmentation_label_map_service = (
         segmentation_label_map_service
