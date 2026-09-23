@@ -52,7 +52,7 @@ import {
 } from "./segmentation-structure-panel.js?v=phase5e-r1-phase6c-r2-phase6d0-explicit-r1-phase6f-a-r1-phase6f-b-r1-phase6f-d-r1-phase6f-e-r1";
 import {
   resolve3dAppearanceContext,
-} from "./segmentation-anatomical-appearance.js?v=ctb2-r1";
+} from "./segmentation-anatomical-appearance.js?v=ctb2-r1-ctb3a-r1";
 import {
   resolveStructureInteraction,
 } from "./segmentation-structure-interaction.js?v=phase6f-a-r1-phase6f-b-r1";
