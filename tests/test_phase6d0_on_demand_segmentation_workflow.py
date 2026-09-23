@@ -162,7 +162,8 @@ class Phase6D0OnDemandSegmentationWorkflowTests(unittest.TestCase):
         workflow = self.workflow(jobs, FakeLabelMaps())
         snapshot = workflow.snapshot_latest()
 
-        self.assertEqual(snapshot["state"], "unsupported")
+        # Since 6J-B1, absent MRI provider is "unavailable", not CT "unsupported".
+        self.assertEqual(snapshot["state"], "unavailable")
         self.assertFalse(snapshot["can_start"])
         with self.assertRaises(SegmentationUnavailableError):
             workflow.request_start()

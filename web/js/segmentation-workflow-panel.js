@@ -62,7 +62,8 @@ export class SegmentationWorkflowPanel {
     this.busy = false;
     const state = String(workflow.state || "unavailable");
     const active = ACTIVE_STATES.has(state);
-    const ready = state === "available";
+    const readOnlyMri = workflow.modality === "MR" && workflow.model_id === "total_mr";
+    const ready = state === "available" && !readOnlyMri;
     const activated = ready
       && this.activatedLabelMapId
       && this.activatedLabelMapId === String(workflow.label_map_id || "");
@@ -104,6 +105,12 @@ export class SegmentationWorkflowPanel {
       this.primary.textContent = "Retry";
       this.primary.disabled = !Boolean(workflow.can_start);
     } else if (state === "waiting" || state === "unsupported" || state === "unavailable") {
+      this.primary.textContent = "Start Segmentation";
+      this.primary.disabled = true;
+    }
+
+    if (readOnlyMri) {
+      // C4C observes qualified source-bound lifecycle status, not executable MRI inference.
       this.primary.textContent = "Start Segmentation";
       this.primary.disabled = true;
     }

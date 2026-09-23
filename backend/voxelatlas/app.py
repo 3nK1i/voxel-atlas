@@ -289,6 +289,7 @@ def create_app(
             label_map_service=patient_segmentation_label_map_service,
             python_executable=runtime_settings.segmentation_worker_python,
             import_worker_script=REPOSITORY_ROOT / "scripts" / "phase5c_label_map_worker.py",
+            mri_presentation_only=True,  # C4C status only; C5 owns real model execution.
         )
     )
 

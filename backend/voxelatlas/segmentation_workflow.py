@@ -19,6 +19,7 @@ from .segmentation import (
 from .segmentation_label_maps import SegmentationLabelMapService
 from .mri_task_contract import model_for_source_modality
 from .mri_source_qualification import qualify_mri_stored_source
+from .mri_workflow_presentation import matching_mri_jobs, mri_read_only_snapshot
 from .segmentation import CanonicalSegmentationSource
 
 
@@ -51,6 +52,7 @@ class SegmentationWorkflowService:
         provider_id: str = "totalsegmentator",
         model_id: str = "total",
         import_timeout_seconds: float = 30 * 60,
+        mri_presentation_only: bool = True,
     ) -> None:
         self.data_dir = Path(data_dir).expanduser().resolve()
         self.job_service = job_service
@@ -60,6 +62,7 @@ class SegmentationWorkflowService:
         self.provider_id = str(provider_id).strip().lower()
         self.model_id = str(model_id).strip().lower()
         self.import_timeout_seconds = float(import_timeout_seconds)
+        self.mri_presentation_only = bool(mri_presentation_only)
         if (
             not self.provider_id
             or not self.model_id
@@ -213,6 +216,11 @@ class SegmentationWorkflowService:
                 source_ready, source_reason = qualify_mri_stored_source(source)
                 base = base | {"source_qualified": source_ready,
                                "source_qualification_reason": source_reason}
+                if getattr(self, "mri_presentation_only", False):
+                    base = base | {"source_series_uid": str(source.source_series_uid),
+                                   "presentation_only": True,
+                                   "mri_execution_authorized": False,
+                                   "mri_label_map_ready": False}
                 if not source_ready:
                     return base | {
                         "state": "unsupported", "message": source_reason,
@@ -221,6 +229,8 @@ class SegmentationWorkflowService:
                         "present_label_count": 0, "job_id": None,
                         "progress": None,
                     }
+                if getattr(self, "mri_presentation_only", False):
+                    return mri_read_only_snapshot(source, base, self._jobs_for_study(study_id))
 
             maps = self.label_map_service.list(study_id=study_id)
             if maps:
@@ -336,6 +346,8 @@ class SegmentationWorkflowService:
         with self._lock:
             snapshot = self.snapshot_latest()
             state = str(snapshot.get("state") or "")
+            if snapshot.get("presentation_only") is True and snapshot.get("modality") == "MR":
+                raise SegmentationUnavailableError("MRI model execution and label-map integration remain disabled")
             if state == "available":
                 return SegmentationWorkflowStart(snapshot)
             if state in NON_TERMINAL_JOB_STATES or state == "finalizing":
@@ -369,6 +381,11 @@ class SegmentationWorkflowService:
     def execute_requested(self, job_id: str) -> None:
         try:
             job = self.job_service.get_job(job_id)
+            if getattr(self, "mri_presentation_only", False):
+                provenance = job.get("provenance")
+                if isinstance(provenance, dict) and (provenance.get("model_id") == "total_mr"
+                        or provenance.get("source_modality") == "MR"):
+                    return  # C4C is presentation-only; not the MRI worker execution gate.
             if job.get("state") == "queued":
                 job = self.job_service.run_job(job_id)
             if job.get("state") != "succeeded":
@@ -399,7 +416,10 @@ class SegmentationWorkflowService:
     def cancel_latest(self) -> dict[str, object]:
         with self._lock:
             source = self._source()
-            for job in self._jobs_for_study(str(source.study_id)):
+            jobs = self._jobs_for_study(str(source.study_id))
+            if getattr(self, "mri_presentation_only", False) and getattr(source, "modality", None) == "MR":
+                jobs = matching_mri_jobs(source, jobs)
+            for job in jobs:
                 if job.get("state") in NON_TERMINAL_JOB_STATES:
                     self.job_service.cancel_job(str(job["job_id"]))
                     break

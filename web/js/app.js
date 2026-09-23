@@ -37,6 +37,7 @@ import {
 } from "./reconstruction-combined-presentation.js?v=phase6e-e-r1";
 import { SampleStudyCatalogClient } from "./sample-study-catalog.js?v=phase4g-r1";
 import { prevolumeMriWorkflow } from "./mri-study-prevolume.js?v=phase6j-b2b-r1";
+import { isReadOnlyMri, workflowMatchesStudy } from "./mri-workflow-display.js?v=phase6j-c4c-r1";
 import {
   classifySampleStudyActivation,
 } from "./sample-study-activation.js?v=phase5f2-switch-r1";
@@ -2166,7 +2167,7 @@ function renderSegmentationWorkflow(workflow) {
 
 async function activateSegmentationResult(labelMapId) {
   const requestedLabelMapId = String(labelMapId || "");
-  if (!requestedLabelMapId || !state.study?.study_id) return null;
+  if (!requestedLabelMapId || !state.study?.study_id || isReadOnlyMri(segmentationWorkflowSnapshot)) return null;
   const descriptor = await refreshSegmentationOverlayDescriptor(requestedLabelMapId);
   if (!descriptor) return null;
   activeSegmentationLabelMapId = requestedLabelMapId;
@@ -2198,7 +2199,7 @@ async function refreshSegmentationWorkflowStatus({ activateAvailable = false } =
     if (
       generation !== segmentationWorkflowGeneration
       || !workflow
-      || workflow.study_id !== state.study.study_id
+      || !workflowMatchesStudy(workflow, state.study)
     ) {
       return null;
     }
@@ -2224,6 +2225,10 @@ async function refreshSegmentationWorkflowStatus({ activateAvailable = false } =
 
 async function requestSegmentationStart() {
   if (!state.study?.study_id || !state.study?.volume_ready) return;
+  if (isReadOnlyMri(segmentationWorkflowSnapshot)) {
+    void refreshSegmentationWorkflowStatus();
+    return;
+  }
   const generation = segmentationWorkflowGeneration;
   segmentationWorkflowPanel.setBusy(
     segmentationWorkflowSnapshot?.state === "available"
@@ -2243,6 +2248,10 @@ async function requestSegmentationStart() {
     }
     if (generation !== segmentationWorkflowGeneration) return;
     const workflow = payload.workflow;
+    if (!workflowMatchesStudy(workflow, state.study) || isReadOnlyMri(workflow)) {
+      void refreshSegmentationWorkflowStatus();
+      return;
+    }
     renderSegmentationWorkflow(workflow);
     if (workflow?.state === "available" && workflow.label_map_id) {
       await activateSegmentationResult(workflow.label_map_id);
@@ -2274,6 +2283,10 @@ async function requestSegmentationCancel() {
       throw new Error(payload.detail || `Segmentation cancellation failed (${response.status})`);
     }
     if (generation !== segmentationWorkflowGeneration) return;
+    if (!workflowMatchesStudy(payload.workflow, state.study)) {
+      void refreshSegmentationWorkflowStatus();
+      return;
+    }
     renderSegmentationWorkflow(payload.workflow);
     if (segmentationWorkflowIsActive(payload.workflow)) scheduleSegmentationWorkflowPoll(500);
   } catch (error) {
@@ -3025,7 +3038,12 @@ function renderSeriesDialog(study) {
 function applyStudy(study) {
   const previousStudyId = state.study?.study_id || null;
   const nextStudyId = study?.study_id || null;
-  if (previousStudyId !== nextStudyId) {
+  const previousSeriesUid = state.study?.reconstruction_series_uid || state.study?.primary_series_uid || null;
+  const nextSeriesUid = study?.reconstruction_series_uid || study?.primary_series_uid || null;
+  const previousVolumeRevision = state.study?.volume?.revision || state.study?.volume?.artifact_sha256 || null;
+  const nextVolumeRevision = study?.volume?.revision || study?.volume?.artifact_sha256 || null;
+  if (previousStudyId !== nextStudyId || previousSeriesUid !== nextSeriesUid
+      || previousVolumeRevision !== nextVolumeRevision) {
     mprAbortController?.abort();
     state.mpr.descriptor = null;
     segmentationWorkflowGeneration += 1;
