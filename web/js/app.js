@@ -36,6 +36,7 @@ import {
   resolveCombinedPresentationBalance,
 } from "./reconstruction-combined-presentation.js?v=phase6e-e-r1";
 import { SampleStudyCatalogClient } from "./sample-study-catalog.js?v=phase4g-r1";
+import { prevolumeMriWorkflow } from "./mri-study-prevolume.js?v=phase6j-b2b-r1";
 import {
   classifySampleStudyActivation,
 } from "./sample-study-activation.js?v=phase5f2-switch-r1";
@@ -2177,8 +2178,10 @@ async function activateSegmentationResult(labelMapId) {
 
 async function refreshSegmentationWorkflowStatus({ activateAvailable = false } = {}) {
   if (!state.study?.study_id || !state.study?.volume_ready) {
-    segmentationWorkflowPanel.reset();
-    return null;
+    const pendingMr = prevolumeMriWorkflow(state.study);
+    if (pendingMr) renderSegmentationWorkflow(pendingMr);
+    else segmentationWorkflowPanel.reset();
+    return pendingMr;
   }
   const generation = segmentationWorkflowGeneration;
   try {
@@ -3033,6 +3036,10 @@ function applyStudy(study) {
     setSegmentationOverlayAvailability(null);
   }
   state.study = study;
+  // Both sample activation and user upload converge here. Before a canonical MR
+  // volume exists, expose the selected series qualification without ML execution.
+  const pendingMr = prevolumeMriWorkflow(study);
+  if (pendingMr) renderSegmentationWorkflow(pendingMr);
   setWorkflowForStudy(study);
   setMprVolumeState(study);
 
@@ -3129,6 +3136,10 @@ async function ensureCanonicalVolume(study) {
     );
     volumeStatusRow.dataset.state = "pending";
     volumeStatusText.textContent = "Geometry ready - volume construction failed";
+    if (state.study?.study_id === study?.study_id) {
+      const failedMr = prevolumeMriWorkflow(state.study, { volumeBuildFailed: true });
+      if (failedMr) renderSegmentationWorkflow(failedMr);
+    }
     return study;
   } finally {
     volumeBuildPromise = null;

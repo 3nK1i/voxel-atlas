@@ -103,13 +103,14 @@ export class SegmentationWorkflowPanel {
     } else if (state === "failed" || state === "cancelled") {
       this.primary.textContent = "Retry";
       this.primary.disabled = !Boolean(workflow.can_start);
-    } else if (state === "unsupported" || state === "unavailable") {
+    } else if (state === "waiting" || state === "unsupported" || state === "unavailable") {
       this.primary.textContent = "Start Segmentation";
       this.primary.disabled = true;
     }
 
     const badge = {
       available: activated ? "Active" : "Ready",
+      waiting: "Waiting",
       idle: "Not started",
       queued: "Queued",
       starting: "Starting",

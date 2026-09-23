@@ -9,7 +9,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const code = readFileSync(resolve(root, 'web/js/segmentation-workflow-panel.js'), 'utf8');
 const app = readFileSync(resolve(root, 'web/js/app.js'), 'utf8');
 const index = readFileSync(resolve(root, 'web/index.html'), 'utf8');
-assert.match(index, /ctb3a-r1-phase6j-b1-r1\"/);
+assert.match(index, /ctb3a-r1-phase6j-b1-r1(?:-phase6j-b2b-r1)?\"/);
 assert.match(app, /segmentation-workflow-panel\.js\?v=phase6d0-r1-phase6j-b1-r1/);
 assert.doesNotMatch(code, /MRI segmentation provider is deferred to Phase 7/);
 
