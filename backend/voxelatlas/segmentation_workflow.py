@@ -18,6 +18,8 @@ from .segmentation import (
 )
 from .segmentation_label_maps import SegmentationLabelMapService
 from .mri_task_contract import model_for_source_modality
+from .mri_source_qualification import qualify_mri_stored_source
+from .segmentation import CanonicalSegmentationSource
 
 
 WORKFLOW_SCHEMA_VERSION = 1
@@ -203,6 +205,22 @@ class SegmentationWorkflowService:
             model = self._matching_model(model_id)
             base = self._base_snapshot(source, model, model_id)
             study_id = str(source.study_id)
+
+            # The common stored source is used by sample activation and new
+            # DICOM uploads. Keep CT and injected test sources unchanged.
+            if (model_id == "total_mr" and str(source.modality).upper() == "MR"
+                    and isinstance(source, CanonicalSegmentationSource)):
+                source_ready, source_reason = qualify_mri_stored_source(source)
+                base = base | {"source_qualified": source_ready,
+                               "source_qualification_reason": source_reason}
+                if not source_ready:
+                    return base | {
+                        "state": "unsupported", "message": source_reason,
+                        "can_start": False, "can_cancel": False,
+                        "can_use": False, "label_map_id": None,
+                        "present_label_count": 0, "job_id": None,
+                        "progress": None,
+                    }
 
             maps = self.label_map_service.list(study_id=study_id)
             if maps:
