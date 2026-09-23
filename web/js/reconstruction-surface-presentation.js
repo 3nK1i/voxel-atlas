@@ -210,16 +210,18 @@ export function applySegmentationSurfaceMaterialProfile(
   structure,
   profileId,
   selected = false,
+  surfaceColorHex = null,
 ) {
   if (!material?.color?.set) throw new TypeError("Segmentation surface material is required");
   const profile = getSurfacePresentationProfile(profileId);
   const policy = profile.segmentationSurface;
   const opacityPolicy = resolveSegmentationSurfaceOpacityPolicy(structure?.opacity ?? 1);
-  const semanticColor = structure?.colorHex || "#ffffff";
+  // Visual-only 3D override. Never mutate structure.colorHex: it also drives MPR overlays.
+  const semanticColor = surfaceColorHex ?? structure?.colorHex ?? "#ffffff";
   const emissiveIntensity = selected
     ? Number(policy.selectedEmissiveIntensity ?? policy.emissiveIntensity ?? 0)
     : Number(policy.emissiveIntensity ?? 0);
-  material.color.set(structure?.colorHex || "#ffffff");
+  material.color.set(semanticColor);
   material.emissive?.set?.(semanticColor);
   material.emissiveIntensity = emissiveIntensity;
   material.opacity = opacityPolicy.opacity;
@@ -236,10 +238,11 @@ export function createSegmentationSurfaceMaterial(
   structure,
   profileId = "fidelity",
   selected = false,
+  surfaceColorHex = null,
 ) {
   if (!three?.MeshStandardMaterial) throw new TypeError("Three.js MeshStandardMaterial is required");
   const opacityPolicy = resolveSegmentationSurfaceOpacityPolicy(structure?.opacity ?? 1);
-  const semanticColor = structure?.colorHex || "#ffffff";
+  const semanticColor = surfaceColorHex ?? structure?.colorHex ?? "#ffffff";
   const profile = getSurfacePresentationProfile(profileId);
   const policy = profile.segmentationSurface;
   const emissiveIntensity = selected

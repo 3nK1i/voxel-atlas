@@ -179,6 +179,8 @@ export class PatientSegmentationSurfaceLayer {
     this.enabled = true;
     this.presentationVisible = true;
     this.presentationProfile = "fidelity";
+    // Label-map-scoped 3D display state, not a change to the label catalog or MPR.
+    this.surfaceColorOverrides = new Map();
     this.items = new Map();
     this.controllers = new Map();
     this.queue = [];
@@ -261,6 +263,7 @@ export class PatientSegmentationSurfaceLayer {
     this._disposeAllMeshes();
     this.descriptor = null;
     this.presentation = null;
+    this.surfaceColorOverrides.clear();
     this.desiredLabels.clear();
     this.failedLabels.clear();
     this._status("unavailable", "No 3D segmentation surfaces available.");
@@ -281,6 +284,7 @@ export class PatientSegmentationSurfaceLayer {
       this.generation += 1;
       this._abortPending();
       this._disposeAllMeshes();
+      this.surfaceColorOverrides.clear();
       this.desiredLabels.clear();
       this.failedLabels.clear();
     }
@@ -320,10 +324,43 @@ export class PatientSegmentationSurfaceLayer {
         structure,
         profile.id,
         structure.labelId === this.presentation?.selectedLabelId,
+        this.surfaceColorOverrides.get(item.labelId) ?? null,
       );
     }
     this.requestRender();
     return this.presentationProfile;
+  }
+
+  set3dColorOverrides(overrides) {
+    // Phase CT-B1 is API-only. A future user-facing preset will supply these
+    // label-ID to color mappings; the existing structure palette stays untouched.
+    if (!(overrides instanceof Map)) {
+      throw new TypeError("3D surface color overrides must be a Map");
+    }
+    const normalized = new Map();
+    for (const [labelId, colorHex] of overrides) {
+      if (!Number.isInteger(labelId) || labelId <= 0
+          || typeof colorHex !== "string" || !/^#[0-9a-f]{6}$/i.test(colorHex)) {
+        throw new TypeError("Invalid 3D surface color override");
+      }
+      normalized.set(labelId, colorHex.toLowerCase());
+    }
+    this.surfaceColorOverrides = normalized;
+    // Update resident materials in place without rebuilding geometry or
+    // initiating segmentation for a 3D appearance change.
+    for (const item of this.items.values()) {
+      const structure = this.presentation?.structures?.get(item.labelId);
+      if (!structure) continue;
+      applySegmentationSurfaceMaterialProfile(
+        item.material,
+        structure,
+        this.presentationProfile,
+        structure.labelId === this.presentation?.selectedLabelId,
+        this.surfaceColorOverrides.get(item.labelId) ?? null,
+      );
+    }
+    this.requestRender();
+    return new Map(this.surfaceColorOverrides);
   }
 
   setClippingPlanes(clipping = {}) {
@@ -359,6 +396,7 @@ export class PatientSegmentationSurfaceLayer {
       structure,
       this.presentationProfile,
       structure?.labelId === this.presentation?.selectedLabelId,
+      this.surfaceColorOverrides.get(structure?.labelId) ?? null,
     );
   }
 
@@ -378,6 +416,7 @@ export class PatientSegmentationSurfaceLayer {
       structure,
       this.presentationProfile,
       structure.labelId === selectedLabelId,
+      this.surfaceColorOverrides.get(item.labelId) ?? null,
     );
     const viewerOffset = patientLpsOffsetToViewer(
       interaction.explodedOffsetLpsMm,
