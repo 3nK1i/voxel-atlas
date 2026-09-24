@@ -131,9 +131,10 @@ def _read_report(path: Path) -> dict[str, object]:
     if path.is_symlink() or not path.is_file() or not 0 < path.stat().st_size <= MAX_REPORT_BYTES:
         raise MRIWorkerError("MRI worker report is unavailable")
     try:
-        lines = [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
-        result = json.loads(lines[-1])
-    except (OSError, UnicodeError, ValueError, IndexError) as exc:
+        # TotalSegmentator --report writes an indented JSON object. Parse the
+        # entire bounded file, never just the final line or an appended object.
+        result = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError) as exc:
         raise MRIWorkerError("MRI worker report is invalid") from exc
     if type(result) is not dict:
         raise MRIWorkerError("MRI worker report is invalid")

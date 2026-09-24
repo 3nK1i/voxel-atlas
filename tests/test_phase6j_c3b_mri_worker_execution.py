@@ -64,7 +64,7 @@ class FakeRunner:
                        "input": str(input_path), "output": str(mask_path), "num_classes": 50,
                        "classes": {str(k): v for k, v in TOTAL_SEGMENTATOR_MRI_STRUCTURES.items()},
                        "fast": mode == "fast", "fastest": mode == "fastest", "runtime_seconds": 1.}
-            (parent / "output" / "provider-report.json").write_text(json.dumps(payload))
+            (parent / "output" / "provider-report.json").write_text(json.dumps(payload, indent=2))
         else:
             input_path = parent / "input" / "canonical-mri.nii.gz"
             mask_path = parent / "output" / "labels.nii.gz"
