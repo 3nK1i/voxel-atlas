@@ -1,0 +1,13 @@
+# Phase 6J-C5D — Isolated single MRI trial preparation
+
+Baseline `47dc027cebc0eadab284af26b7a2f3b542e95400` on `phase6-accurate-surfaces`.
+
+This phase only prepares and validates a one-off supervised MRI trial runner. The normal app's MRI descriptor remains unavailable. Do not set `VOXELATLAS_MRI_PYTHON` or activate any normal-app MRI execution. C5D does not authorize actual inference.
+
+`--check` reads the latest stored MRI source's existing study metadata, checks source/series qualification, pinned isolated MRI runtime and weights, RTX 2060 GPU 0 with >=4096 MiB free, >=10 GiB filesystem headroom, absence of active segmentation jobs, and absence of a local preview on TCP port 8011. It does not allocate a new segmentation job, model workspace, or NIfTI. A passing attempt preflight is not proof that inference will fit in memory, that an MRI acquisition is suitable, or that results have clinical validity.
+
+The separately restricted execution path is **not part of C5D validation**. When, and only when, C5E is independently authorized, it rechecks prerequisites, locks the data directory for this runner, creates one study-ID-bound job in the existing `SegmentationJobService`, uses `MRIStudyBoundProvider` and the existing `MRIWorkerExecutor` in `fastest` (6 mm) mode on CUDA device 0, retains fail-closed source and mask validation, and does not retry. SIGINT/SIGTERM requests cooperative cancellation. Do not use process-kill tools as a normal cancellation mechanism.
+
+C5D regression tests use synthetic data/mocks and never invoke an MRI model. Local automated checks include the existing C5B CT/MRI suite and the previously skipped NIfTI geometry round-trip in the isolated MRI interpreter. Do not share patient files, canonical source data, private worker logs, model weights or `.env` with the assistant. The job manifest and model logs, if created during a later approved trial, remain private in the local data directory. A real trial is not clinically validated, nor does this phase integrate MRI mask into MPR/3D views.
+
+C5D interpreter-alias correction: Conda may install the pinned `bin/python` as a symlink to an executable in the **same resolved `bin` directory**. The isolated runner resolves and qualifies that canonical target, passes only the non-symlink executable to the already strict supervised worker, and rejects missing, non-executable, or externally redirected targets. It does not change the Conda environment, permit arbitrary interpreter paths, alter the normal application, or relax `MRIWorkerExecutor`'s independent symlink guard. The actual RTX 2060 preflight remains required before C5D closure; a passing synthetic test alone cannot authorize inference.
