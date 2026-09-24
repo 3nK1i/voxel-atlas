@@ -556,6 +556,7 @@ class SegmentationLabelMapService:
         python_executable: str,
         worker_script: Path,
         timeout_seconds: float = 30 * 60,
+        expected_nonzero_voxels: int | None = None,
     ) -> dict[str, object]:
         (
             job,
@@ -568,6 +569,11 @@ class SegmentationLabelMapService:
             expected_labels,
             maximum_label,
         ) = self._job_contract(job_id)
+        if expected_nonzero_voxels is not None and (
+            type(expected_nonzero_voxels) is not int or expected_nonzero_voxels <= 0
+            or outcome.get("nonzero_voxels") != expected_nonzero_voxels
+        ):
+            raise SegmentationValidationError("Expected provider nonzero count is invalid")
         mask_digest = str(outcome["mask_nifti_sha256"])
         existing = self._find_existing(str(job["job_id"]), mask_digest)
         if existing is not None:
@@ -596,6 +602,11 @@ class SegmentationLabelMapService:
                 maximum_label=maximum_label,
                 output_path=output_path,
             )
+            if (expected_nonzero_voxels is not None
+                    and artifact["nonzero_voxels"] != expected_nonzero_voxels):
+                raise SegmentationValidationError(
+                    "Canonical MRI nonzero count differs from accepted provider mask"
+                )
             provider = outcome["provider"]
             assert isinstance(provider, dict)
             label_provenance: dict[str, object] = {
