@@ -557,7 +557,10 @@ class SegmentationLabelMapService:
         worker_script: Path,
         timeout_seconds: float = 30 * 60,
         expected_nonzero_voxels: int | None = None,
+        diagnostic_stage: Callable[[str], None] | None = None,
     ) -> dict[str, object]:
+        if diagnostic_stage is not None:
+            diagnostic_stage("GENERIC_JOB_CONTRACT")
         (
             job,
             provenance,
@@ -575,15 +578,21 @@ class SegmentationLabelMapService:
         ):
             raise SegmentationValidationError("Expected provider nonzero count is invalid")
         mask_digest = str(outcome["mask_nifti_sha256"])
+        if diagnostic_stage is not None:
+            diagnostic_stage("EXISTING_MAP_LOOKUP")
         existing = self._find_existing(str(job["job_id"]), mask_digest)
         if existing is not None:
             return existing
 
+        if diagnostic_stage is not None:
+            diagnostic_stage("DESTINATION_SETUP")
         self._ensure_root()
         stage = self.maps_root / f".import-{secrets.token_hex(16)}"
         stage.mkdir(mode=0o700)
         output_path = stage / "labels.npy"
         try:
+            if diagnostic_stage is not None:
+                diagnostic_stage("WORKER_EXECUTION")
             report = self._invoke_worker(
                 python_executable=python_executable,
                 worker_script=worker_script,
@@ -593,6 +602,8 @@ class SegmentationLabelMapService:
                 maximum_label=maximum_label,
                 timeout_seconds=timeout_seconds,
             )
+            if diagnostic_stage is not None:
+                diagnostic_stage("WORKER_OUTPUT_VALIDATION")
             artifact = _validate_report(
                 report,
                 source=source,
@@ -607,6 +618,8 @@ class SegmentationLabelMapService:
                 raise SegmentationValidationError(
                     "Canonical MRI nonzero count differs from accepted provider mask"
                 )
+            if diagnostic_stage is not None:
+                diagnostic_stage("MANIFEST_WRITE")
             provider = outcome["provider"]
             assert isinstance(provider, dict)
             label_provenance: dict[str, object] = {
@@ -668,12 +681,18 @@ class SegmentationLabelMapService:
                 handle.write(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
                 handle.flush()
                 os.fsync(handle.fileno())
+            if diagnostic_stage is not None:
+                diagnostic_stage("ARTIFACT_PERSISTENCE")
             os.chmod(output_path, 0o600)
             final = self.maps_root / label_map_id
             if final.exists():
                 shutil.rmtree(stage)
+                if diagnostic_stage is not None:
+                    diagnostic_stage("PERSISTED_MAP_RELOAD")
                 return self._load(label_map_id)
             os.replace(stage, final)
+            if diagnostic_stage is not None:
+                diagnostic_stage("PERSISTED_MAP_RELOAD")
             return self._load(label_map_id)
         except Exception:
             if stage.exists() and stage.is_dir() and not stage.is_symlink():

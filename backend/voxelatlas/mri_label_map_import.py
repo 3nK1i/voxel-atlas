@@ -138,17 +138,27 @@ class QualifiedMRIResultImporter:
         self.report_check(report_path, input_path, mask)
         return source, job
 
-    def import_current(self, *, python_executable: str, worker_script: Path) -> dict[str, object]:
+    def import_current(
+        self, *, python_executable: str, worker_script: Path,
+        diagnostic_stage: Callable[[str], None] | None = None,
+    ) -> dict[str, object]:
+        if diagnostic_stage is not None:
+            diagnostic_stage("IMPORT_REQUALIFICATION")
         source, job = self.qualify()
         descriptor = self.maps.import_succeeded_job(
             job_id=str(job["job_id"]), python_executable=python_executable,
             worker_script=worker_script,
             expected_nonzero_voxels=int(job["outcome"]["nonzero_voxels"]),
+            diagnostic_stage=diagnostic_stage,
         )
+        if diagnostic_stage is not None:
+            diagnostic_stage("POST_IMPORT_REQUALIFICATION")
         # Requalify persisted provenance after canonicalization (not just the
         # generic worker's successful exit); do not silently promote a stale map.
         current, accepted = self.qualify()
         outcome = accepted["outcome"]
+        if diagnostic_stage is not None:
+            diagnostic_stage("POST_IMPORT_ACCEPTANCE")
         if (current != source or accepted["job_id"] != job["job_id"]
                 or descriptor.get("source_modality") != "MR"
                 or descriptor.get("source_study_id") != source.study_id
@@ -172,4 +182,6 @@ class QualifiedMRIResultImporter:
                 or descriptor.get("interpolation") != "none"
                 or descriptor.get("clinical_validation") != "not_claimed"):
             raise SegmentationValidationError("Imported MRI label-map acceptance failed")
+        if diagnostic_stage is not None:
+            diagnostic_stage("PERSISTED_MAP_RELOAD")
         return self.maps.get(str(descriptor["label_map_id"]))
