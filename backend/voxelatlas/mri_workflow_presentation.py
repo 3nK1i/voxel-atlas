@@ -39,8 +39,49 @@ def matching_mri_jobs(source: Any, jobs: list[dict[str, object]]) -> list[dict[s
     return [job for job in jobs if matching_mri_job(source, job)]
 
 
+def _matching_mri_label_map(
+    source: Any, jobs: list[dict[str, object]], descriptor: object,
+) -> bool:
+    """Accept only a persisted MRI map bound to this exact source and succeeded job."""
+    if not isinstance(descriptor, dict) or descriptor.get("state") != "ready":
+        return False
+    matching_jobs_by_id = {
+        str(job.get("job_id")): job
+        for job in matching_mri_jobs(source, jobs)
+        if job.get("state") == "succeeded" and isinstance(job.get("job_id"), str)
+    }
+    job = matching_jobs_by_id.get(str(descriptor.get("segmentation_job_id") or ""))
+    if job is None:
+        return False
+    expected = {
+        "source_study_id": getattr(source, "study_id", None),
+        "source_study_instance_uid": getattr(source, "study_instance_uid", None),
+        "source_series_uid": getattr(source, "source_series_uid", None),
+        "source_modality": "MR",
+        "source_volume_descriptor_sha256": getattr(source, "descriptor_sha256", None),
+        "source_volume_artifact_sha256": getattr(source, "artifact_sha256", None),
+        "segmentation_terminal_provenance_sha256": job.get("terminal_provenance_sha256"),
+        "provider_id": "totalsegmentator",
+        "model_id": "total_mr",
+        "task": "total_mr",
+        "class_count": 50,
+        "clinical_validation": "not_claimed",
+    }
+    if not all(descriptor.get(key) == value for key, value in expected.items()):
+        return False
+    labels = descriptor.get("present_labels")
+    return bool(
+        isinstance(labels, list)
+        and labels
+        and labels == sorted(set(labels))
+        and labels[0] == 0
+        and all(type(label) is int and 0 <= label <= 50 for label in labels)
+    )
+
+
 def mri_read_only_snapshot(
     source: Any, base: dict[str, object], jobs: list[dict[str, object]],
+    label_maps: list[dict[str, object]] | None = None,
 ) -> dict[str, object]:
     """Report an existing bound MR job without granting model or label-map execution."""
     common = base | {
@@ -58,7 +99,32 @@ def mri_read_only_snapshot(
     }
     matches = matching_mri_jobs(source, jobs)
     active = next((job for job in matches if job.get("state") in _ACTIVE), None)
-    selected = active if active is not None else (matches[0] if matches else None)
+    if active is not None:
+        selected = active
+    else:
+        presentation = next(
+            (descriptor for descriptor in (label_maps or [])
+             if _matching_mri_label_map(source, matches, descriptor)),
+            None,
+        )
+        if presentation is not None:
+            labels = presentation.get("present_labels")
+            assert isinstance(labels, list)
+            return common | {
+                "state": "available",
+                "message": "Existing MRI segmentation is ready to use",
+                "mri_label_map_ready": True,
+                "can_use": True,
+                "label_map_id": presentation.get("label_map_id"),
+                "present_label_count": max(0, len(labels) - (1 if 0 in labels else 0)),
+                "job_id": presentation.get("segmentation_job_id"),
+                "progress": {
+                    "stage": "complete",
+                    "percent": 100.0,
+                    "message": "MRI segmentation ready for visualization",
+                },
+            }
+        selected = matches[0] if matches else None
     if selected is None:
         return common | {
             "state": "unavailable",

@@ -66,7 +66,7 @@ import {
 } from "./segmentation-correction-panel.js?v=phase5f2-r1";
 import {
   SegmentationWorkflowPanel,
-} from "./segmentation-workflow-panel.js?v=phase6d0-r1-phase6j-b1-r1";
+} from "./segmentation-workflow-panel.js?v=phase6d0-r1-phase6j-b1-r1-phase6j-d3-r1";
 
 const THEME_KEY = "voxelatlas-theme";
 const DEFAULT_OPACITY = 1.0;
@@ -371,7 +371,12 @@ function syncSegmentation3dAppearance() {
 function syncSegmentationCorrectionContext(presentation) {
   const descriptor = state.segmentationOverlay.descriptor;
   const structure = presentation?.structures?.get(presentation.selectedLabelId);
-  if (!descriptor || !state.study?.study_id || !structure) {
+  if (
+    !descriptor
+    || descriptor.source_modality === "MR"
+    || !state.study?.study_id
+    || !structure
+  ) {
     segmentationCorrectionPanel?.clear();
     return;
   }
@@ -2167,7 +2172,13 @@ function renderSegmentationWorkflow(workflow) {
 
 async function activateSegmentationResult(labelMapId) {
   const requestedLabelMapId = String(labelMapId || "");
-  if (!requestedLabelMapId || !state.study?.study_id || isReadOnlyMri(segmentationWorkflowSnapshot)) return null;
+  if (!requestedLabelMapId || !state.study?.study_id) return null;
+  if (isReadOnlyMri(segmentationWorkflowSnapshot)) {
+    if (
+      segmentationWorkflowSnapshot?.mri_label_map_ready !== true
+      || requestedLabelMapId !== segmentationWorkflowSnapshot?.label_map_id
+    ) return null;
+  }
   const descriptor = await refreshSegmentationOverlayDescriptor(requestedLabelMapId);
   if (!descriptor) return null;
   activeSegmentationLabelMapId = requestedLabelMapId;
@@ -2226,7 +2237,15 @@ async function refreshSegmentationWorkflowStatus({ activateAvailable = false } =
 async function requestSegmentationStart() {
   if (!state.study?.study_id || !state.study?.volume_ready) return;
   if (isReadOnlyMri(segmentationWorkflowSnapshot)) {
-    void refreshSegmentationWorkflowStatus();
+    if (
+      segmentationWorkflowSnapshot?.mri_label_map_ready === true
+      && segmentationWorkflowSnapshot?.state === "available"
+      && segmentationWorkflowSnapshot?.label_map_id
+    ) {
+      await activateSegmentationResult(segmentationWorkflowSnapshot.label_map_id);
+    } else {
+      void refreshSegmentationWorkflowStatus();
+    }
     return;
   }
   const generation = segmentationWorkflowGeneration;
@@ -2429,11 +2448,25 @@ async function refreshSegmentationOverlayDescriptor(labelMapId) {
     if (
       descriptor.source_study_id !== state.study.study_id
       || descriptor.label_map_id !== labelMapId
+      || (
+        isReadOnlyMri(segmentationWorkflowSnapshot)
+        && (
+          descriptor.source_modality !== "MR"
+          || descriptor.provider_id !== "totalsegmentator"
+          || descriptor.model_id !== "total_mr"
+          || descriptor.label_map_id !== segmentationWorkflowSnapshot?.label_map_id
+        )
+      )
     ) {
       throw new Error("Segmentation overlay study binding is invalid");
     }
     setSegmentationOverlayAvailability(descriptor);
-    await refreshSegmentationSurfaceDescriptor(descriptor.label_map_id);
+    if (descriptor.source_modality === "MR" && descriptor.model_id === "total_mr") {
+      // D3 is MPR presentation only. MRI segmentation-derived 3D remains gated to D4.
+      setSegmentationSurfaceAvailability(null);
+    } else {
+      await refreshSegmentationSurfaceDescriptor(descriptor.label_map_id);
+    }
     return descriptor;
   })();
   try {

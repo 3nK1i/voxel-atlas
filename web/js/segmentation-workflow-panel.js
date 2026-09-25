@@ -63,7 +63,8 @@ export class SegmentationWorkflowPanel {
     const state = String(workflow.state || "unavailable");
     const active = ACTIVE_STATES.has(state);
     const readOnlyMri = workflow.modality === "MR" && workflow.model_id === "total_mr";
-    const ready = state === "available" && !readOnlyMri;
+    const mriPresentationReady = readOnlyMri && workflow.mri_label_map_ready === true;
+    const ready = state === "available" && (!readOnlyMri || mriPresentationReady);
     const activated = ready
       && this.activatedLabelMapId
       && this.activatedLabelMapId === String(workflow.label_map_id || "");
@@ -109,8 +110,8 @@ export class SegmentationWorkflowPanel {
       this.primary.disabled = true;
     }
 
-    if (readOnlyMri) {
-      // C4C observes qualified source-bound lifecycle status, not executable MRI inference.
+    if (readOnlyMri && !mriPresentationReady) {
+      // MRI execution remains disabled; D3 may only reuse an already persisted qualified map.
       this.primary.textContent = "Start Segmentation";
       this.primary.disabled = true;
     }

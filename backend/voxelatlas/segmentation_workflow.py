@@ -230,7 +230,12 @@ class SegmentationWorkflowService:
                         "progress": None,
                     }
                 if getattr(self, "mri_presentation_only", False):
-                    return mri_read_only_snapshot(source, base, self._jobs_for_study(study_id))
+                    return mri_read_only_snapshot(
+                        source,
+                        base,
+                        self._jobs_for_study(study_id),
+                        self.label_map_service.list(study_id=study_id),
+                    )
 
             maps = self.label_map_service.list(study_id=study_id)
             if maps:
