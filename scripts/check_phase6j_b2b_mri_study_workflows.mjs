@@ -42,7 +42,7 @@ assert.match(app, /async function requestSampleLoad\([\s\S]*?applyStudy\(payload
 assert.match(app, /async function uploadDicomFiles\([\s\S]*?applyStudy\(payload\.study\)/);
 assert.match(app, /const pendingMr = prevolumeMriWorkflow\(state\.study\)/);
 assert.match(app, /volumeBuildFailed: true/);
-assert.match(index, /phase6j-b1-r1-phase6j-b2b-r1(?:-phase6j-c4c-r1)?(?:-phase6j-d3-r1)?(?:-phase6j-d4-r1)?"/);
+assert.match(index, /phase6j-b1-r1-phase6j-b2b-r1(?:-phase6j-c4c-r1)?(?:-phase6j-d3-r1)?(?:-phase6j-d4-r1)?(?:-phase6j-d45c-r\d+)?"/);
 assert.match(panelCode, /state === "waiting"/);
 class Element {
   constructor() { this.dataset={}; this.textContent=''; this.disabled=false;

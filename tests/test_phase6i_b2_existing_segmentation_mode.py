@@ -24,7 +24,7 @@ class ExistingSegmentationModeTests(unittest.TestCase):
         self.assertIn('state.segmentationSurface.enabled', app)
         self.assertIn('state.reconstructionVisualization.surfaceSourceSelection["segmentation-derived"]', app)
         self.assertIn('segmentationSurfaceLayer.desiredLabels.size > 0', app)
-        block = app.split('function ensureAutomaticSegmentationSurface(', 1)[1].split('function ensureAutomaticDirectCtSurface(', 1)[0]
+        block = app.split('function ensureAutomaticSegmentationSurface(', 1)[1].split('function ensureAutomaticDirectVolumeSurface(', 1)[0]
         self.assertNotIn('requestSegmentationStart(', block)
         self.assertNotIn('/segmentation-workflow/start', block)
         self.assertNotIn('requestVolumeSurfaceBuild()', block)
