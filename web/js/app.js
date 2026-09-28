@@ -353,9 +353,44 @@ let segmentationWorkflowPanel = null;
 let segmentationWorkflowSnapshot = null;
 let segmentationWorkflowPollTimer = null;
 let segmentationWorkflowGeneration = 0;
+let studyLifecycleGeneration = 0;
 let activeSegmentationLabelMapId = null;
 let segmentation3dAppearanceMode = "scientific";
 let segmentation3dAppearanceLabelMapId = null;
+
+function captureStudyLifecycle() {
+  return {
+    generation: studyLifecycleGeneration,
+    studyId: state.study?.study_id || null,
+  };
+}
+
+function studyLifecycleMatches(token) {
+  return Boolean(
+    token
+    && token.generation === studyLifecycleGeneration
+    && token.studyId === (state.study?.study_id || null)
+  );
+}
+
+function invalidateStudyScopedAsyncState() {
+  studyLifecycleGeneration += 1;
+  mprAbortController?.abort();
+  if (mprRenderTimer !== null) {
+    window.clearTimeout(mprRenderTimer);
+    mprRenderTimer = null;
+  }
+  mprRenderGeneration += 1;
+  mprDescriptorPromise = null;
+  segmentationOverlayDescriptorPromise = null;
+  segmentationSurfaceDescriptorPromise = null;
+  volumeSurfaceDescriptorPromise = null;
+  volumeBuildPromise = null;
+  automaticSurfaceMode?.invalidate();
+  segmentationSurfaceGate?.invalidate();
+  autoSurfaceBuildPromise = null;
+  autoSurfaceBuildStudyId = null;
+}
 
 function syncSegmentation3dAppearance() {
   const { ready, overrides } = resolve3dAppearanceContext(
@@ -1830,6 +1865,8 @@ async function ensureVolumeRenderingFoundation() {
     return null;
   }
 
+  const lifecycle = captureStudyLifecycle();
+  const studyId = state.study.study_id;
   const task = { promise: null };
   task.promise = (async () => {
     setStatus("loading", "Preparing patient volume...");
@@ -1839,6 +1876,9 @@ async function ensureVolumeRenderingFoundation() {
       headers: { "Accept": "application/json" },
     });
     const payload = await response.json().catch(() => ({}));
+    if (!studyLifecycleMatches(lifecycle) || state.study?.study_id !== studyId) {
+      throw new DOMException("Patient volume texture load was superseded", "AbortError");
+    }
     if (!response.ok) {
       throw new Error(
         payload.detail || `3D volume preparation failed (${response.status})`,
@@ -2141,6 +2181,7 @@ async function refreshVolumeSurfaceDescriptor() {
   }
   if (volumeSurfaceDescriptorPromise) return volumeSurfaceDescriptorPromise;
   const studyId = state.study.study_id;
+  const lifecycle = captureStudyLifecycle();
   const request = (async () => {
     try {
       const response = await fetch("/api/studies/latest/volume-surface", {
@@ -2148,14 +2189,15 @@ async function refreshVolumeSurfaceDescriptor() {
         headers: { "Accept": "application/json" },
       });
       const payload = await response.json().catch(() => ({}));
-      // An earlier study's delayed response may never replace the active study.
-      if (studyId !== state.study?.study_id) return null;
+      // A delayed response from an earlier study, series, or volume revision may never
+      // replace the active study-scoped descriptor.
+      if (!studyLifecycleMatches(lifecycle) || studyId !== state.study?.study_id) return null;
       if (!response.ok) throw new Error(payload.detail || `Volume surface availability failed (${response.status})`);
       if (payload.volume_surface?.study_id !== studyId) return null;
       setVolumeSurfaceDescriptor(payload.volume_surface);
       return payload.volume_surface;
     } catch (error) {
-      if (studyId !== state.study?.study_id) return null;
+      if (!studyLifecycleMatches(lifecycle) || studyId !== state.study?.study_id) return null;
       setVolumeSurfaceDescriptor(null);
       volumeSurfacePanel.dataset.state = "error";
       volumeSurfaceStatus.textContent = error instanceof Error ? error.message : "Volume-derived surface availability failed";
@@ -2418,7 +2460,9 @@ async function refreshSegmentationSurfaceDescriptor(labelMapId) {
     return null;
   }
   if (segmentationSurfaceDescriptorPromise) return segmentationSurfaceDescriptorPromise;
-  segmentationSurfaceDescriptorPromise = (async () => {
+  const studyId = state.study.study_id;
+  const lifecycle = captureStudyLifecycle();
+  const request = (async () => {
     const params = new URLSearchParams({ label_map_id: labelMapId });
     const response = await fetch(`/api/studies/latest/segmentation-surfaces?${params}`, {
       credentials: "same-origin",
@@ -2426,6 +2470,7 @@ async function refreshSegmentationSurfaceDescriptor(labelMapId) {
       headers: { "Accept": "application/json" },
     });
     const payload = await response.json().catch(() => ({}));
+    if (!studyLifecycleMatches(lifecycle) || state.study?.study_id !== studyId) return null;
     if (!response.ok) {
       throw new Error(payload.detail || `3D segmentation initialization failed (${response.status})`);
     }
@@ -2434,7 +2479,7 @@ async function refreshSegmentationSurfaceDescriptor(labelMapId) {
     if (
       descriptor?.ready !== true
       || descriptor.label_map_id !== labelMapId
-      || descriptor.source_study_id !== state.study.study_id
+      || descriptor.source_study_id !== studyId
       || descriptor.coordinate_system !== "patient_lps"
       || (
         readOnlyMriSurface
@@ -2453,9 +2498,11 @@ async function refreshSegmentationSurfaceDescriptor(labelMapId) {
     void syncSegmentationSurface();
     return descriptor;
   })();
+  segmentationSurfaceDescriptorPromise = request;
   try {
-    return await segmentationSurfaceDescriptorPromise;
+    return await request;
   } catch (error) {
+    if (!studyLifecycleMatches(lifecycle) || state.study?.study_id !== studyId) return null;
     setSegmentationSurfaceAvailability(null);
     segmentationSurfacePanel.dataset.state = "error";
     segmentationSurfaceStatus.textContent = error instanceof Error
@@ -2463,7 +2510,7 @@ async function refreshSegmentationSurfaceDescriptor(labelMapId) {
       : "3D segmentation unavailable";
     return null;
   } finally {
-    segmentationSurfaceDescriptorPromise = null;
+    if (segmentationSurfaceDescriptorPromise === request) segmentationSurfaceDescriptorPromise = null;
   }
 }
 
@@ -2506,7 +2553,9 @@ async function refreshSegmentationOverlayDescriptor(labelMapId) {
     return null;
   }
   if (segmentationOverlayDescriptorPromise) return segmentationOverlayDescriptorPromise;
-  segmentationOverlayDescriptorPromise = (async () => {
+  const studyId = state.study.study_id;
+  const lifecycle = captureStudyLifecycle();
+  const request = (async () => {
     const params = new URLSearchParams({ label_map_id: String(labelMapId) });
     const response = await fetch(`/api/studies/latest/segmentation-overlay?${params}`, {
       credentials: "same-origin",
@@ -2514,6 +2563,7 @@ async function refreshSegmentationOverlayDescriptor(labelMapId) {
       headers: { "Accept": "application/json" },
     });
     const payload = await response.json().catch(() => ({}));
+    if (!studyLifecycleMatches(lifecycle) || state.study?.study_id !== studyId) return null;
     if (!response.ok) {
       throw new Error(payload.detail || `Segmentation overlay initialization failed (${response.status})`);
     }
@@ -2523,7 +2573,7 @@ async function refreshSegmentationOverlayDescriptor(labelMapId) {
       return null;
     }
     if (
-      descriptor.source_study_id !== state.study.study_id
+      descriptor.source_study_id !== studyId
       || descriptor.label_map_id !== labelMapId
       || (
         isReadOnlyMri(segmentationWorkflowSnapshot)
@@ -2539,11 +2589,14 @@ async function refreshSegmentationOverlayDescriptor(labelMapId) {
     }
     setSegmentationOverlayAvailability(descriptor);
     await refreshSegmentationSurfaceDescriptor(descriptor.label_map_id);
+    if (!studyLifecycleMatches(lifecycle) || state.study?.study_id !== studyId) return null;
     return descriptor;
   })();
+  segmentationOverlayDescriptorPromise = request;
   try {
-    return await segmentationOverlayDescriptorPromise;
+    return await request;
   } catch (error) {
+    if (!studyLifecycleMatches(lifecycle) || state.study?.study_id !== studyId) return null;
     setSegmentationOverlayAvailability(null);
     segmentationOverlayPanel.dataset.state = "error";
     segmentationOverlayStatus.textContent = error instanceof Error
@@ -2551,7 +2604,7 @@ async function refreshSegmentationOverlayDescriptor(labelMapId) {
       : "Segmentation overlay unavailable";
     return null;
   } finally {
-    segmentationOverlayDescriptorPromise = null;
+    if (segmentationOverlayDescriptorPromise === request) segmentationOverlayDescriptorPromise = null;
   }
 }
 
@@ -2711,12 +2764,14 @@ async function ensureMprReady() {
   }
   if (mprDescriptorPromise) return mprDescriptorPromise;
 
-  mprDescriptorPromise = (async () => {
+  const lifecycle = captureStudyLifecycle();
+  const request = (async () => {
     const response = await fetch("/api/studies/latest/mpr", {
       credentials: "same-origin",
       headers: { "Accept": "application/json" },
     });
     const payload = await response.json().catch(() => ({}));
+    if (!studyLifecycleMatches(lifecycle)) return null;
     if (!response.ok || !payload.mpr?.ready) {
       throw new Error(payload.detail || `MPR initialization failed (${response.status})`);
     }
@@ -2730,19 +2785,22 @@ async function ensureMprReady() {
       entry.message.textContent = "Rendering patient volume...";
     }
     await renderAllMprPlanes();
+    if (!studyLifecycleMatches(lifecycle)) return null;
     return payload.mpr;
   })();
+  mprDescriptorPromise = request;
 
   try {
-    return await mprDescriptorPromise;
+    return await request;
   } catch (error) {
+    if (!studyLifecycleMatches(lifecycle)) return null;
     for (const entry of mprRegistry.values()) {
       entry.panel.dataset.volumeState = "loading";
       entry.message.textContent = error instanceof Error ? error.message : "MPR initialization failed";
     }
     return null;
   } finally {
-    mprDescriptorPromise = null;
+    if (mprDescriptorPromise === request) mprDescriptorPromise = null;
   }
 }
 
@@ -3149,6 +3207,7 @@ function applyStudy(study) {
   const nextVolumeRevision = study?.volume?.revision || study?.volume?.artifact_sha256 || null;
   if (previousStudyId !== nextStudyId || previousSeriesUid !== nextSeriesUid
       || previousVolumeRevision !== nextVolumeRevision) {
+    invalidateStudyScopedAsyncState();
     mprAbortController?.abort();
     state.mpr.descriptor = null;
     segmentationWorkflowGeneration += 1;
@@ -3219,23 +3278,32 @@ function applyStudy(study) {
 
 async function ensureCanonicalVolume(study) {
   if (!study?.reconstruction_ready || study.volume_ready) return study;
+  const studyId = study.study_id;
+  let lifecycle = captureStudyLifecycle();
+  if (!studyLifecycleMatches(lifecycle) || state.study?.study_id !== studyId) return state.study;
   if (volumeBuildPromise) return volumeBuildPromise;
 
   volumeStatusRow.dataset.state = "pending";
   volumeStatusText.textContent = "Building patient volume...";
   setUploadStatus("uploading", "Geometry qualified. Building canonical patient volume...");
 
-  volumeBuildPromise = (async () => {
+  const request = (async () => {
     const response = await fetch("/api/studies/latest/volume", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Accept": "application/json" },
     });
     const payload = await response.json().catch(() => ({}));
+    if (!studyLifecycleMatches(lifecycle) || state.study?.study_id !== studyId) return null;
     if (!response.ok) {
       throw new Error(payload.detail || `Patient volume construction failed (${response.status})`);
     }
-    applyStudy(payload.study || null);
+    if (!payload.study || payload.study.study_id !== studyId) {
+      throw new Error("Patient volume construction study binding is invalid");
+    }
+    applyStudy(payload.study);
+    lifecycle = captureStudyLifecycle();
+    if (!studyLifecycleMatches(lifecycle) || state.study?.study_id !== studyId) return null;
     setUploadStatus(
       "ready",
       "Canonical patient volume built. Loading synchronized MPR views...",
@@ -3244,43 +3312,53 @@ async function ensureCanonicalVolume(study) {
     // while synchronized MPR initializes. The later await reuses the same task.
     void ensureVolumeRenderingFoundation();
     await ensureMprReady();
+    if (!studyLifecycleMatches(lifecycle) || state.study?.study_id !== studyId) return null;
     setPatientVolumeReadyStatus();
     await ensureVolumeRenderingFoundation();
+    if (!studyLifecycleMatches(lifecycle) || state.study?.study_id !== studyId) return null;
     void refreshSegmentationWorkflowStatus({ activateAvailable: false });
-    return payload.study || null;
+    return payload.study;
   })();
+  volumeBuildPromise = request;
 
   try {
-    return await volumeBuildPromise;
+    return await request;
   } catch (error) {
+    if (!studyLifecycleMatches(lifecycle) || state.study?.study_id !== studyId) return state.study;
     setUploadStatus(
       "error",
       error instanceof Error ? error.message : "Patient volume construction failed",
     );
     volumeStatusRow.dataset.state = "pending";
     volumeStatusText.textContent = "Geometry ready - volume construction failed";
-    if (state.study?.study_id === study?.study_id) {
+    if (state.study?.study_id === studyId) {
       const failedMr = prevolumeMriWorkflow(state.study, { volumeBuildFailed: true });
       if (failedMr) renderSegmentationWorkflow(failedMr);
     }
     return study;
   } finally {
-    volumeBuildPromise = null;
+    if (volumeBuildPromise === request) volumeBuildPromise = null;
   }
 }
 
 async function restoreReadyPatientVolume(message) {
+  const lifecycle = captureStudyLifecycle();
+  const studyId = state.study?.study_id || null;
   setUploadStatus("ready", message);
   // Post-6F stabilization: restore MPR and the GPU volume in parallel so the
   // workspace becomes useful sooner when switching between ready studies.
   void ensureVolumeRenderingFoundation();
   await ensureMprReady();
+  if (!studyLifecycleMatches(lifecycle) || state.study?.study_id !== studyId) return null;
   setPatientVolumeReadyStatus();
   await ensureVolumeRenderingFoundation();
+  if (!studyLifecycleMatches(lifecycle) || state.study?.study_id !== studyId) return null;
   void refreshSegmentationWorkflowStatus({ activateAvailable: false });
+  return state.study;
 }
 
 async function refreshLatestStudy() {
+  const lifecycle = captureStudyLifecycle();
   try {
     const response = await fetch("/api/studies/latest", {
       credentials: "same-origin",
@@ -3288,6 +3366,7 @@ async function refreshLatestStudy() {
     });
     if (!response.ok) return;
     const payload = await response.json();
+    if (!studyLifecycleMatches(lifecycle)) return;
     applyStudy(payload.study || null);
     if (payload.study) {
       if (payload.study.volume_ready) {

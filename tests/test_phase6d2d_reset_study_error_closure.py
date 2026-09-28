@@ -64,8 +64,10 @@ class Phase6D2DResetStudyErrorClosureTests(unittest.TestCase):
         )
         self.assertIn("surfaceModeStatusText", block)
         self.assertIn("combinedModeStatusText", block)
-        # Phase 6I-B replaces manual Build Surface with on-demand Direct CT preparation.
-        self.assertIn("Select to prepare Direct CT", block)
+        # Direct-volume preparation is modality-aware: CT and MR share the same
+        # presentation path while the helper resolves the active source label.
+        self.assertIn("directVolumeSurfaceLabel()", block)
+        self.assertIn("`Select to prepare ${directVolumeSurfaceLabel()}`", block)
         self.assertIn("Volume + selected surface ready", block)
 
     def test_workspace_reset_returns_to_volume_without_destroying_or_building_geometry(self):
