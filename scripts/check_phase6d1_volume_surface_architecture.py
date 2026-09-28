@@ -19,7 +19,7 @@ require('source_type": "canonical_volume"' in backend, "PHASE6D1_CANONICAL_VOLUM
 require('VOLUME_SURFACE_MAGIC = b"VXVS"' in backend and 'VOLUME_SURFACE_MAGIC = "VXVS"' in viewer and 'VXSF' not in viewer, "PHASE6D1_DEDICATED_TRANSPORT")
 require('VOLUME_SURFACE_MAGIC = "VXVS"' in viewer, "PHASE6D1_BROWSER_TRANSPORT")
 require("segmentation_label_maps" not in backend and "totalsegmentator" not in backend.lower(), "PHASE6D1_NO_SEMANTIC_SEGMENTATION_DEPENDENCY")
-require('source_modality") != "CT"' in worker and 'source_intensity_units") != "HU"' in worker, "PHASE6D1_CT_HU_GATE")
+require('modality == "CT"' in worker and 'source_units != "HU"' in worker and 'surface_units != "HU"' in worker, "PHASE6D1_CT_HU_CONTRACT_PRESERVED")
 require('array_index_to_patient_lps' in worker and 'normal_matrix = np.linalg.inv(linear).T' in worker, "PHASE6D1_FULL_PATIENT_LPS_AFFINE")
 require('MAX_DEGENERATE_TRIANGLE_FRACTION = 1e-4' in worker and 'bounded_degenerate_face_cleanup' in worker, "PHASE6D1_BOUNDED_DEGENERATE_FACE_CLEANUP")
 require('degenerate_triangle_count' in worker and 'unreferenced_vertex_count' in backend, "PHASE6D1_CLEANUP_PROVENANCE")
@@ -30,9 +30,9 @@ require('volumeSurfaceLayer.build(level)' in frontend, "PHASE6D1_EXPLICIT_BROWSE
 visibility = frontend[frontend.index("function applyVolumeVisibility()"):frontend.index("function updateVolumeBounds()")]
 request_build = frontend[frontend.index("async function requestVolumeSurfaceBuild()"):frontend.index("function clearVolumeDerivedSurface()")]
 clear_surface = frontend[frontend.index("function clearVolumeDerivedSurface()"):frontend.index("function clearSegmentationWorkflowPoll()")]
-require('volumeLayer.root.visible = volumeLayer.available && state.opacity > 0.001;' in visibility and 'if (volumeSurfaceLayer?.current) volumeLayer.root.visible = false;' in visibility, "PHASE6D1_SURFACE_ONLY_PREVIEW")
-require(request_build.index('await volumeSurfaceLayer.build(level)') < request_build.index('applyVolumeVisibility()'), "PHASE6D1_HIDE_VOLUME_AFTER_SURFACE_READY")
-require(clear_surface.index('volumeSurfaceLayer.clearSurface()') < clear_surface.index('applyVolumeVisibility()'), "PHASE6D1_REMOVE_RESTORES_VOLUME_POLICY")
+require('snapshot.visibility.volume' in visibility and 'volumeLayer.available && state.opacity > 0.001 && modeAllowsVolume' in visibility, "PHASE6D1_VOLUME_VISIBILITY_DELEGATED_TO_MODE_CONTROLLER")
+require(request_build.index('await volumeSurfaceLayer.build(level)') < request_build.index('syncReconstructionVisualizationResources()'), "PHASE6D1_EXPLICIT_BUILD_SYNC_ORDER")
+require(clear_surface.index('volumeSurfaceLayer.clearSurface()') < clear_surface.index('syncReconstructionVisualizationResources()'), "PHASE6D1_REMOVE_RESYNCS_VISIBILITY_POLICY")
 activate = frontend[frontend.index("async function activatePatientVolumeRendering"):frontend.index("function resetWorkspace")]
 require('volumeSurfaceLayer.build(' not in activate, "PHASE6D1_NO_AUTOMATIC_SURFACE_BUILD")
 require("Phase 6D2" in doc and "not enabled" in doc.lower(), "PHASE6D1_6D2_BOUNDARY")

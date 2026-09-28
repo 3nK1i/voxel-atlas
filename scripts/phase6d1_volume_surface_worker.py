@@ -19,6 +19,11 @@ FLAGS = 1
 EXTRACTION = "marching_cubes_isovalue"
 DEGENERATE_DOUBLE_AREA_EPSILON = 1e-12
 MAX_DEGENERATE_TRIANGLE_FRACTION = 1e-4
+MRI_SURFACE_INTENSITY_UNITS = "normalized_signal"
+MRI_NORMALIZATION_PROFILE = "robust_percentile_v1"
+MRI_NORMALIZATION_LOW_PERCENTILE = 2.0
+MRI_NORMALIZATION_HIGH_PERCENTILE = 98.0
+MRI_PRESENTATION_GAUSSIAN_SIGMA_MM = 0.75
 
 KNOWN_ERROR_CODES = {
     "volume surface request contract is invalid": "request_contract_invalid",
@@ -26,6 +31,8 @@ KNOWN_ERROR_CODES = {
     "Patient LPS affine is invalid": "patient_lps_affine_invalid",
     "source value range is invalid": "source_value_range_invalid",
     "volume surface isovalue is invalid": "isovalue_invalid",
+    "MRI normalization policy is invalid": "mr_normalization_policy_invalid",
+    "MRI normalization range is invalid": "mr_normalization_range_invalid",
     "surface runtime changed after qualification": "runtime_changed",
     "canonical patient volume changed": "source_volume_changed",
     "canonical patient volume contract changed": "source_volume_contract_changed",
@@ -94,11 +101,30 @@ def load_request(path: Path) -> dict[str, object]:
         or request.get("extraction") != EXTRACTION
         or request.get("source_type") != "canonical_volume"
         or request.get("source_volume") != "immutable"
-        or request.get("source_modality") != "CT"
-        or request.get("source_intensity_units") != "HU"
         or request.get("coordinate_system") != "patient_lps"
         or request.get("clinical_validation") != "not_claimed"
     ):
+        raise ValueError("volume surface request contract is invalid")
+    modality = request.get("source_modality")
+    source_units = request.get("source_intensity_units")
+    surface_units = request.get("surface_intensity_units")
+    if modality == "CT":
+        if source_units != "HU" or surface_units != "HU" or "normalization" in request:
+            raise ValueError("volume surface request contract is invalid")
+    elif modality == "MR":
+        if source_units != "modality" or surface_units != MRI_SURFACE_INTENSITY_UNITS:
+            raise ValueError("volume surface request contract is invalid")
+        normalization = request.get("normalization")
+        if (
+            not isinstance(normalization, dict)
+            or normalization.get("profile") != MRI_NORMALIZATION_PROFILE
+            or normalization.get("low_percentile") != MRI_NORMALIZATION_LOW_PERCENTILE
+            or normalization.get("high_percentile") != MRI_NORMALIZATION_HIGH_PERCENTILE
+            or normalization.get("clip_to_unit_interval") is not True
+            or normalization.get("gaussian_sigma_mm") != MRI_PRESENTATION_GAUSSIAN_SIGMA_MM
+        ):
+            raise ValueError("MRI normalization policy is invalid")
+    else:
         raise ValueError("volume surface request contract is invalid")
     shape = request.get("shape")
     if (
@@ -121,8 +147,15 @@ def load_request(path: Path) -> dict[str, object]:
     if not isinstance(value_range, list) or len(value_range) != 2:
         raise ValueError("source value range is invalid")
     low, high = (float(value_range[0]), float(value_range[1]))
+    if not all(isfinite(item) for item in (low, high)) or not low < high:
+        raise ValueError("source value range is invalid")
     level = float(request.get("isovalue"))
-    if not all(isfinite(item) for item in (low, high, level)) or not low < level < high:
+    if not isfinite(level):
+        raise ValueError("volume surface isovalue is invalid")
+    if request.get("source_modality") == "MR":
+        if not 0.0 < level < 1.0:
+            raise ValueError("volume surface isovalue is invalid")
+    elif not low < level < high:
         raise ValueError("volume surface isovalue is invalid")
     for key in ("expected_volume_sha256", "source_descriptor_sha256", "expected_runtime_fingerprint_sha256"):
         value = request.get(key)
@@ -229,6 +262,57 @@ def canonical_vertex_normals(positions, faces, orientation_reference):
     return faces, vertex_normals
 
 
+def _prepare_surface_volume(working_volume, request, affine):
+    import numpy as np
+
+    if request["source_modality"] == "CT":
+        return working_volume, None
+
+    from skimage.filters import gaussian
+
+    normalization = request["normalization"]
+    low_percentile = float(normalization["low_percentile"])
+    high_percentile = float(normalization["high_percentile"])
+    low_value, high_value = np.percentile(
+        working_volume.astype(np.float64, copy=False),
+        [low_percentile, high_percentile],
+    )
+    low_value = float(low_value)
+    high_value = float(high_value)
+    if not isfinite(low_value) or not isfinite(high_value) or not low_value < high_value:
+        raise ValueError("MRI normalization range is invalid")
+
+    normalized = (working_volume.astype(np.float32, copy=False) - np.float32(low_value)) / np.float32(high_value - low_value)
+    np.clip(normalized, 0.0, 1.0, out=normalized)
+
+    linear = affine[:3, :3]
+    axis_steps_mm = np.linalg.norm(linear, axis=0)
+    if np.any(axis_steps_mm <= 1e-9) or not np.all(np.isfinite(axis_steps_mm)):
+        raise ValueError("Patient LPS affine is invalid")
+    sigma_mm = float(normalization["gaussian_sigma_mm"])
+    sigma_index = tuple(float(sigma_mm / step) for step in axis_steps_mm)
+    normalized = gaussian(
+        normalized,
+        sigma=sigma_index,
+        preserve_range=True,
+        mode="nearest",
+        truncate=3.0,
+    ).astype(np.float32, copy=False)
+    if not np.all(np.isfinite(normalized)):
+        raise ValueError("MRI normalization range is invalid")
+
+    report = {
+        "profile": MRI_NORMALIZATION_PROFILE,
+        "low_percentile": MRI_NORMALIZATION_LOW_PERCENTILE,
+        "high_percentile": MRI_NORMALIZATION_HIGH_PERCENTILE,
+        "low_value": low_value,
+        "high_value": high_value,
+        "clip_to_unit_interval": True,
+        "gaussian_sigma_mm": MRI_PRESENTATION_GAUSSIAN_SIGMA_MM,
+    }
+    return normalized, report
+
+
 def extract_surface(*, volume_path: Path, request: dict[str, object], output: Path) -> dict[str, object]:
     import numpy as np
     from skimage.measure import marching_cubes
@@ -242,12 +326,20 @@ def extract_surface(*, volume_path: Path, request: dict[str, object], output: Pa
     expected_shape = tuple(int(item) for item in request["shape"])
     if tuple(volume.shape) != expected_shape or str(volume.dtype) != "float32":
         raise ValueError("canonical patient volume contract changed")
+    affine = np.asarray(request["array_index_to_patient_lps"], dtype=np.float64)
+    if (
+        affine.shape != (4, 4) or not np.all(np.isfinite(affine))
+        or abs(float(np.linalg.det(affine[:3, :3]))) <= 1e-12
+    ):
+        raise ValueError("Patient LPS affine is invalid")
+
     # scikit-image requires a writable C-contiguous buffer. Keep the canonical
     # memmap immutable and extract from a private worker copy.
     working_volume = np.array(volume, dtype=np.float32, order="C", copy=True)
+    surface_volume, normalization_report = _prepare_surface_volume(working_volume, request, affine)
     level = float(request["isovalue"])
     vertices, faces, skimage_normals, _ = marching_cubes(
-        working_volume,
+        surface_volume,
         level=level,
         spacing=(1.0, 1.0, 1.0),
         gradient_direction="descent",
@@ -262,12 +354,6 @@ def extract_surface(*, volume_path: Path, request: dict[str, object], output: Pa
     if len(vertices) > int(request["max_vertices"]) or len(faces) > int(request["max_triangles"]):
         raise ValueError("volume surface exceeds geometry budget")
 
-    affine = np.asarray(request["array_index_to_patient_lps"], dtype=np.float64)
-    if (
-        affine.shape != (4, 4) or not np.all(np.isfinite(affine))
-        or abs(float(np.linalg.det(affine[:3, :3]))) <= 1e-12
-    ):
-        raise ValueError("Patient LPS affine is invalid")
     linear = affine[:3, :3]
     positions = vertices @ linear.T + affine[:3, 3]
     normal_matrix = np.linalg.inv(linear).T
@@ -301,7 +387,8 @@ def extract_surface(*, volume_path: Path, request: dict[str, object], output: Pa
         "operation": "extract_volume_isosurface",
         "extraction": EXTRACTION,
         "isovalue": level,
-        "intensity_units": "HU",
+        "intensity_units": request["surface_intensity_units"],
+        **({"normalization": normalization_report} if normalization_report is not None else {}),
         "vertex_count": len(positions32),
         "triangle_count": len(faces),
         "raw_vertex_count": cleanup["raw_vertex_count"],
@@ -325,7 +412,7 @@ def extract_surface(*, volume_path: Path, request: dict[str, object], output: Pa
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Extract a Phase 6D1 Patient-LPS surface directly from a canonical CT volume")
+    parser = argparse.ArgumentParser(description="Extract a Patient-LPS surface directly from a qualified canonical CT or MR volume")
     parser.add_argument("--volume-npy", required=True)
     parser.add_argument("--request-json", required=True)
     parser.add_argument("--output-surface", required=True)

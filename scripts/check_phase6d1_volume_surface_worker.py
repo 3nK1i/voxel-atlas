@@ -30,7 +30,7 @@ def main():
         before=sha(volume_path)
         request={
             "schema_version":1,"operation":"extract_volume_isosurface","extraction":"marching_cubes_isovalue",
-            "source_type":"canonical_volume","source_volume":"immutable","source_modality":"CT","source_intensity_units":"HU",
+            "source_type":"canonical_volume","source_volume":"immutable","source_modality":"CT","source_intensity_units":"HU","surface_intensity_units":"HU",
             "source_value_range":[0.0,800.0],"source_descriptor_sha256":"1"*64,"expected_volume_sha256":before,
             "shape":list(volume.shape),"array_index_to_patient_lps":[[0,0,2,10],[0,3,0,20],[4,0,0,30],[0,0,0,1]],
             "isovalue":300.0,"coordinate_system":"patient_lps","expected_runtime_fingerprint_sha256":runtime.runtime_fingerprint_sha256,

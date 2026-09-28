@@ -94,8 +94,8 @@ class Phase6D1VolumeDerivedSurfaceTests(unittest.TestCase):
                     with self.assertRaises(VolumeSurfaceValidationError):
                         service.surface_latest(isovalue=invalid)
 
-    def test_mri_is_not_silently_given_a_ct_hu_surface(self):
-        from voxelatlas.volume_surfaces import VolumeSurfaceService, VolumeSurfaceUnavailableError
+    def test_mri_is_not_silently_given_ct_hu_semantics(self):
+        from voxelatlas.volume_surfaces import VolumeSurfaceService, VolumeSurfaceValidationError
 
         with tempfile.TemporaryDirectory() as tmp:
             source = self.make_source(Path(tmp), modality="MR", units="modality", value_range=(0.0, 1500.0))
@@ -106,9 +106,17 @@ class Phase6D1VolumeDerivedSurfaceTests(unittest.TestCase):
                 worker_script=ROOT / "scripts" / "phase6d1_volume_surface_worker.py",
             )
             descriptor = service.descriptor_latest()
-            self.assertFalse(descriptor["available"])
+            self.assertFalse(descriptor["available"])  # D4.5C owns UI activation.
+            self.assertTrue(descriptor["backend_available"])
+            self.assertEqual(descriptor["ui_activation"], "deferred_to_phase6j_d4_5c")
             self.assertEqual(descriptor["source_modality"], "MR")
-            with self.assertRaises(VolumeSurfaceUnavailableError):
+            self.assertEqual(descriptor["source_intensity_units"], "modality")
+            self.assertEqual(descriptor["surface_intensity_units"], "normalized_signal")
+            self.assertEqual(descriptor["surface_isovalue_range"], [0.0, 1.0])
+            self.assertEqual(descriptor["default_isovalue"], 0.5)
+            self.assertEqual(descriptor["presets"], [])
+            self.assertEqual(descriptor["normalization"]["semantic_identity"], "none")
+            with self.assertRaises(VolumeSurfaceValidationError):
                 service.surface_latest(isovalue=300.0)
 
     def test_worker_boundary_is_patient_lps_source_immutable_and_uses_dedicated_transport(self):

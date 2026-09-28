@@ -34,6 +34,12 @@ VOLUME_SURFACE_FLAGS = 1
 VOLUME_SURFACE_EXTRACTION = "marching_cubes_isovalue"
 VOLUME_SURFACE_QUALITY = "native"
 DEFAULT_CT_BONE_ISOVALUE_HU = 300.0
+DEFAULT_MR_NORMALIZED_ISOVALUE = 0.50
+MRI_SURFACE_INTENSITY_UNITS = "normalized_signal"
+MRI_NORMALIZATION_PROFILE = "robust_percentile_v1"
+MRI_NORMALIZATION_LOW_PERCENTILE = 2.0
+MRI_NORMALIZATION_HIGH_PERCENTILE = 98.0
+MRI_PRESENTATION_GAUSSIAN_SIGMA_MM = 0.75
 MAX_VOLUME_SURFACE_VERTICES = 2_000_000
 MAX_VOLUME_SURFACE_TRIANGLES = 4_000_000
 MAX_VOLUME_SURFACE_PAYLOAD_BYTES = 160 * 1024 * 1024
@@ -167,12 +173,33 @@ def _validated_isovalue(source: CanonicalVolumeRenderingSource, value: object) -
     isovalue = float(value)
     if not isfinite(isovalue):
         raise VolumeSurfaceValidationError("Volume surface isovalue must be finite")
+    if source.modality == "MR" and source.intensity_units == "modality":
+        if not 0.0 < isovalue < 1.0:
+            raise VolumeSurfaceValidationError(
+                "Direct MR normalized isovalue must be strictly between 0 and 1"
+            )
+        return isovalue
     low, high = source.value_range
     if not low < isovalue < high:
         raise VolumeSurfaceValidationError(
             "Volume surface isovalue must be strictly inside the canonical volume value range"
         )
     return isovalue
+
+
+def _is_supported_source(source: CanonicalVolumeRenderingSource) -> bool:
+    return (
+        (source.modality == "CT" and source.intensity_units == "HU")
+        or (source.modality == "MR" and source.intensity_units == "modality")
+    )
+
+
+def _surface_intensity_units(source: CanonicalVolumeRenderingSource) -> str:
+    if source.modality == "CT" and source.intensity_units == "HU":
+        return "HU"
+    if source.modality == "MR" and source.intensity_units == "modality":
+        return MRI_SURFACE_INTENSITY_UNITS
+    raise VolumeSurfaceUnavailableError("Canonical volume modality is not qualified for direct surfaces")
 
 
 def _decode_payload(payload: bytes) -> tuple[int, int, tuple[float, float, float, float, float, float]]:
@@ -262,30 +289,45 @@ class VolumeSurfaceService:
         return source
 
     @staticmethod
+    def _assert_surface_source(source: CanonicalVolumeRenderingSource) -> None:
+        if not _is_supported_source(source):
+            raise VolumeSurfaceUnavailableError(
+                "Direct volume-derived surfaces require qualified CT/HU or MR/modality canonical volumes"
+            )
+
+    @staticmethod
     def _assert_ct_source(source: CanonicalVolumeRenderingSource) -> None:
         if source.modality != "CT" or source.intensity_units != "HU":
             raise VolumeSurfaceUnavailableError(
-                "Phase 6D1 qualifies direct volume-derived surfaces for CT HU volumes only; "
-                "MRI intensity is not silently thresholded"
+                "Direct CT region evidence is available for CT HU surfaces only"
             )
 
     def descriptor_latest(self) -> dict[str, object]:
         source = self._source_latest()
         low, high = source.value_range
         ct_qualified = source.modality == "CT" and source.intensity_units == "HU"
+        mr_qualified = source.modality == "MR" and source.intensity_units == "modality"
         runtime_configured = self.worker_python is not None
-        bone_available = low < DEFAULT_CT_BONE_ISOVALUE_HU < high
-        available = ct_qualified and runtime_configured and low < high
+        source_range_valid = low < high
+        backend_available = (ct_qualified or mr_qualified) and runtime_configured and source_range_valid
+        bone_available = ct_qualified and low < DEFAULT_CT_BONE_ISOVALUE_HU < high
+        # D4.5B qualifies the Direct MR backend without exposing the old CT-only UI
+        # before D4.5C makes the presentation modality-aware.
+        available = bool(backend_available and ct_qualified)
         reason = None
-        if not ct_qualified:
-            reason = "CT HU volume-derived surfaces are qualified in Phase 6D1; MRI is not silently thresholded"
+        if not (ct_qualified or mr_qualified):
+            reason = "Canonical volume modality is not qualified for direct surfaces"
         elif not runtime_configured:
             reason = "Volume surface runtime is not configured"
-        elif not low < high:
+        elif not source_range_valid:
             reason = "Canonical volume intensity range is not suitable for isosurface extraction"
+        elif mr_qualified:
+            reason = "Direct MR backend is qualified; UI activation is deferred to Phase 6J-D4.5C"
         return {
             "schema_version": VOLUME_SURFACE_SCHEMA_VERSION,
             "available": available,
+            "backend_available": bool(backend_available),
+            "ui_activation": "enabled" if ct_qualified else "deferred_to_phase6j_d4_5c",
             "reason": reason,
             "study_id": source.study_dir.name,
             "source_type": "canonical_volume",
@@ -293,14 +335,32 @@ class VolumeSurfaceService:
             "source_modality": source.modality,
             "source_intensity_units": source.intensity_units,
             "source_value_range": [float(low), float(high)],
-            "default_isovalue": DEFAULT_CT_BONE_ISOVALUE_HU if bone_available else None,
+            "surface_intensity_units": (
+                "HU" if ct_qualified else MRI_SURFACE_INTENSITY_UNITS if mr_qualified else None
+            ),
+            "surface_isovalue_range": (
+                [float(low), float(high)] if ct_qualified else [0.0, 1.0] if mr_qualified else None
+            ),
+            "default_isovalue": (
+                DEFAULT_CT_BONE_ISOVALUE_HU if bone_available
+                else DEFAULT_MR_NORMALIZED_ISOVALUE if mr_qualified and backend_available
+                else None
+            ),
             "presets": ([{
                 "id": "bone",
                 "label": "Bone",
                 "isovalue": DEFAULT_CT_BONE_ISOVALUE_HU,
                 "units": "HU",
-            }] if ct_qualified and bone_available else []),
-            "custom_isovalue_supported": bool(ct_qualified),
+            }] if bone_available else []),
+            "custom_isovalue_supported": bool(backend_available),
+            "normalization": ({
+                "profile": MRI_NORMALIZATION_PROFILE,
+                "low_percentile": MRI_NORMALIZATION_LOW_PERCENTILE,
+                "high_percentile": MRI_NORMALIZATION_HIGH_PERCENTILE,
+                "clip_to_unit_interval": True,
+                "gaussian_sigma_mm": MRI_PRESENTATION_GAUSSIAN_SIGMA_MM,
+                "semantic_identity": "none",
+            } if mr_qualified else None),
             "quality": VOLUME_SURFACE_QUALITY,
             "extraction": VOLUME_SURFACE_EXTRACTION,
             "coordinate_system": "patient_lps",
@@ -319,7 +379,7 @@ class VolumeSurfaceService:
 
     def surface_latest(self, *, isovalue: float) -> VolumeDerivedSurface:
         source = self._source_latest()
-        self._assert_ct_source(source)
+        self._assert_surface_source(source)
         level = _validated_isovalue(source, isovalue)
         if self.worker_script is None or not self.worker_script.is_file() or self.worker_script.is_symlink():
             raise VolumeSurfaceUnavailableError("Volume surface worker is unavailable")
@@ -329,7 +389,7 @@ class VolumeSurfaceService:
         cache_key = (
             source.study_dir.name,
             source_sha,
-            level.hex(),
+            f"{source.modality}:{_surface_intensity_units(source)}:{level.hex()}",
             runtime.runtime_fingerprint_sha256,
         )
         cached = self._cache.get(cache_key)
@@ -344,6 +404,7 @@ class VolumeSurfaceService:
             "source_volume": "immutable",
             "source_modality": source.modality,
             "source_intensity_units": source.intensity_units,
+            "surface_intensity_units": _surface_intensity_units(source),
             "source_value_range": [float(item) for item in source.value_range],
             "source_descriptor_sha256": source.source_descriptor_sha256,
             "expected_volume_sha256": source_sha,
@@ -352,6 +413,15 @@ class VolumeSurfaceService:
                 [float(item) for item in row] for row in source.array_index_to_patient_lps
             ],
             "isovalue": level,
+            **({
+                "normalization": {
+                    "profile": MRI_NORMALIZATION_PROFILE,
+                    "low_percentile": MRI_NORMALIZATION_LOW_PERCENTILE,
+                    "high_percentile": MRI_NORMALIZATION_HIGH_PERCENTILE,
+                    "clip_to_unit_interval": True,
+                    "gaussian_sigma_mm": MRI_PRESENTATION_GAUSSIAN_SIGMA_MM,
+                }
+            } if source.modality == "MR" else {}),
             "coordinate_system": "patient_lps",
             "expected_runtime_fingerprint_sha256": runtime.runtime_fingerprint_sha256,
             "max_vertices": MAX_VOLUME_SURFACE_VERTICES,
@@ -415,7 +485,7 @@ class VolumeSurfaceService:
             "operation": "extract_volume_isosurface",
             "extraction": VOLUME_SURFACE_EXTRACTION,
             "isovalue": level,
-            "intensity_units": source.intensity_units,
+            "intensity_units": _surface_intensity_units(source),
             "vertex_count": vertex_count,
             "triangle_count": triangle_count,
             "payload_bytes": len(payload),
@@ -428,6 +498,30 @@ class VolumeSurfaceService:
             "source_volume": "immutable",
             "clinical_validation": "not_claimed",
         }
+        if source.modality == "MR":
+            normalization_report = report.get("normalization") if isinstance(report, dict) else None
+            if not isinstance(normalization_report, dict):
+                raise VolumeSurfaceValidationError("Direct MR normalization report is invalid")
+            try:
+                normalized_low = float(normalization_report.get("low_value"))
+                normalized_high = float(normalization_report.get("high_value"))
+                reported_sigma = float(normalization_report.get("gaussian_sigma_mm"))
+            except (TypeError, ValueError) as exc:
+                raise VolumeSurfaceValidationError("Direct MR normalization report is invalid") from exc
+            if (
+                normalization_report.get("profile") != MRI_NORMALIZATION_PROFILE
+                or normalization_report.get("low_percentile") != MRI_NORMALIZATION_LOW_PERCENTILE
+                or normalization_report.get("high_percentile") != MRI_NORMALIZATION_HIGH_PERCENTILE
+                or normalization_report.get("clip_to_unit_interval") is not True
+                or not isfinite(normalized_low)
+                or not isfinite(normalized_high)
+                or not normalized_low < normalized_high
+                or not isfinite(reported_sigma)
+                or abs(reported_sigma - MRI_PRESENTATION_GAUSSIAN_SIGMA_MM) > 1e-12
+            ):
+                raise VolumeSurfaceValidationError("Direct MR normalization report is invalid")
+        else:
+            normalization_report = None
         if not isinstance(report, dict):
             raise VolumeSurfaceValidationError("Volume surface worker report is invalid")
         for key, expected in expected_report.items():
@@ -468,11 +562,13 @@ class VolumeSurfaceService:
             "source_series_uid": source.source_series_uid,
             "source_modality": source.modality,
             "source_intensity_units": source.intensity_units,
+            "surface_intensity_units": _surface_intensity_units(source),
             "source_value_range": [float(item) for item in source.value_range],
             "source_volume_descriptor_sha256": source.source_descriptor_sha256,
             "source_volume_artifact_sha256": source_sha,
             "source_volume_created_at_utc": source.volume_created_at_utc,
             "isovalue": level,
+            "normalization": normalization_report,
             "quality": VOLUME_SURFACE_QUALITY,
             "extraction": VOLUME_SURFACE_EXTRACTION,
             "coordinate_system": "patient_lps",
@@ -500,7 +596,7 @@ class VolumeSurfaceService:
             source_series_uid=source.source_series_uid,
             source_type="canonical_volume",
             source_modality=source.modality,
-            intensity_units=source.intensity_units,
+            intensity_units=_surface_intensity_units(source),
             isovalue=level,
             quality=VOLUME_SURFACE_QUALITY,
             extraction=VOLUME_SURFACE_EXTRACTION,
