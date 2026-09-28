@@ -311,9 +311,9 @@ class VolumeSurfaceService:
         source_range_valid = low < high
         backend_available = (ct_qualified or mr_qualified) and runtime_configured and source_range_valid
         bone_available = ct_qualified and low < DEFAULT_CT_BONE_ISOVALUE_HU < high
-        # D4.5B qualifies the Direct MR backend without exposing the old CT-only UI
-        # before D4.5C makes the presentation modality-aware.
-        available = bool(backend_available and ct_qualified)
+        # D4.5C activates the already-qualified Direct MR backend in the
+        # modality-aware presentation layer without changing CT semantics.
+        available = bool(backend_available)
         reason = None
         if not (ct_qualified or mr_qualified):
             reason = "Canonical volume modality is not qualified for direct surfaces"
@@ -322,12 +322,12 @@ class VolumeSurfaceService:
         elif not source_range_valid:
             reason = "Canonical volume intensity range is not suitable for isosurface extraction"
         elif mr_qualified:
-            reason = "Direct MR backend is qualified; UI activation is deferred to Phase 6J-D4.5C"
+            reason = None
         return {
             "schema_version": VOLUME_SURFACE_SCHEMA_VERSION,
             "available": available,
             "backend_available": bool(backend_available),
-            "ui_activation": "enabled" if ct_qualified else "deferred_to_phase6j_d4_5c",
+            "ui_activation": "enabled" if backend_available else "unavailable",
             "reason": reason,
             "study_id": source.study_dir.name,
             "source_type": "canonical_volume",

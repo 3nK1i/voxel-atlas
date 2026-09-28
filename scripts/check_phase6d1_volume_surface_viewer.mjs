@@ -92,6 +92,8 @@ layer.setDescriptor({
   source_modality: "CT",
   source_intensity_units: "HU",
   source_value_range: [-1000, 1200],
+  surface_intensity_units: "HU",
+  surface_isovalue_range: [-1000, 1200],
   default_isovalue: 300,
 });
 assert.equal(fetchCount, 0, "Setting a descriptor must never auto-build the surface");

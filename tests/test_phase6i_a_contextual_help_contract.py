@@ -10,17 +10,16 @@ JS = (ROOT / 'web/js/parameter-help.js').read_text(encoding='utf-8')
 
 
 class ContextualHelpContractTests(unittest.TestCase):
-    def test_left_reconstruction_modes_have_independent_help_without_nested_buttons(self):
+    def test_left_reconstruction_modes_have_no_question_mark_help_controls(self):
         left = HTML.split('id="reconstructionPanel"', 1)[1].split('</section>', 1)[0]
-        self.assertEqual(left.count('class="va-reconstruction-mode-help-row"'), 3)
+        self.assertNotIn('va-reconstruction-mode-help-row', left)
+        self.assertNotIn('data-help-reconstruction-mode=', left)
         for mode in ('volume', 'surface', 'combined'):
             with self.subTest(mode=mode):
-                self.assertIn(f'data-help-reconstruction-mode="{mode}"', left)
                 self.assertEqual(left.count(f'data-reconstruction-mode="{mode}"'), 1)
-                self.assertIn(f'"mode-{mode}": [', JS)
-                self.assertIn(f'`mode-${{mode}}`', JS)
-        self.assertIn('button.after(trigger(', JS)
-        self.assertIn('.va-reconstruction-mode-help-row > .va-parameter-help', CSS)
+                self.assertNotIn(f'"mode-{mode}": [', JS)
+        self.assertNotIn('button.after(trigger(', JS)
+        self.assertNotIn('.va-reconstruction-mode-help-row > .va-parameter-help', CSS)
         self.assertNotIn('requestReconstructionVisualizationMode(', JS)
         self.assertNotIn('requestSegmentation', JS)
 

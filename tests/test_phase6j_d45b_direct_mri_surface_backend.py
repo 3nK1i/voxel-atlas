@@ -92,7 +92,7 @@ class Qualifier:
 
 
 class DirectMRBackendTests(unittest.TestCase):
-    def test_mr_descriptor_is_backend_ready_but_ui_activation_is_deferred(self):
+    def test_mr_descriptor_is_backend_ready_and_available_for_modality_aware_ui(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             source = make_source(root, modality="MR", units="modality")
@@ -104,9 +104,9 @@ class DirectMRBackendTests(unittest.TestCase):
             )
             descriptor = service.descriptor_latest()
 
-        self.assertFalse(descriptor["available"])
+        self.assertTrue(descriptor["available"])
         self.assertTrue(descriptor["backend_available"])
-        self.assertEqual(descriptor["ui_activation"], "deferred_to_phase6j_d4_5c")
+        self.assertEqual(descriptor["ui_activation"], "enabled")
         self.assertEqual(descriptor["source_modality"], "MR")
         self.assertEqual(descriptor["source_intensity_units"], "modality")
         self.assertEqual(descriptor["surface_intensity_units"], MRI_SURFACE_INTENSITY_UNITS)

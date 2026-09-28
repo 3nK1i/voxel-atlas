@@ -13,6 +13,20 @@ const VOLUME_SURFACE_MEDIA_TYPE = "application/x-voxelatlas-volume-surface-v1";
 const VOLUME_SURFACE_MAGIC = "VXVS";
 const VOLUME_SURFACE_HEADER_BYTES = 32;
 
+function directSurfaceLabel(descriptor) {
+  return descriptor?.source_modality === "MR" ? "Direct MR" : "Direct CT";
+}
+
+function directSurfaceUnits(descriptor) {
+  return String(descriptor?.surface_intensity_units || "");
+}
+
+function formatIsovalue(descriptor, value) {
+  const level = Number(value);
+  if (!Number.isFinite(level)) return "--";
+  return descriptor?.source_modality === "MR" ? level.toFixed(2) : level.toFixed(0);
+}
+
 function headerValue(response, name) {
   return String(response.headers.get(name) || "").trim();
 }
@@ -134,7 +148,9 @@ export class PatientVolumeSurfaceLayer {
     this.controller = null;
     this._disposeCurrent();
     if (this.descriptor?.available) {
-      this._status("ready", "Choose a CT isovalue and build a direct volume-derived surface.");
+      const label = directSurfaceLabel(this.descriptor);
+      const parameter = this.descriptor.source_modality === "MR" ? "normalized MRI isovalue" : "CT isovalue";
+      this._status("ready", `Choose a ${parameter} and build the ${label} surface.`);
     } else {
       this._status("unavailable", this.descriptor?.reason || "Volume-derived surface unavailable.");
     }
@@ -147,7 +163,7 @@ export class PatientVolumeSurfaceLayer {
     this.controller = null;
     this._disposeCurrent();
     this.descriptor = null;
-    this._status("unavailable", "Volume-derived surface available after a qualified CT volume is loaded.");
+    this._status("unavailable", "Volume-derived surface available after a qualified CT or MR volume is loaded.");
     this.requestRender();
   }
 
@@ -161,7 +177,7 @@ export class PatientVolumeSurfaceLayer {
     }
     this.descriptor = descriptor;
     if (descriptor.available) {
-      this._status("ready", "Select Surface or Combined to prepare the Direct CT surface without segmentation.");
+      this._status("ready", `Select Surface or Combined to prepare the ${directSurfaceLabel(descriptor)} surface without segmentation.`);
     } else {
       this._status("unavailable", descriptor.reason || "Volume-derived surface unavailable.");
     }
@@ -224,7 +240,7 @@ export class PatientVolumeSurfaceLayer {
 
   setPresentationOpacity(opacity) {
     const normalized = Number(opacity);
-    if (!Number.isFinite(normalized)) throw new TypeError("Direct CT presentation opacity must be finite");
+    if (!Number.isFinite(normalized)) throw new TypeError("Direct volume surface presentation opacity must be finite");
     this.presentationOpacity = Math.min(1, Math.max(0, normalized));
     this._applyPresentationOpacity();
     this.requestRender();
@@ -246,8 +262,11 @@ export class PatientVolumeSurfaceLayer {
     return Object.freeze({ available: state.available, faceCounts: state.faceCounts });
   }
 
-  /** Fetch authenticated labels for the current exact resident surface, never extract. */
+  /** Fetch authenticated labels for the current exact resident CT surface, never extract. */
   async loadRegionEvidence() {
+    if (this.descriptor?.source_modality !== "CT") {
+      throw new Error("Direct CT region evidence is unavailable for MRI surfaces");
+    }
     const target = this.current;
     if (!target?.surfaceId || !target.payloadSha256) {
       throw new Error("Direct CT surface must be resident before region qualification");
@@ -302,15 +321,18 @@ export class PatientVolumeSurfaceLayer {
   async build(isovalue) {
     if (!this.descriptor?.available) throw new Error(this.descriptor?.reason || "Volume-derived surface unavailable");
     const level = Number(isovalue);
-    const [minimum, maximum] = this.descriptor.source_value_range || [];
+    const [minimum, maximum] = this.descriptor.surface_isovalue_range || [];
     if (!Number.isFinite(level) || !Number.isFinite(minimum) || !Number.isFinite(maximum) || !(minimum < level && level < maximum)) {
-      throw new Error("Choose an isovalue inside the CT intensity range");
+      const basis = this.descriptor.source_modality === "MR" ? "normalized MRI signal range" : "CT intensity range";
+      throw new Error(`Choose an isovalue inside the ${basis}`);
     }
     const generation = ++this.generation;
     this.controller?.abort();
     const controller = new AbortController();
     this.controller = controller;
-    this._status("loading", `Building direct CT surface at ${level.toFixed(0)} HU…`, { isovalue: level });
+    const label = directSurfaceLabel(this.descriptor);
+    const unitsLabel = this.descriptor.source_modality === "MR" ? "normalized signal" : "HU";
+    this._status("loading", `Building ${label} surface at ${formatIsovalue(this.descriptor, level)} ${unitsLabel}…`, { isovalue: level });
     try {
       const response = await this.fetchImpl("/api/studies/latest/volume-surface", {
         method: "POST",
@@ -339,7 +361,7 @@ export class PatientVolumeSurfaceLayer {
         || !/^vsurf-[0-9a-f]{32}$/.test(surfaceId)
         || sourceType !== "canonical_volume"
         || !Number.isFinite(responseLevel) || Math.abs(responseLevel - level) > 1e-6
-        || units !== "HU"
+        || units !== directSurfaceUnits(this.descriptor)
         || extraction !== "marching_cubes_isovalue"
         || !/^[0-9a-f]{64}$/.test(expectedSha)
         || !/^[0-9a-f]{64}$/.test(provenanceSha)
@@ -365,7 +387,7 @@ export class PatientVolumeSurfaceLayer {
       geometry.computeBoundingSphere();
       const material = createVolumeSurfaceMaterial(this.three, this.presentationProfile);
       const mesh = new this.three.Mesh(geometry, material);
-      mesh.name = `Volume-derived CT surface ${level.toFixed(0)} HU`;
+      mesh.name = `Volume-derived ${this.descriptor.source_modality} surface ${formatIsovalue(this.descriptor, level)} ${units}`;
       mesh.userData.sourceType = "canonical_volume";
       mesh.userData.coordinateSystem = "patient_lps";
       mesh.userData.surfaceId = surfaceId;
@@ -374,7 +396,7 @@ export class PatientVolumeSurfaceLayer {
       mesh.userData.intensityUnits = units;
 
       const previous = this.current;
-      this.current = { mesh, geometry, material, isovalue: level, triangleCount: decoded.triangleCount, surfaceId, payloadSha256: expectedSha, regionVisibility: null };
+      this.current = { mesh, geometry, material, isovalue: level, triangleCount: decoded.triangleCount, surfaceId, payloadSha256: expectedSha, regionVisibility: null, sourceModality: this.descriptor.source_modality, intensityUnits: units };
       this._applyPresentationOpacity();
       applySurfaceClippingToMaterial(
         material,
@@ -389,7 +411,7 @@ export class PatientVolumeSurfaceLayer {
         previous.geometry.dispose();
         previous.material.dispose();
       }
-      this._status("qualified", `Direct CT surface ready · ${decoded.triangleCount.toLocaleString()} triangles · ${level.toFixed(0)} HU`, {
+      this._status("qualified", `${label} surface ready · ${decoded.triangleCount.toLocaleString()} triangles · ${formatIsovalue(this.descriptor, level)} ${unitsLabel}`, {
         isovalue: level,
         triangleCount: decoded.triangleCount,
         surfaceId,

@@ -21,7 +21,7 @@ class AutomaticDirectCtModeTests(unittest.TestCase):
         self.assertIn('sourceId === "volume-derived" && Boolean(', app)
         self.assertIn('state.volumeSurface.descriptor.study_id === state.study?.study_id', app)
         self.assertIn('if (studyId !== state.study?.study_id) return null;', app)
-        self.assertNotIn('startSegmentationWorkflow(', app.split('function ensureAutomaticDirectCtSurface(',1)[1].split('function setVolumeAvailability(',1)[0])
+        self.assertNotIn('startSegmentationWorkflow(', app.split('function ensureAutomaticDirectVolumeSurface(',1)[1].split('function setVolumeAvailability(',1)[0])
 
     def test_buttons_not_user_facing_but_existing_legacy_ids_stable(self):
         html = HTML.read_text()

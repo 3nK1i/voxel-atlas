@@ -106,9 +106,9 @@ class Phase6D1VolumeDerivedSurfaceTests(unittest.TestCase):
                 worker_script=ROOT / "scripts" / "phase6d1_volume_surface_worker.py",
             )
             descriptor = service.descriptor_latest()
-            self.assertFalse(descriptor["available"])  # D4.5C owns UI activation.
+            self.assertTrue(descriptor["available"])
             self.assertTrue(descriptor["backend_available"])
-            self.assertEqual(descriptor["ui_activation"], "deferred_to_phase6j_d4_5c")
+            self.assertEqual(descriptor["ui_activation"], "enabled")
             self.assertEqual(descriptor["source_modality"], "MR")
             self.assertEqual(descriptor["source_intensity_units"], "modality")
             self.assertEqual(descriptor["surface_intensity_units"], "normalized_signal")

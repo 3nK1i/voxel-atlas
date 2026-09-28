@@ -17,7 +17,7 @@ import {
 } from "./volume-rendering-quality.js?v=phase4h1";
 import {
   PatientVolumeSurfaceLayer,
-} from "./volume-surface-viewer.js?v=phase6d2b-r1-phase6e-b-r1-phase6e-d-r1-phase6e-e-r1-phase6f-c-r3-phase6f-d-r1-post6f-b1b2b-r1";
+} from "./volume-surface-viewer.js?v=phase6d2b-r1-phase6e-b-r1-phase6e-d-r1-phase6e-e-r1-phase6f-c-r3-phase6f-d-r1-post6f-b1b2b-r1-phase6j-d45c-r1";
 import {
   ReconstructionVisualizationModeController,
 } from "./reconstruction-visualization-mode.js?v=phase6d2a-r1";
@@ -95,12 +95,22 @@ const reconstructionSurfaceSourceInputs = Array.from(document.querySelectorAll("
 const reconstructionPresentationProfileStatus = document.getElementById("reconstructionPresentationProfileStatus");
 const reconstructionPresentationProfileButtons = Array.from(document.querySelectorAll("[data-reconstruction-presentation-profile]"));
 const volumeSurfacePanel = document.getElementById("volumeSurfacePanel");
+const volumeSurfaceTitle = document.getElementById("volumeSurfaceTitle");
+const volumeSurfaceSourceLabel = document.getElementById("volumeSurfaceSourceLabel");
+const volumeSurfaceSourceBadge = document.getElementById("volumeSurfaceSourceBadge");
+const reconstructionSurfaceSourceNote = document.getElementById("reconstructionSurfaceSourceNote");
 const volumeSurfaceStatus = document.getElementById("volumeSurfaceStatus");
 const volumeSurfaceIsovalue = document.getElementById("volumeSurfaceIsovalue");
+const volumeSurfaceIsovalueTitle = document.getElementById("volumeSurfaceIsovalueTitle");
+const volumeSurfaceIsovalueHint = document.getElementById("volumeSurfaceIsovalueHint");
+const volumeSurfaceIsovalueUnits = document.getElementById("volumeSurfaceIsovalueUnits");
 const volumeSurfaceBuild = document.getElementById("volumeSurfaceBuild");
 const volumeSurfaceClear = document.getElementById("volumeSurfaceClear");
+const volumeSurfaceRegionControl = document.getElementById("volumeSurfaceRegionControl");
+const volumeSurfaceRegionTitle = document.getElementById("volumeSurfaceRegionTitle");
 const volumeSurfaceRegionMode = document.getElementById("volumeSurfaceRegionMode");
 const volumeSurfaceRegionStatus = document.getElementById("volumeSurfaceRegionStatus");
+const volumeSurfaceContractNote = document.getElementById("volumeSurfaceContractNote");
 const segmentationOverlayPanel = document.getElementById("segmentationOverlayPanel");
 const segmentationOverlayStatus = document.getElementById("segmentationOverlayStatus");
 const segmentationOverlayToggle = document.getElementById("segmentationOverlayToggle");
@@ -483,10 +493,20 @@ const volumeTextureManager = new PatientVolumeTextureManager({
 });
 const volumeRayMarcher = new PatientVolumeRayMarcher({ three: THREE });
 function syncDirectCtRegionControls() {
-  const state = volumeSurfaceLayer?.current?.regionVisibility;
-  const enabled = Boolean(state?.available);
+  const isCt = state.volumeSurface.descriptor?.source_modality === "CT";
+  if (!isCt) {
+    volumeSurfaceRegionMode.disabled = true;
+    volumeSurfaceRegionMode.value = "all";
+    if (volumeSurfaceRegionControl) volumeSurfaceRegionControl.hidden = true;
+    if (volumeSurfaceRegionStatus) volumeSurfaceRegionStatus.hidden = true;
+    return;
+  }
+  if (volumeSurfaceRegionControl) volumeSurfaceRegionControl.hidden = false;
+  if (volumeSurfaceRegionStatus) volumeSurfaceRegionStatus.hidden = false;
+  const regionState = volumeSurfaceLayer?.current?.regionVisibility;
+  const enabled = Boolean(regionState?.available);
   volumeSurfaceRegionMode.disabled = !enabled;
-  volumeSurfaceRegionMode.value = enabled ? state.mode : "all";
+  volumeSurfaceRegionMode.value = enabled ? regionState.mode : "all";
   if (!volumeSurfaceLayer?.current) {
     volumeSurfaceRegionStatus.textContent = "Build a Direct CT surface to inspect regions.";
   } else if (enabled) {
@@ -1008,8 +1028,12 @@ function applyTransferAdjustments(changedControl = null) {
   return transfer;
 }
 
+function directVolumeSurfaceLabel(descriptor = state.volumeSurface.descriptor) {
+  return descriptor?.source_modality === "MR" ? "Direct MR" : "Direct CT";
+}
+
 function reconstructionSurfaceSourceLabel(sourceId) {
-  return sourceId === "volume-derived" ? "Direct CT" : "Segmentation";
+  return sourceId === "volume-derived" ? directVolumeSurfaceLabel() : "Segmentation";
 }
 
 function applyCombinedPresentationBalance(visualizationSnapshot = null, profileSnapshot = null) {
@@ -1055,7 +1079,7 @@ function requestReconstructionPresentationProfile(profileId) {
   return reconstructionPresentationProfileController.requestProfile(profileId);
 }
 
-function canPrepareAutomaticDirectCtSurface(snapshot) {
+function canPrepareAutomaticDirectVolumeSurface(snapshot) {
   const descriptor = state.volumeSurface.descriptor;
   return Boolean(
     snapshot.volumeAvailable
@@ -1107,10 +1131,10 @@ function applyReconstructionVisualizationSnapshot(snapshot) {
       ? "ready"
       : "unavailable";
   }
-  const canPrepareDirectCt = canPrepareAutomaticDirectCtSurface(snapshot);
+  const canPrepareDirectCt = canPrepareAutomaticDirectVolumeSurface(snapshot);
   const canPrepareSegmentation = canPrepareAutomaticSegmentationSurface();
   const preparatory = canPrepareDirectCt || canPrepareSegmentation;
-  const pendingSource = canPrepareDirectCt ? "Direct CT" : "selected segmentation";
+  const pendingSource = canPrepareDirectCt ? directVolumeSurfaceLabel() : "selected segmentation";
   for (const button of reconstructionModeButtons) {
     const modeId = button.dataset.reconstructionMode;
     const available = modeId === "volume"
@@ -1130,7 +1154,7 @@ function applyReconstructionVisualizationSnapshot(snapshot) {
     surfaceModeStatusText.textContent = autoSurfacePendingMode === "surface"
       ? `Preparing ${pendingSource} surface…`
       : (snapshot.canSurface ? `${sourceSummary || "Surface"} ready`
-        : (preparatory ? (canPrepareDirectCt ? "Select to prepare Direct CT" : "Select to prepare selected segmentation") : "Select a surface source"));
+        : (preparatory ? (canPrepareDirectCt ? `Select to prepare ${directVolumeSurfaceLabel()}` : "Select to prepare selected segmentation") : "Select a surface source"));
   }
   if (combinedModeStatusText) {
     combinedModeStatusText.textContent = autoSurfacePendingMode === "combined"
@@ -1209,10 +1233,10 @@ function requestReconstructionVisualizationMode(modeId) {
     segmentationSurfaceGate?.invalidate();
     const result = reconstructionVisualizationController.requestMode(modeId);
     // A resident segmentation surface can be shown immediately; prepare the
-    // separately selected Direct CT source in the background without replacing it.
+    // separately selected direct volume-derived source in the background without replacing it.
     if (result.accepted && modeId !== "volume" && !volumeSurfaceLayer.current
-        && canPrepareAutomaticDirectCtSurface(snapshot)) {
-      void ensureAutomaticDirectCtSurface();
+        && canPrepareAutomaticDirectVolumeSurface(snapshot)) {
+      void ensureAutomaticDirectVolumeSurface();
     }
     if (result.accepted && modeId !== "volume" && canPrepareAutomaticSegmentationSurface()) {
       void syncSegmentationSurface();
@@ -1224,8 +1248,8 @@ function requestReconstructionVisualizationMode(modeId) {
 
 function ensureAutomaticSelectedSurface() {
   const snapshot = reconstructionVisualizationController.snapshot();
-  if (canPrepareAutomaticDirectCtSurface(snapshot)) {
-    const build = ensureAutomaticDirectCtSurface();
+  if (canPrepareAutomaticDirectVolumeSurface(snapshot)) {
+    const build = ensureAutomaticDirectVolumeSurface();
     if (!build) return null;
     return Promise.resolve(build).then((ready) => {
       if (ready || reconstructionVisualizationController.snapshot().canSurface) return true;
@@ -1242,9 +1266,9 @@ function ensureAutomaticSegmentationSurface() {
   return segmentationSurfaceGate?.request() || null;
 }
 
-function ensureAutomaticDirectCtSurface() {
+function ensureAutomaticDirectVolumeSurface() {
   const snapshot = reconstructionVisualizationController.snapshot();
-  if (!canPrepareAutomaticDirectCtSurface(snapshot)) return null;
+  if (!canPrepareAutomaticDirectVolumeSurface(snapshot)) return null;
   const studyId = state.study.study_id;
   const requestedLevel = Number(volumeSurfaceIsovalue.value);
   if (volumeSurfaceLayer.current?.isovalue === requestedLevel) return Promise.resolve(true);
@@ -2043,25 +2067,66 @@ function setVolumeSurfaceDescriptor(descriptor) {
   volumeSurfaceLayer.setDescriptor(descriptor || null);
   if (!descriptor) {
     volumeSurfacePanel.dataset.state = "unavailable";
+    volumeSurfacePanel.dataset.modality = "none";
     volumeSurfaceBuild.disabled = true;
     volumeSurfaceClear.disabled = true;
     volumeSurfaceIsovalue.disabled = true;
+    if (volumeSurfaceRegionControl) volumeSurfaceRegionControl.hidden = false;
+    if (volumeSurfaceRegionStatus) volumeSurfaceRegionStatus.hidden = false;
     syncReconstructionVisualizationResources();
     return;
   }
-  const range = Array.isArray(descriptor.source_value_range) ? descriptor.source_value_range : [];
-  const minimum = Number(range[0]);
-  const maximum = Number(range[1]);
+
+  const modality = String(descriptor.source_modality || "").toUpperCase();
+  const isMr = modality === "MR";
+  const label = isMr ? "Direct MR" : "Direct CT";
+  const range = Array.isArray(descriptor.surface_isovalue_range)
+    ? descriptor.surface_isovalue_range : descriptor.source_value_range;
+  const minimum = Number(range?.[0]);
+  const maximum = Number(range?.[1]);
   const defaultLevel = Number(descriptor.default_isovalue);
+
+  volumeSurfacePanel.dataset.modality = isMr ? "mr" : "ct";
+  if (volumeSurfaceTitle) volumeSurfaceTitle.textContent = `${label} Surface`;
+  if (volumeSurfaceSourceLabel) volumeSurfaceSourceLabel.textContent = label;
+  if (volumeSurfaceSourceBadge) volumeSurfaceSourceBadge.textContent = label;
+  if (volumeSurfaceRegionTitle) volumeSurfaceRegionTitle.textContent = `${label} visibility`;
+  if (reconstructionSurfaceSourceNote) {
+    reconstructionSurfaceSourceNote.textContent = `Surface source selections apply in Surface and Combined modes. Selected ${label} geometry is prepared on demand; existing resident geometry is reused. Switching modes never starts segmentation.`;
+  }
+
+  if (isMr) {
+    if (volumeSurfaceIsovalueTitle) volumeSurfaceIsovalueTitle.textContent = "Normalized MRI isovalue";
+    if (volumeSurfaceIsovalueHint) volumeSurfaceIsovalueHint.textContent = "Relative signal after robust 2–98% normalization";
+    if (volumeSurfaceIsovalueUnits) volumeSurfaceIsovalueUnits.textContent = "0–1";
+    volumeSurfaceIsovalue.step = "0.01";
+    if (volumeSurfaceRegionControl) volumeSurfaceRegionControl.hidden = true;
+    if (volumeSurfaceRegionStatus) volumeSurfaceRegionStatus.hidden = true;
+    if (volumeSurfaceContractNote) {
+      volumeSurfaceContractNote.textContent = "Canonical MRI intensity-derived surface · normalized signal · Patient LPS · non-semantic visualization · no segmentation required.";
+    }
+  } else {
+    if (volumeSurfaceIsovalueTitle) volumeSurfaceIsovalueTitle.textContent = "CT isovalue";
+    if (volumeSurfaceIsovalueHint) volumeSurfaceIsovalueHint.textContent = "Bone baseline: 300 HU when in range";
+    if (volumeSurfaceIsovalueUnits) volumeSurfaceIsovalueUnits.textContent = "HU";
+    volumeSurfaceIsovalue.step = "10";
+    if (volumeSurfaceRegionControl) volumeSurfaceRegionControl.hidden = false;
+    if (volumeSurfaceRegionStatus) volumeSurfaceRegionStatus.hidden = false;
+    if (volumeSurfaceContractNote) {
+      volumeSurfaceContractNote.textContent = "Canonical CT intensity isosurface · Patient LPS · no semantic segmentation required.";
+    }
+  }
+
   if (Number.isFinite(minimum) && Number.isFinite(maximum) && minimum < maximum) {
-    const epsilon = Math.max(0.001, Math.abs(maximum - minimum) * 1e-6);
+    const epsilon = isMr ? 0.001 : Math.max(0.001, Math.abs(maximum - minimum) * 1e-6);
     volumeSurfaceIsovalue.min = String(minimum + epsilon);
     volumeSurfaceIsovalue.max = String(maximum - epsilon);
   }
   if (Number.isFinite(defaultLevel)) {
-    volumeSurfaceIsovalue.value = String(defaultLevel);
+    volumeSurfaceIsovalue.value = isMr ? defaultLevel.toFixed(2) : String(defaultLevel);
   } else if (Number.isFinite(minimum) && Number.isFinite(maximum) && minimum < maximum) {
-    volumeSurfaceIsovalue.value = String(Math.round((minimum + maximum) / 2));
+    const midpoint = (minimum + maximum) / 2;
+    volumeSurfaceIsovalue.value = isMr ? midpoint.toFixed(2) : String(Math.round(midpoint));
   }
   volumeSurfaceBuild.disabled = !descriptor.available;
   volumeSurfaceIsovalue.disabled = !descriptor.available;
@@ -2108,7 +2173,8 @@ async function requestVolumeSurfaceBuild() {
   const level = Number(volumeSurfaceIsovalue.value);
   try {
     const built = await volumeSurfaceLayer.build(level);
-    if (built && volumeSurfaceLayer.current === built) {
+    if (built && volumeSurfaceLayer.current === built
+        && state.volumeSurface.descriptor?.source_modality === "CT") {
       volumeSurfaceRegionStatus.textContent = "Qualifying resident Direct CT regions…";
       try {
         const evidence = await volumeSurfaceLayer.loadRegionEvidence();
@@ -2116,7 +2182,7 @@ async function requestVolumeSurfaceBuild() {
           volumeSurfaceRegionStatus.textContent = "This surface has no two distinct qualified regions; full geometry remains visible.";
         }
       } catch {
-        // An evidence failure must never alter or prevent the original surface.
+        // CT evidence failure must never alter or prevent the original surface.
         if (volumeSurfaceLayer.current === built) {
           volumeSurfaceRegionStatus.textContent = "Region evidence unavailable. Full geometry is retained.";
         }

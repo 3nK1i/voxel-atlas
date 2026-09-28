@@ -10,29 +10,16 @@ HELP = (ROOT / 'web/js/parameter-help.js').read_text(encoding='utf-8')
 
 
 class Phase6IIntegratedErgonomics(unittest.TestCase):
-    def test_mode_help_is_inside_full_width_original_card_footprint(self):
+    def test_mode_cards_remain_full_width_without_question_mark_help(self):
         panel = HTML.split('id="reconstructionPanel"', 1)[1].split('</section>', 1)[0]
-        self.assertEqual(panel.count('class="va-reconstruction-mode-help-row"'), 3)
+        self.assertNotIn('va-reconstruction-mode-help-row', panel)
+        self.assertNotIn('data-help-reconstruction-mode=', panel)
         for mode in ('volume', 'surface', 'combined'):
-            match = re.search(
-                rf'<div class="va-reconstruction-mode-help-row" data-help-reconstruction-mode="{mode}">(.*?)</button>\s*</div>',
-                panel, re.S,
-            )
-            self.assertIsNotNone(match, mode)
-            self.assertIn(f'data-reconstruction-mode="{mode}"', match.group(1))
-        row_css = CSS.split('/* Phase 6I integrated ergonomic polish —', 1)[1]
-        self.assertIn('.va-reconstruction-mode-help-row {', row_css)
-        self.assertRegex(row_css, r'\.va-reconstruction-mode-help-row\s*\{[^}]*position:\s*relative;')
-        self.assertRegex(row_css, r'\.va-reconstruction-mode-help-row\s*\{[^}]*display:\s*block;')
-        self.assertIn('.va-reconstruction-mode-help-row > .reconstruction-mode-card {', row_css)
-        self.assertIn('padding-right:', row_css)
-        self.assertRegex(row_css, r'\.va-reconstruction-mode-help-row > \.va-parameter-help\s*\{[^}]*position:\s*absolute;')
-        self.assertRegex(row_css, r'\.va-reconstruction-mode-help-row > \.va-parameter-help\s*\{[^}]*right:\s*\d+px;')
-        self.assertNotIn('grid-template-columns: minmax(0, 1fr) 19px', row_css)
-        # A separate interactive sibling stays usable while its mode button is disabled.
-        self.assertIn('button.after(trigger(', HELP)
-        self.assertIn('if (!button || !SPECIAL[key]', HELP)
-        self.assertNotIn('button.append(trigger(', HELP)
+            with self.subTest(mode=mode):
+                self.assertEqual(panel.count(f'data-reconstruction-mode="{mode}"'), 1)
+        self.assertRegex(CSS, r'\.reconstruction-mode-card\s*\{[^}]*width:\s*100%;')
+        self.assertNotIn('.va-reconstruction-mode-help-row > .va-parameter-help', CSS)
+        self.assertNotIn('button.after(trigger(', HELP)
 
     def test_direct_ct_help_is_aligned_with_parameter_title(self):
         panel = HTML.split('id="volumeSurfacePanel"', 1)[1].split('</section>', 1)[0]
@@ -43,7 +30,7 @@ class Phase6IIntegratedErgonomics(unittest.TestCase):
             with self.subTest(label_id=label_id):
                 self.assertRegex(
                     panel,
-                    rf'<span class="va-volume-surface-caption-title">{title}</span>',
+                    rf'<span(?: id="[^"]+")? class="va-volume-surface-caption-title">{title}</span>',
                 )
                 self.assertIn(f'for="{label_id}"', panel)
                 self.assertIn(f'id="{label_id}"', panel)
@@ -61,9 +48,9 @@ class Phase6IIntegratedErgonomics(unittest.TestCase):
             panel,
             r'<span class="volume-surface-isovalue-entry">\s*'
             r'<input id="volumeSurfaceIsovalue" type="number" step="10" value="300" inputmode="decimal" disabled>\s*'
-            r'<strong>HU</strong>\s*</span>',
+            r'<strong id="volumeSurfaceIsovalueUnits">HU</strong>\s*</span>',
         )
-        polished_css = CSS.split('/* Phase 6I integrated ergonomic polish —', 1)[1]
+        polished_css = CSS
         self.assertRegex(polished_css, r'\.volume-surface-isovalue-entry\s*\{[^}]*border:\s*1px solid')
         self.assertRegex(polished_css, r'\.volume-surface-isovalue-entry\s*\{[^}]*border-radius:')
         self.assertRegex(polished_css, r'\.volume-surface-isovalue-entry\s*\{[^}]*background:')

@@ -4347,6 +4347,11 @@ button:disabled {
 }
 
 /* Post-6F B1B2B: explicit display-only Direct CT region selection. */
+.volume-surface-region-control[hidden],
+#volumeSurfaceRegionStatus[hidden] {
+  display: none !important;
+}
+
 .volume-surface-region-control {
   display: grid;
   gap: 0.35rem;
@@ -4505,29 +4510,6 @@ button:disabled {
 .volume-surface-region-control select:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-}
-
-/* Phase 6I integrated ergonomic polish — full-width cards and compact CT control rows.
-   The help icon remains a focusable sibling of each (possibly disabled) mode
-   button, but is positioned *within* the card outline without enlarging it. */
-.va-reconstruction-mode-help-row {
-  position: relative;
-  display: block;
-  min-width: 0;
-}
-.va-reconstruction-mode-help-row > .reconstruction-mode-card {
-  width: 100%;
-  padding-right: 31px; /* reserve the existing status mark plus inset help */
-}
-.va-reconstruction-mode-help-row > .va-parameter-help {
-  position: absolute;
-  top: 50%;
-  right: 9px;
-  transform: translateY(-50%);
-  z-index: 1;
-  width: 16px;
-  height: 16px;
-  margin: 0;
 }
 
 /* Keep the ? on the same typographic line as the control title; small supporting

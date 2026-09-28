@@ -26,7 +26,7 @@
     })();
   </script>
 
-  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1-phase6c-r2-phase6d0-r1-phase6d1-r1-phase6d2b-r1-phase6d2c-r1-phase6d2d-r1-phase6e-c-r1-phase6f-b-r1-phase6f-d-r1-phase6f-e-r1-post6f-stab-a-r1-post6f-b1b2b-r1-phase6i-a-r3-phase6i-b2-r1-phase6i-c-r1-phase6i-d-r1-phase6i-polish-r1-ctb2-r1">
+  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1-phase6c-r2-phase6d0-r1-phase6d1-r1-phase6d2b-r1-phase6d2c-r1-phase6d2d-r1-phase6e-c-r1-phase6f-b-r1-phase6f-d-r1-phase6f-e-r1-post6f-stab-a-r1-post6f-b1b2b-r1-phase6i-a-r3-phase6i-b2-r1-phase6i-c-r1-phase6i-d-r1-phase6i-polish-r1-ctb2-r1-phase6j-d45c-r2">
 
   <script type="importmap">
   {
@@ -179,7 +179,7 @@
           <section id="reconstructionPanel" class="info-section">
             <div class="section-kicker">Reconstruction</div>
             <div class="status-list reconstruction-mode-list" role="group" aria-label="3D reconstruction visualization mode">
-              <div class="va-reconstruction-mode-help-row" data-help-reconstruction-mode="volume">
+              <div>
               <button
                 id="volumeStatusRow"
                 class="status-row reconstruction-mode-card"
@@ -206,7 +206,7 @@
               </button>
               </div>
 
-              <div class="va-reconstruction-mode-help-row" data-help-reconstruction-mode="surface">
+              <div>
               <button
                 class="status-row reconstruction-mode-card"
                 type="button"
@@ -231,7 +231,7 @@
               </button>
               </div>
 
-              <div class="va-reconstruction-mode-help-row" data-help-reconstruction-mode="combined">
+              <div>
               <button
                 class="status-row reconstruction-mode-card"
                 type="button"
@@ -798,7 +798,7 @@
               <div class="reconstruction-source-options">
                 <label class="reconstruction-source-option" data-reconstruction-source-row="volume-derived" data-state="unavailable">
                   <input type="checkbox" data-reconstruction-surface-source="volume-derived" checked disabled>
-                  <span>Direct CT</span>
+                  <span id="volumeSurfaceSourceLabel">Direct CT</span>
                 </label>
                 <label class="reconstruction-source-option" data-reconstruction-source-row="segmentation-derived" data-state="unavailable">
                   <input type="checkbox" data-reconstruction-surface-source="segmentation-derived" checked disabled>
@@ -806,7 +806,7 @@
                 </label>
               </div>
             </div>
-            <p class="segmentation-overlay-note">Surface source selections apply in Surface and Combined modes. Selected Direct CT geometry is prepared on demand; existing resident geometry is reused. Switching modes never starts segmentation.</p>
+            <p id="reconstructionSurfaceSourceNote" class="segmentation-overlay-note">Surface source selections apply in Surface and Combined modes. Selected direct volume geometry is prepared on demand; existing resident geometry is reused. Switching modes never starts segmentation.</p>
           </section>
 
           <section id="volumeSurfacePanel" class="control-section volume-surface-panel" data-state="unavailable" aria-labelledby="volumeSurfaceTitle">
@@ -815,21 +815,21 @@
                 <div id="volumeSurfaceTitle" class="section-kicker">Direct CT Surface</div>
                 <p id="volumeSurfaceStatus" aria-live="polite">Available after a qualified CT volume is loaded.</p>
               </div>
-              <span class="volume-surface-source-badge">Direct CT</span>
+              <span id="volumeSurfaceSourceBadge" class="volume-surface-source-badge">Direct CT</span>
             </div>
             <label class="volume-surface-isovalue" for="volumeSurfaceIsovalue">
-              <span class="va-volume-surface-caption"><span class="va-volume-surface-caption-title">CT isovalue</span><small>Bone baseline: 300 HU when in range</small></span>
+              <span class="va-volume-surface-caption"><span id="volumeSurfaceIsovalueTitle" class="va-volume-surface-caption-title">CT isovalue</span><small id="volumeSurfaceIsovalueHint">Bone baseline: 300 HU when in range</small></span>
               <span class="volume-surface-isovalue-entry">
                 <input id="volumeSurfaceIsovalue" type="number" step="10" value="300" inputmode="decimal" disabled>
-                <strong>HU</strong>
+                <strong id="volumeSurfaceIsovalueUnits">HU</strong>
               </span>
             </label>
             <div class="volume-surface-actions" hidden>
               <button id="volumeSurfaceBuild" class="sidebar-action-button is-primary volume-surface-build" type="button" disabled>Build Surface</button>
               <button id="volumeSurfaceClear" class="sidebar-action-button is-secondary volume-surface-clear" type="button" disabled>Remove Surface</button>
             </div>
-            <label class="volume-surface-region-control" for="volumeSurfaceRegionMode">
-              <span class="va-volume-surface-caption"><span class="va-volume-surface-caption-title">Direct CT visibility</span><small>Presentation only · full geometry retained</small></span>
+            <label id="volumeSurfaceRegionControl" class="volume-surface-region-control" for="volumeSurfaceRegionMode">
+              <span class="va-volume-surface-caption"><span id="volumeSurfaceRegionTitle" class="va-volume-surface-caption-title">Direct CT visibility</span><small>Presentation only · full geometry retained</small></span>
               <select id="volumeSurfaceRegionMode" disabled>
                 <option value="all">Full geometry</option>
                 <option value="hide-region-1">Hide region 1</option>
@@ -837,7 +837,7 @@
               </select>
             </label>
             <p id="volumeSurfaceRegionStatus" class="segmentation-overlay-note" aria-live="polite">Build a Direct CT surface to inspect regions.</p>
-            <p class="segmentation-overlay-note">Canonical CT intensity isosurface · Patient LPS · no semantic segmentation required.</p>
+            <p id="volumeSurfaceContractNote" class="segmentation-overlay-note">Canonical CT intensity isosurface · Patient LPS · no semantic segmentation required.</p>
           </section>
 
           <section id="segmentationWorkflowPanel" class="control-section segmentation-workflow-panel" data-state="waiting" aria-labelledby="segmentationWorkflowTitle">
@@ -1133,7 +1133,7 @@
     </div>
   </dialog>
 
-  <script type="module" src="/js/parameter-help.js?v=phase6i-a-r3-phase6i-c-r1-phase6i-polish-r1"></script>
-  <script type="module" src="/js/app.js?v=phase6i-b1-r1-phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1-phase6a-r1-phase6b-r1-phase6c-r2-phase6d0-r1-phase6d0-explicit-r1-phase6d1-r2-phase6d2b-r1-phase6d2c-r1-phase6d2d-r1-phase6e-a-r1-phase6e-b-r1-phase6e-c-r1-phase6e-d-r1-phase6e-e-r1-phase6f-a-r1-phase6f-b-r1-phase6b-fallback-r1-phase6f-c-r3-phase6f-d-r1-phase6f-e-r1-post6f-stab-a-r1-post6f-b1b2b-r1-post6f-b2a-r1-phase6i-b2-r1-phase6i-c-r1-phase6i-d-r1-ctb2-r1-ctb3a-r1-phase6j-b1-r1-phase6j-b2b-r1-phase6j-c4c-r1-phase6j-d3-r1-phase6j-d4-r1"></script>
+  <script type="module" src="/js/parameter-help.js?v=phase6i-a-r3-phase6i-c-r1-phase6i-polish-r1-phase6j-d45c-r1"></script>
+  <script type="module" src="/js/app.js?v=phase6i-b1-r1-phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1-phase6a-r1-phase6b-r1-phase6c-r2-phase6d0-r1-phase6d0-explicit-r1-phase6d1-r2-phase6d2b-r1-phase6d2c-r1-phase6d2d-r1-phase6e-a-r1-phase6e-b-r1-phase6e-c-r1-phase6e-d-r1-phase6e-e-r1-phase6f-a-r1-phase6f-b-r1-phase6b-fallback-r1-phase6f-c-r3-phase6f-d-r1-phase6f-e-r1-post6f-stab-a-r1-post6f-b1b2b-r1-post6f-b2a-r1-phase6i-b2-r1-phase6i-c-r1-phase6i-d-r1-ctb2-r1-ctb3a-r1-phase6j-b1-r1-phase6j-b2b-r1-phase6j-c4c-r1-phase6j-d3-r1-phase6j-d4-r1-phase6j-d45c-r2"></script>
 </body>
 </html>

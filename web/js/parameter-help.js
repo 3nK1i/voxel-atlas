@@ -17,7 +17,7 @@ const HELP = Object.freeze({
   transferOpacitySoftness: ["Opacity softness", "Adjusts the transition between more transparent and more opaque intensities in the volume display."],
   transferEdgeDefinition: ["Edge definition", "Adjusts how strongly intensity transitions are emphasized in the displayed volume. It does not sharpen or modify the stored scan."],
   transferShadingStrength: ["Depth shading", "Adjusts the strength of lighting and depth cues in volume rendering. It changes presentation, not source voxels."],
-  volumeSurfaceIsovalue: ["CT isovalue", "Sets the CT intensity threshold, in Hounsfield units, used to construct a direct CT isosurface. Changing the threshold requires a different generated surface; the CT remains unchanged."],
+  volumeSurfaceIsovalue: ["Surface isovalue", "Sets the direct volume-surface threshold. CT uses Hounsfield units; MRI uses normalized relative signal. Changing it rebuilds only the derived surface and never modifies the source scan."],
   volumeSurfaceRegionMode: ["Direct CT visibility", "Chooses which displayed direct-CT regions are visible. Hiding a region is reversible and does not delete the underlying generated geometry."],
   segmentationOverlayToggle: ["Show segmentation overlay", "Shows or hides the segmentation label colors on the axial, coronal, and sagittal image views. It does not change labels."],
   segmentationOverlayOpacity: ["Overlay opacity", "Adjusts the transparency of segmentation colors over the source MPR images, without modifying the segmentation."],
@@ -33,10 +33,7 @@ const HELP = Object.freeze({
 });
 
 const SPECIAL = Object.freeze({
-  "mode-volume": ["Volume mode", "Displays the source patient volume without 3D surfaces. Changing the view does not remove cached surface geometry or modify source images."],
-  "mode-surface": ["Surface mode", "Displays available selected 3D surfaces instead of the volume. If Direct CT is selected, the surface is prepared on demand; available selected segmentation surfaces can also be displayed. This control does not start segmentation."],
-  "mode-combined": ["Combined mode", "Displays the patient volume and available selected 3D surfaces together when both are ready. This control does not run segmentation or change source anatomy."],
-  "surface-volume": ["Direct CT surface source", "Includes or excludes the CT-intensity-derived surface in Surface or Combined views. The source CT volume and any reusable generated geometry remain intact."],
+  "surface-volume": ["Direct volume surface source", "Includes or excludes the modality-appropriate direct volume-derived surface in Surface or Combined views. CT uses HU; MRI uses normalized relative signal. Source voxels and reusable generated geometry remain intact."],
   "surface-segmentation": ["Segmentation surface source", "Includes or excludes available segmentation-derived surfaces in Surface or Combined views without editing their masks."],
   "profile": ["Presentation", "The normal viewing intent uses polished surface lighting and materials. It changes only how existing surfaces appear; source anatomy and mesh coordinates remain unchanged."],
   "source": ["Surface sources", "Choose which kinds of 3D surfaces appear in Surface and Combined modes: direct CT and/or segmentation-derived."],
@@ -80,16 +77,8 @@ function addToCaption(caption, key, title, dialogId) {
 }
 
 function installStatic(dialogId) {
-  // Each help icon is a sibling of its existing mode button. Never nest an
-  // interactive help control inside a reconstruction-mode button: the mode may
-  // be disabled, but its explanation must remain keyboard-accessible.
-  for (const row of document.querySelectorAll(".va-reconstruction-mode-help-row")) {
-    const mode = row.dataset.helpReconstructionMode;
-    const button = row.querySelector(`[data-reconstruction-mode="${mode}"]`);
-    const key = `mode-${mode}`;
-    if (!button || !SPECIAL[key] || row.querySelector('.va-parameter-help')) continue;
-    button.after(trigger(key, SPECIAL[key][0], dialogId));
-  }
+  // Reconstruction mode cards intentionally have no contextual "?" controls.
+  // Their concise status copy is sufficient and avoids visual clutter.
   for (const [id, [title]] of Object.entries(HELP)) {
     const control = document.getElementById(id);
     if (!control) continue;
