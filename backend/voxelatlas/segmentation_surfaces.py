@@ -64,6 +64,20 @@ REFINED_LOCAL_TOPOLOGY_REPAIR_MAX_CANDIDATE_FACES = 12
 REFINED_LOCAL_TOPOLOGY_REPAIR_MAX_REMOVED_FACES = 6
 REFINED_LOCAL_TOPOLOGY_REPAIR_MAX_REMOVED_FACE_FRACTION = 0.0001
 REFINED_LOCAL_TOPOLOGY_REPAIR_MAX_REMOVED_AREA_FRACTION = 0.0001
+# Phase 6J-D4 MRI presentation correction.  The exact/reference surface remains
+# unchanged; only the already-display-only refined derivative may use this
+# stronger profile.  Its total displacement bound is intentionally identical
+# to the long-standing Phase 6B bound.
+REFINED_MRI_TOTAL_MR_PROFILE = "mri_total_mr_v1"
+REFINED_MRI_TOTAL_MR_SMOOTHING_ITERATIONS = 20
+REFINED_MRI_TOTAL_MR_TAUBIN_LAMBDA = 0.40
+REFINED_MRI_TOTAL_MR_TAUBIN_MU = -0.20
+REFINED_MRI_TOTAL_MR_SMOOTHING_DISPLACEMENT_FRACTION = (
+    REFINED_TOTAL_DISPLACEMENT_FRACTION
+)
+REFINED_MRI_TOTAL_MR_PRESENTATION_RECONSTRUCTION = "gaussian_label_map_isosurface"
+REFINED_MRI_TOTAL_MR_PRESENTATION_SIGMA_MM = 1.75
+REFINED_MRI_TOTAL_MR_MAX_DISPLACEMENT_MM = 3.0
 DEFAULT_SURFACE_QUALITY = ACCURATE_SURFACE_QUALITY
 PRESENTATION_SURFACE_QUALITY = REFINED_SURFACE_QUALITY
 MAX_ACCURATE_ROI_VOXELS = 64_000_000
@@ -290,8 +304,35 @@ def _accurate_provenance(
     return provenance, provenance_sha256, surface_id
 
 
-def _refined_policy() -> dict[str, object]:
-    return {
+def _is_total_mr_descriptor(descriptor: dict[str, object] | None) -> bool:
+    return bool(
+        descriptor
+        and descriptor.get("source_modality") == "MR"
+        and descriptor.get("provider_id") == "totalsegmentator"
+        and descriptor.get("model_id") == "total_mr"
+        and descriptor.get("task") == "total_mr"
+        and descriptor.get("clinical_validation") == "not_claimed"
+    )
+
+
+def _policy_displacement_limit_mm(policy: dict[str, object], *, minimum_step_mm: float) -> float:
+    absolute_limit = policy.get("maximum_displacement_mm")
+    if absolute_limit is not None:
+        if (
+            isinstance(absolute_limit, bool)
+            or not isinstance(absolute_limit, (int, float))
+            or not isfinite(float(absolute_limit))
+            or float(absolute_limit) <= 0.0
+        ):
+            raise SegmentationValidationError("Segmentation surface displacement policy is invalid")
+        return float(absolute_limit)
+    return minimum_step_mm * float(policy["total_displacement_fraction"])
+
+
+def _refined_policy(
+    descriptor: dict[str, object] | None = None,
+) -> dict[str, object]:
+    policy: dict[str, object] = {
         "smoothing_iterations": REFINED_SMOOTHING_ITERATIONS,
         "taubin_lambda": REFINED_TAUBIN_LAMBDA,
         "taubin_mu": REFINED_TAUBIN_MU,
@@ -306,6 +347,24 @@ def _refined_policy() -> dict[str, object]:
         "require_closed_edge_manifold": True,
         "require_vertex_fan_manifold": True,
     }
+    if _is_total_mr_descriptor(descriptor):
+        policy.update(
+            {
+                "refinement_profile": REFINED_MRI_TOTAL_MR_PROFILE,
+                "smoothing_iterations": REFINED_MRI_TOTAL_MR_SMOOTHING_ITERATIONS,
+                "taubin_lambda": REFINED_MRI_TOTAL_MR_TAUBIN_LAMBDA,
+                "taubin_mu": REFINED_MRI_TOTAL_MR_TAUBIN_MU,
+                "smoothing_displacement_fraction": (
+                    REFINED_MRI_TOTAL_MR_SMOOTHING_DISPLACEMENT_FRACTION
+                ),
+                "presentation_reconstruction": (
+                    REFINED_MRI_TOTAL_MR_PRESENTATION_RECONSTRUCTION
+                ),
+                "presentation_sigma_mm": REFINED_MRI_TOTAL_MR_PRESENTATION_SIGMA_MM,
+                "maximum_displacement_mm": REFINED_MRI_TOTAL_MR_MAX_DISPLACEMENT_MM,
+            }
+        )
+    return policy
 
 
 def _refined_provenance(
@@ -324,7 +383,7 @@ def _refined_provenance(
             "refinement_algorithm_version": REFINED_SURFACE_ALGORITHM_VERSION,
             "quality": REFINED_SURFACE_QUALITY,
             "refinement": REFINED_SURFACE_REFINEMENT,
-            "refinement_policy": _refined_policy(),
+            "refinement_policy": _refined_policy(descriptor),
             "derived_from_accurate_surface": {
                 "surface_id": reference_surface.surface_id,
                 "payload_sha256": reference_surface.payload_sha256,
@@ -919,10 +978,13 @@ def _validate_refined_payload(
             "Refined segmentation surface changed the reference component count"
         )
 
+    policy = _refined_policy(descriptor)
     affine = _affine(descriptor.get("array_index_to_patient_lps"))
     linear = affine[:3, :3]
     minimum_step_mm = float(np.min(np.linalg.svd(linear, compute_uv=False)))
-    displacement_limit_mm = minimum_step_mm * REFINED_TOTAL_DISPLACEMENT_FRACTION
+    displacement_limit_mm = _policy_displacement_limit_mm(
+        policy, minimum_step_mm=minimum_step_mm
+    )
     inverse_linear = np.linalg.inv(linear)
     index_positions = (positions.astype(np.float64) - affine[:3, 3]) @ inverse_linear.T
     shape = np.asarray(_shape(descriptor["shape"]), dtype=np.float64)
@@ -944,7 +1006,7 @@ def _validate_refined_payload(
         )
     retention_ratio = triangle_count / reference_surface.triangle_count
     if (
-        retention_ratio < REFINED_MIN_TRIANGLE_RETENTION_RATIO - 1e-12
+        retention_ratio < float(policy["minimum_triangle_retention_ratio"]) - 1e-12
         or retention_ratio > 1.0 + 1e-12
     ):
         raise SegmentationValidationError(
@@ -997,10 +1059,15 @@ def _validate_refined_payload(
         "connected_component_count": topology["connected_component_count"],
         "euler_characteristic": topology["euler_characteristic"],
         "component_euler_signature": topology["component_euler_signature"],
-        "smoothing_iterations": REFINED_SMOOTHING_ITERATIONS,
+        "smoothing_iterations": int(policy["smoothing_iterations"]),
         "source_label_map": "immutable",
         "clinical_validation": "not_claimed",
     }
+    if "refinement_profile" in policy:
+        expected_exact["refinement_profile"] = policy["refinement_profile"]
+    if "presentation_reconstruction" in policy:
+        expected_exact["presentation_reconstruction"] = policy["presentation_reconstruction"]
+        expected_exact["presentation_reconstruction_applied"] = True
     for key, expected in expected_exact.items():
         if report.get(key) != expected:
             raise SegmentationValidationError(
@@ -1019,6 +1086,18 @@ def _validate_refined_payload(
         raise SegmentationValidationError(
             "Refined segmentation surface worker report is invalid"
         )
+
+    if "presentation_sigma_mm" in policy:
+        presentation_sigma = report.get("presentation_sigma_mm")
+        if (
+            isinstance(presentation_sigma, bool)
+            or not isinstance(presentation_sigma, (int, float))
+            or not isfinite(float(presentation_sigma))
+            or abs(float(presentation_sigma) - float(policy["presentation_sigma_mm"])) > 1e-12
+        ):
+            raise SegmentationValidationError(
+                "Refined segmentation surface worker report is invalid"
+            )
 
     try:
         report_bounds = np.asarray(report.get("bounds_lps_mm"), dtype=np.float64)
@@ -1224,7 +1303,7 @@ def _validate_refined_payload(
             float(cell_size) != 0.0
             and not any(
                 abs(float(cell_size) - candidate) <= 1e-12
-                for candidate in REFINED_CLUSTER_CELL_SIZES_INDEX
+                for candidate in policy["cluster_cell_sizes_index"]
             )
         )
         or (decimation_applied and float(cell_size) == 0.0)
@@ -1359,6 +1438,7 @@ class SegmentationSurfaceService:
             }
         study_id, descriptor = resolved
         labels = [label for label in _labels(descriptor["present_labels"]) if label != 0]
+        refined_policy = _refined_policy(descriptor)
         return {
             "schema_version": ACCURATE_SURFACE_SCHEMA_VERSION,
             "ready": True,
@@ -1411,8 +1491,27 @@ class SegmentationSurfaceService:
                 "maximum_displacement_fraction_of_minimum_voxel_step": (
                     REFINED_TOTAL_DISPLACEMENT_FRACTION
                 ),
+                **(
+                    {
+                        "maximum_displacement_mm": refined_policy["maximum_displacement_mm"],
+                        "presentation_reconstruction": (
+                            refined_policy["presentation_reconstruction"]
+                        ),
+                        "presentation_sigma_mm": refined_policy["presentation_sigma_mm"],
+                    }
+                    if "maximum_displacement_mm" in refined_policy
+                    else {}
+                ),
                 "minimum_triangle_retention_ratio": REFINED_MIN_TRIANGLE_RETENTION_RATIO,
                 "cluster_cell_sizes_index": list(REFINED_CLUSTER_CELL_SIZES_INDEX),
+                **(
+                    {
+                        "refinement_profile": refined_policy["refinement_profile"],
+                        "smoothing_iterations": refined_policy["smoothing_iterations"],
+                    }
+                    if "refinement_profile" in refined_policy
+                    else {}
+                ),
                 "source_accurate_surface_immutable": True,
                 "surface_to_mask_deviation_qualification": "deferred_to_phase6g",
             },
@@ -1632,6 +1731,7 @@ class SegmentationSurfaceService:
                 handle.write(reference_surface.payload)
                 handle.flush()
                 os.fsync(handle.fileno())
+            refined_policy = _refined_policy(descriptor)
             request = {
                 "schema_version": ACCURATE_SURFACE_SCHEMA_VERSION,
                 "operation": "refine_accurate_surface",
@@ -1649,9 +1749,23 @@ class SegmentationSurfaceService:
                 "max_vertices": MAX_ACCURATE_VERTICES,
                 "max_triangles": MAX_ACCURATE_TRIANGLES,
                 "max_payload_bytes": MAX_ACCURATE_PAYLOAD_BYTES,
-                "policy": _refined_policy(),
+                "policy": refined_policy,
                 "source_label_map": "immutable",
                 "clinical_validation": "not_claimed",
+                **(
+                    {
+                        "label_map_npy": str(
+                            self._artifact_path(str(descriptor["label_map_id"])).resolve(
+                                strict=True
+                            )
+                        ),
+                        "expected_label_map_sha256": _required_sha256(
+                            descriptor, "artifact_sha256"
+                        ),
+                    }
+                    if "presentation_reconstruction" in refined_policy
+                    else {}
+                ),
             }
             with request_path.open("x", encoding="utf-8") as handle:
                 os.chmod(request_path, 0o600)

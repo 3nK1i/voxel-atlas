@@ -19,6 +19,14 @@ from voxelatlas.segmentation_surfaces import (  # noqa: E402
     REFINED_LOCAL_TOPOLOGY_REPAIR_MAX_REMOVED_AREA_FRACTION,
     REFINED_LOCAL_TOPOLOGY_REPAIR_MAX_REMOVED_FACE_FRACTION,
     REFINED_LOCAL_TOPOLOGY_REPAIR_MAX_REMOVED_FACES,
+    REFINED_MRI_TOTAL_MR_MAX_DISPLACEMENT_MM,
+    REFINED_MRI_TOTAL_MR_PRESENTATION_RECONSTRUCTION,
+    REFINED_MRI_TOTAL_MR_PRESENTATION_SIGMA_MM,
+    REFINED_MRI_TOTAL_MR_PROFILE,
+    REFINED_MRI_TOTAL_MR_SMOOTHING_DISPLACEMENT_FRACTION,
+    REFINED_MRI_TOTAL_MR_SMOOTHING_ITERATIONS,
+    REFINED_MRI_TOTAL_MR_TAUBIN_LAMBDA,
+    REFINED_MRI_TOTAL_MR_TAUBIN_MU,
     REFINED_SMOOTHING_DISPLACEMENT_FRACTION,
     REFINED_SURFACE_ALGORITHM_VERSION,
     REFINED_SURFACE_QUALITY,
@@ -62,6 +70,23 @@ def main() -> int:
             "Phase 6B total displacement bound changed")
     require(REFINED_MIN_TRIANGLE_RETENTION_RATIO == 0.70,
             "Phase 6B triangle-retention bound changed")
+    require(REFINED_MRI_TOTAL_MR_PROFILE == "mri_total_mr_v1",
+            "MRI refined presentation profile identity changed")
+    require(REFINED_MRI_TOTAL_MR_SMOOTHING_ITERATIONS == 20,
+            "MRI refined smoothing iteration policy changed")
+    require(REFINED_MRI_TOTAL_MR_TAUBIN_LAMBDA == 0.40
+            and REFINED_MRI_TOTAL_MR_TAUBIN_MU == -0.20,
+            "MRI refined Taubin policy changed")
+    require(REFINED_MRI_TOTAL_MR_SMOOTHING_DISPLACEMENT_FRACTION
+            == REFINED_TOTAL_DISPLACEMENT_FRACTION,
+            "MRI fallback smoothing fraction changed unexpectedly")
+    require(REFINED_MRI_TOTAL_MR_PRESENTATION_RECONSTRUCTION
+            == "gaussian_label_map_isosurface",
+            "MRI presentation reconstruction identity changed")
+    require(REFINED_MRI_TOTAL_MR_PRESENTATION_SIGMA_MM == 1.75,
+            "MRI presentation reconstruction sigma changed")
+    require(REFINED_MRI_TOTAL_MR_MAX_DISPLACEMENT_MM == 3.0,
+            "MRI presentation displacement bound changed")
     require(tuple(REFINED_CLUSTER_CELL_SIZES_INDEX) == (0.50, 0.65, 0.70, 0.80),
             "Phase 6B decimation candidates changed")
     require(REFINED_LOCAL_TOPOLOGY_REPAIR_MAX_CANDIDATE_FACES == 12,
@@ -101,10 +126,20 @@ def main() -> int:
             "Voxel-cell containment clamp is missing")
     require("cluster_candidate" in worker6b,
             "Bounded decimation policy is missing")
+    require("reconstruct_mri_presentation_surface" in worker6b
+            and "gaussian_label_map_isosurface" in worker6b,
+            "MRI label-map presentation reconstruction is missing")
+    require("presentation_reconstruction_applied" in worker6b
+            and "presentation_reconstruction_applied" in surfaces,
+            "MRI presentation reconstruction application gate is missing")
+    require("label_map_npy" in surfaces,
+            "MRI refined presentation is not bound to the immutable label map")
     require("max_displacement_mm > total_limit_mm" in worker6b,
             "Geometric displacement rejection gate is missing")
-    require("retention < MIN_TRIANGLE_RETENTION_RATIO" in worker6b,
-            "Triangle-retention rejection gate is missing")
+    require('retention < float(policy["minimum_triangle_retention_ratio"])' in worker6b,
+            "Allowlisted triangle-retention rejection gate is missing")
+    require("policy not in (standard_policy(), mri_total_mr_policy())" in worker6b,
+            "Refinement policy allowlist is missing")
     require("canonical_vertex_normals" in worker6b,
             "Refined Patient-LPS normals are missing")
     require("from skimage.measure import marching_cubes" in worker6a,

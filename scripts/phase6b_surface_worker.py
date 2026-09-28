@@ -32,6 +32,51 @@ LOCAL_TOPOLOGY_REPAIR_MAX_CANDIDATE_FACES = 12
 LOCAL_TOPOLOGY_REPAIR_MAX_REMOVED_FACES = 6
 LOCAL_TOPOLOGY_REPAIR_MAX_REMOVED_FACE_FRACTION = 0.0001
 LOCAL_TOPOLOGY_REPAIR_MAX_REMOVED_AREA_FRACTION = 0.0001
+MRI_TOTAL_MR_PROFILE = "mri_total_mr_v1"
+MRI_TOTAL_MR_SMOOTHING_ITERATIONS = 20
+MRI_TOTAL_MR_TAUBIN_LAMBDA = 0.40
+MRI_TOTAL_MR_TAUBIN_MU = -0.20
+MRI_TOTAL_MR_SMOOTHING_DISPLACEMENT_FRACTION = TOTAL_DISPLACEMENT_FRACTION
+MRI_TOTAL_MR_PRESENTATION_RECONSTRUCTION = "gaussian_label_map_isosurface"
+MRI_TOTAL_MR_PRESENTATION_SIGMA_MM = 1.75
+MRI_TOTAL_MR_MAX_DISPLACEMENT_MM = 3.0
+
+
+def standard_policy() -> dict[str, object]:
+    return {
+        "smoothing_iterations": SMOOTHING_ITERATIONS,
+        "taubin_lambda": TAUBIN_LAMBDA,
+        "taubin_mu": TAUBIN_MU,
+        "smoothing_displacement_fraction": SMOOTHING_DISPLACEMENT_FRACTION,
+        "total_displacement_fraction": TOTAL_DISPLACEMENT_FRACTION,
+        "minimum_triangle_retention_ratio": MIN_TRIANGLE_RETENTION_RATIO,
+        "cluster_cell_sizes_index": list(CLUSTER_CELL_SIZES_INDEX),
+        "local_topology_repair_max_candidate_faces": LOCAL_TOPOLOGY_REPAIR_MAX_CANDIDATE_FACES,
+        "local_topology_repair_max_removed_faces": LOCAL_TOPOLOGY_REPAIR_MAX_REMOVED_FACES,
+        "local_topology_repair_max_removed_face_fraction": LOCAL_TOPOLOGY_REPAIR_MAX_REMOVED_FACE_FRACTION,
+        "local_topology_repair_max_removed_area_fraction": LOCAL_TOPOLOGY_REPAIR_MAX_REMOVED_AREA_FRACTION,
+        "require_closed_edge_manifold": True,
+        "require_vertex_fan_manifold": True,
+    }
+
+
+def mri_total_mr_policy() -> dict[str, object]:
+    policy = standard_policy()
+    policy.update(
+        {
+            "refinement_profile": MRI_TOTAL_MR_PROFILE,
+            "smoothing_iterations": MRI_TOTAL_MR_SMOOTHING_ITERATIONS,
+            "taubin_lambda": MRI_TOTAL_MR_TAUBIN_LAMBDA,
+            "taubin_mu": MRI_TOTAL_MR_TAUBIN_MU,
+            "smoothing_displacement_fraction": (
+                MRI_TOTAL_MR_SMOOTHING_DISPLACEMENT_FRACTION
+            ),
+            "presentation_reconstruction": MRI_TOTAL_MR_PRESENTATION_RECONSTRUCTION,
+            "presentation_sigma_mm": MRI_TOTAL_MR_PRESENTATION_SIGMA_MM,
+            "maximum_displacement_mm": MRI_TOTAL_MR_MAX_DISPLACEMENT_MM,
+        }
+    )
+    return policy
 
 
 def sha256_file(path: Path) -> str:
@@ -69,6 +114,26 @@ def finite_number(value: object, field: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(float(value)):
         raise ValueError(f"{field} is invalid")
     return float(value)
+
+
+def policy_displacement_limit_mm(policy: dict[str, object], minimum_step_mm: float) -> float:
+    absolute_limit = policy.get("maximum_displacement_mm")
+    if absolute_limit is not None:
+        if (
+            isinstance(absolute_limit, bool)
+            or not isinstance(absolute_limit, (int, float))
+            or not isfinite(float(absolute_limit))
+            or float(absolute_limit) <= 0.0
+        ):
+            raise ValueError("surface refinement policy is invalid")
+        return float(absolute_limit)
+    return minimum_step_mm * float(policy["total_displacement_fraction"])
+
+
+def request_regular_file(value: object, field: str) -> Path:
+    if not isinstance(value, str):
+        raise ValueError(f"{field} is invalid")
+    return absolute_regular_file(value, field)
 
 
 def runtime_identity() -> dict[str, str]:
@@ -149,22 +214,7 @@ def load_request(path: Path) -> dict[str, object]:
     policy = request.get("policy")
     if not isinstance(policy, dict):
         raise ValueError("surface refinement policy is invalid")
-    expected_policy = {
-        "smoothing_iterations": SMOOTHING_ITERATIONS,
-        "taubin_lambda": TAUBIN_LAMBDA,
-        "taubin_mu": TAUBIN_MU,
-        "smoothing_displacement_fraction": SMOOTHING_DISPLACEMENT_FRACTION,
-        "total_displacement_fraction": TOTAL_DISPLACEMENT_FRACTION,
-        "minimum_triangle_retention_ratio": MIN_TRIANGLE_RETENTION_RATIO,
-        "cluster_cell_sizes_index": list(CLUSTER_CELL_SIZES_INDEX),
-        "local_topology_repair_max_candidate_faces": LOCAL_TOPOLOGY_REPAIR_MAX_CANDIDATE_FACES,
-        "local_topology_repair_max_removed_faces": LOCAL_TOPOLOGY_REPAIR_MAX_REMOVED_FACES,
-        "local_topology_repair_max_removed_face_fraction": LOCAL_TOPOLOGY_REPAIR_MAX_REMOVED_FACE_FRACTION,
-        "local_topology_repair_max_removed_area_fraction": LOCAL_TOPOLOGY_REPAIR_MAX_REMOVED_AREA_FRACTION,
-        "require_closed_edge_manifold": True,
-        "require_vertex_fan_manifold": True,
-    }
-    if policy != expected_policy:
+    if policy not in (standard_policy(), mri_total_mr_policy()):
         raise ValueError("surface refinement policy is invalid")
     return request
 
@@ -598,14 +648,24 @@ def clamp_volume_cell_bounds(positions, affine, shape):
     return index_positions @ linear.T + translation
 
 
-def smooth_bounded(reference_positions, faces, *, limit_mm: float, affine, shape):
+def smooth_bounded(
+    reference_positions,
+    faces,
+    *,
+    iterations: int,
+    factor_lambda: float,
+    factor_mu: float,
+    limit_mm: float,
+    affine,
+    shape,
+):
     positions = reference_positions.copy()
     edges = adjacency_edges(faces)
-    for _ in range(SMOOTHING_ITERATIONS):
-        positions = laplacian_step(positions, edges, TAUBIN_LAMBDA)
+    for _ in range(iterations):
+        positions = laplacian_step(positions, edges, factor_lambda)
         positions = clamp_displacement(positions, reference_positions, limit_mm)
         positions = clamp_volume_cell_bounds(positions, affine, shape)
-        positions = laplacian_step(positions, edges, TAUBIN_MU)
+        positions = laplacian_step(positions, edges, factor_mu)
         positions = clamp_displacement(positions, reference_positions, limit_mm)
         positions = clamp_volume_cell_bounds(positions, affine, shape)
     return positions
@@ -671,6 +731,137 @@ def cluster_candidate(smoothed_positions, reference_positions, reference_normals
     )
 
 
+
+
+def label_bounds(mask):
+    import numpy as np
+
+    indices = np.argwhere(mask)
+    if len(indices) <= 0:
+        raise ValueError("selected label is absent from canonical label map")
+    return indices.min(axis=0), indices.max(axis=0)
+
+
+def physical_axis_steps_mm(affine):
+    import numpy as np
+
+    return np.linalg.norm(affine[:3, :3], axis=0)
+
+
+def transformed_orientation_reference(normals, affine):
+    import numpy as np
+
+    transformed = normals @ np.linalg.inv(affine[:3, :3])
+    lengths = np.linalg.norm(transformed, axis=1)
+    if np.any(lengths <= 1e-12) or not np.all(np.isfinite(lengths)):
+        raise ValueError("presentation surface normals are invalid")
+    return transformed / lengths[:, None]
+
+
+def nearest_neighbor_distances(source, target):
+    import numpy as np
+    from scipy.spatial import cKDTree
+
+    if len(source) <= 0 or len(target) <= 0:
+        raise ValueError("surface distance inputs are invalid")
+    tree = cKDTree(target)
+    distances, _ = tree.query(source, k=1, workers=1)
+    distances = np.asarray(distances, dtype=np.float64)
+    if distances.ndim != 1 or not np.all(np.isfinite(distances)):
+        raise ValueError("surface distance computation failed")
+    return distances
+
+
+def reconstruct_mri_presentation_surface(
+    *,
+    label_map_path: Path,
+    label_id: int,
+    affine,
+    shape,
+    reference_positions,
+    raw_reference_triangle_count: int,
+    maximum_triangle_retention_ratio: float,
+    displacement_limit_mm: float,
+    sigma_mm: float,
+):
+    import numpy as np
+    from skimage.filters import gaussian
+    from skimage.measure import marching_cubes
+
+    labels = np.load(label_map_path, allow_pickle=False)
+    if labels.shape != tuple(int(item) for item in shape):
+        raise ValueError("canonical label map shape changed")
+    mask = np.asarray(labels == label_id, dtype=bool)
+    lower, upper = label_bounds(mask)
+    steps_mm = physical_axis_steps_mm(affine)
+    if np.any(steps_mm <= 1e-9) or not np.all(np.isfinite(steps_mm)):
+        raise ValueError("Patient LPS affine spacing is invalid")
+    sigma_index = np.maximum(float(sigma_mm) / steps_mm, 0.75)
+    margin = int(max(2, np.ceil(float(np.max(sigma_index)) * 3.0)))
+    crop_lower = np.maximum(lower - margin, 0)
+    crop_upper = np.minimum(upper + margin, np.asarray(shape, dtype=np.int64) - 1)
+    crop = mask[
+        crop_lower[0]: crop_upper[0] + 1,
+        crop_lower[1]: crop_upper[1] + 1,
+        crop_lower[2]: crop_upper[2] + 1,
+    ].astype(np.float32, copy=False)
+    padded = np.pad(crop, ((1, 1), (1, 1), (1, 1)), mode="constant", constant_values=0.0)
+    field = gaussian(
+        padded,
+        sigma=tuple(float(item) for item in sigma_index),
+        preserve_range=True,
+        mode="constant",
+        truncate=3.0,
+    )
+    if not np.all(np.isfinite(field)):
+        raise ValueError("presentation field reconstruction failed")
+    verts_local, faces, normals_local, _ = marching_cubes(
+        field,
+        level=0.5,
+        spacing=(1.0, 1.0, 1.0),
+        allow_degenerate=False,
+        gradient_direction="descent",
+    )
+    if len(faces) <= 0:
+        raise ValueError("presentation field reconstruction produced no triangles")
+    index_positions = np.asarray(verts_local, dtype=np.float64) + crop_lower.astype(np.float64) - 1.0
+    positions = index_positions @ affine[:3, :3].T + affine[:3, 3]
+    orientation_reference = transformed_orientation_reference(
+        np.asarray(normals_local, dtype=np.float64),
+        affine,
+    )
+    (
+        positions,
+        orientation_reference,
+        faces,
+        cleanup_count,
+        _,
+        _,
+    ) = compact_mesh(positions, orientation_reference, np.asarray(faces, dtype=np.int64))
+    if len(faces) <= 0:
+        raise ValueError("presentation field reconstruction produced no valid triangles")
+    retention_ratio = len(faces) / raw_reference_triangle_count
+    if (
+        retention_ratio < maximum_triangle_retention_ratio - 1e-12
+        or retention_ratio > 1.0 + 1e-12
+    ):
+        raise ValueError("presentation field reconstruction violates triangle-retention policy")
+    forward = nearest_neighbor_distances(positions, reference_positions)
+    backward = nearest_neighbor_distances(reference_positions, positions)
+    max_displacement_mm = float(max(forward.max(initial=0.0), backward.max(initial=0.0)))
+    mean_displacement_mm = float(forward.mean())
+    if max_displacement_mm > displacement_limit_mm + 1e-9:
+        raise ValueError("presentation field reconstruction exceeds displacement bound")
+    return (
+        positions,
+        orientation_reference,
+        faces,
+        cleanup_count,
+        max_displacement_mm,
+        mean_displacement_mm,
+        max_displacement_mm,
+        retention_ratio,
+    )
 def canonical_vertex_normals(positions, faces, orientation_reference):
     import numpy as np
 
@@ -780,33 +971,40 @@ def refine_surface(*, reference_surface: Path, request: dict[str, object], outpu
     minimum_step_mm = float(np.min(singular_values))
     if not np.isfinite(minimum_step_mm) or minimum_step_mm <= 1e-9:
         raise ValueError("Patient LPS affine spacing is invalid")
-    smoothing_limit_mm = minimum_step_mm * SMOOTHING_DISPLACEMENT_FRACTION
-    total_limit_mm = minimum_step_mm * TOTAL_DISPLACEMENT_FRACTION
+    policy = request["policy"]
+    smoothing_iterations = int(policy["smoothing_iterations"])
+    taubin_lambda = float(policy["taubin_lambda"])
+    taubin_mu = float(policy["taubin_mu"])
+    smoothing_limit_mm = minimum_step_mm * float(
+        policy["smoothing_displacement_fraction"]
+    )
+    total_limit_mm = policy_displacement_limit_mm(policy, minimum_step_mm)
 
     reference_positions = positions.copy()
     volume_shape = tuple(int(item) for item in request["shape"])
-    smoothed = smooth_bounded(
-        reference_positions,
-        faces,
-        limit_mm=smoothing_limit_mm,
-        affine=affine,
-        shape=volume_shape,
-    )
-    smoothing_displacement = np.linalg.norm(smoothed - reference_positions, axis=1)
-    max_smoothing_displacement_mm = float(
-        smoothing_displacement.max(initial=0.0)
-    )
 
-    best_positions = smoothed
-    best_reference_normals = reference_normals
-    best_faces = faces
+    best_positions = None
+    best_reference_normals = None
+    best_faces = None
     best_cell_size = 0.0
     best_decimation_cleanup_count = 0
     decimation_applied = False
-    best_max_displacement_mm = float(smoothing_displacement.max(initial=0.0))
-    best_mean_displacement_mm = float(smoothing_displacement.mean())
+    best_max_displacement_mm = 0.0
+    best_mean_displacement_mm = 0.0
+    max_smoothing_displacement_mm = 0.0
+    presentation_reconstruction_applied = False
 
-    for cell_size in CLUSTER_CELL_SIZES_INDEX:
+    if policy.get("presentation_reconstruction") == MRI_TOTAL_MR_PRESENTATION_RECONSTRUCTION:
+        label_map_path = request_regular_file(request.get("label_map_npy"), "label map path")
+        expected_label_map_sha256 = request.get("expected_label_map_sha256")
+        if (
+            not isinstance(expected_label_map_sha256, str)
+            or len(expected_label_map_sha256) != 64
+            or any(character not in "0123456789abcdef" for character in expected_label_map_sha256)
+        ):
+            raise ValueError("expected label map sha256 is invalid")
+        if sha256_file(label_map_path) != expected_label_map_sha256:
+            raise ValueError("canonical label map changed")
         try:
             (
                 candidate_positions,
@@ -815,35 +1013,99 @@ def refine_surface(*, reference_surface: Path, request: dict[str, object], outpu
                 candidate_repairs,
                 candidate_max_displacement,
                 candidate_mean_displacement,
-            ) = cluster_candidate(
-                smoothed,
-                reference_positions,
-                reference_normals,
-                faces,
-                affine,
-                cell_size,
+                candidate_smoothing_displacement,
+                _,
+            ) = reconstruct_mri_presentation_surface(
+                label_map_path=label_map_path,
+                label_id=int(request["label_id"]),
+                affine=affine,
+                shape=volume_shape,
+                reference_positions=reference_positions,
+                raw_reference_triangle_count=raw_reference_triangle_count,
+                maximum_triangle_retention_ratio=float(policy["minimum_triangle_retention_ratio"]),
+                displacement_limit_mm=total_limit_mm,
+                sigma_mm=float(policy["presentation_sigma_mm"]),
             )
         except ValueError:
-            continue
-        retention = len(candidate_faces) / raw_reference_triangle_count
-        if (
-            retention < MIN_TRIANGLE_RETENTION_RATIO
-            or len(candidate_faces) >= len(best_faces)
-        ):
-            continue
-        metrics = topology_metrics(len(candidate_positions), candidate_faces)
-        if metrics != repaired_metrics:
-            continue
-        if candidate_max_displacement > total_limit_mm + 1e-9:
-            continue
-        best_positions = candidate_positions
-        best_reference_normals = candidate_refs
-        best_faces = candidate_faces
-        best_cell_size = cell_size
-        best_decimation_cleanup_count = int(candidate_repairs)
-        best_max_displacement_mm = candidate_max_displacement
-        best_mean_displacement_mm = candidate_mean_displacement
-        decimation_applied = True
+            candidate_positions = None
+        if candidate_positions is not None:
+            metrics = topology_metrics(len(candidate_positions), candidate_faces)
+            if metrics == repaired_metrics:
+                best_positions = candidate_positions
+                best_reference_normals = candidate_refs
+                best_faces = candidate_faces
+                best_decimation_cleanup_count = int(candidate_repairs)
+                best_max_displacement_mm = candidate_max_displacement
+                best_mean_displacement_mm = candidate_mean_displacement
+                max_smoothing_displacement_mm = candidate_smoothing_displacement
+                presentation_reconstruction_applied = True
+
+    if (
+        policy.get("presentation_reconstruction") == MRI_TOTAL_MR_PRESENTATION_RECONSTRUCTION
+        and not presentation_reconstruction_applied
+    ):
+        raise ValueError("MRI presentation reconstruction failed qualification")
+
+    if best_positions is None:
+        smoothed = smooth_bounded(
+            reference_positions,
+            faces,
+            iterations=smoothing_iterations,
+            factor_lambda=taubin_lambda,
+            factor_mu=taubin_mu,
+            limit_mm=smoothing_limit_mm,
+            affine=affine,
+            shape=volume_shape,
+        )
+        smoothing_displacement = np.linalg.norm(smoothed - reference_positions, axis=1)
+        max_smoothing_displacement_mm = float(
+            smoothing_displacement.max(initial=0.0)
+        )
+
+        best_positions = smoothed
+        best_reference_normals = reference_normals
+        best_faces = faces
+        best_max_displacement_mm = float(smoothing_displacement.max(initial=0.0))
+        best_mean_displacement_mm = float(smoothing_displacement.mean())
+
+        for cell_size in policy["cluster_cell_sizes_index"]:
+            try:
+                (
+                    candidate_positions,
+                    candidate_refs,
+                    candidate_faces,
+                    candidate_repairs,
+                    candidate_max_displacement,
+                    candidate_mean_displacement,
+                ) = cluster_candidate(
+                    smoothed,
+                    reference_positions,
+                    reference_normals,
+                    faces,
+                    affine,
+                    cell_size,
+                )
+            except ValueError:
+                continue
+            retention = len(candidate_faces) / raw_reference_triangle_count
+            if (
+                retention < float(policy["minimum_triangle_retention_ratio"])
+                or len(candidate_faces) >= len(best_faces)
+            ):
+                continue
+            metrics = topology_metrics(len(candidate_positions), candidate_faces)
+            if metrics != repaired_metrics:
+                continue
+            if candidate_max_displacement > total_limit_mm + 1e-9:
+                continue
+            best_positions = candidate_positions
+            best_reference_normals = candidate_refs
+            best_faces = candidate_faces
+            best_cell_size = cell_size
+            best_decimation_cleanup_count = int(candidate_repairs)
+            best_max_displacement_mm = candidate_max_displacement
+            best_mean_displacement_mm = candidate_mean_displacement
+            decimation_applied = True
 
     bounded_positions = clamp_volume_cell_bounds(best_positions, affine, volume_shape)
     if not np.allclose(bounded_positions, best_positions, rtol=0.0, atol=1e-8):
@@ -946,7 +1208,7 @@ def refine_surface(*, reference_surface: Path, request: dict[str, object], outpu
         "connected_component_count": final_metrics["connected_component_count"],
         "euler_characteristic": final_metrics["euler_characteristic"],
         "component_euler_signature": final_metrics["component_euler_signature"],
-        "smoothing_iterations": SMOOTHING_ITERATIONS,
+        "smoothing_iterations": smoothing_iterations,
         "max_smoothing_displacement_mm": max_smoothing_displacement_mm,
         "displacement_limit_mm": total_limit_mm,
         "max_displacement_mm": max_displacement_mm,
@@ -955,6 +1217,20 @@ def refine_surface(*, reference_surface: Path, request: dict[str, object], outpu
         "decimation_cell_size_index": best_cell_size,
         "decimation_cleanup_count": best_decimation_cleanup_count,
         "triangle_retention_ratio": retention_ratio,
+        **(
+            {"refinement_profile": policy["refinement_profile"]}
+            if "refinement_profile" in policy
+            else {}
+        ),
+        **(
+            {
+                "presentation_reconstruction": policy["presentation_reconstruction"],
+                "presentation_reconstruction_applied": presentation_reconstruction_applied,
+                "presentation_sigma_mm": float(policy["presentation_sigma_mm"]),
+            }
+            if "presentation_reconstruction" in policy
+            else {}
+        ),
         "source_label_map": "immutable",
         "clinical_validation": "not_claimed",
     }

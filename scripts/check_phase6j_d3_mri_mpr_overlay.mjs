@@ -61,10 +61,15 @@ assert.match(app, /requestedLabelMapId !== segmentationWorkflowSnapshot\?\.label
 assert.match(app, /descriptor\.provider_id !== \"totalsegmentator\"/);
 assert.match(app, /isReadOnlyMri\(segmentationWorkflowSnapshot\)/);
 assert.match(app, /\/api\/studies\/latest\/segmentation-overlay/);
-assert.match(app, /descriptor\.source_modality === \"MR\" && descriptor\.model_id === \"total_mr\"/);
-assert.match(app, /D3 is MPR presentation only/);
+const d3MprOnly = /D3 is MPR presentation only/.test(app);
+const d4SurfaceReuse = /await refreshSegmentationSurfaceDescriptor\(descriptor\.label_map_id\)/.test(app);
+assert.ok(d3MprOnly || d4SurfaceReuse);
+if (d4SurfaceReuse) {
+  assert.match(app, /descriptor\.source_modality !== "MR"/);
+  assert.match(app, /descriptor\.model_id !== "total_mr"/);
+}
 assert.match(app, /descriptor\.source_modality === \"MR\"[\s\S]*segmentationCorrectionPanel\?\.clear\(\)/);
-assert.match(read('web/index.html'), /phase6j-d3-r1/);
+assert.match(read('web/index.html'), /phase6j-d3-r1(?:-phase6j-d4-r1)?/);
 
 console.log('PHASE6J_D3_MRI_EXISTING_MAP_PRESENTATION=PASS');
 console.log('PHASE6J_D3_MRI_EXECUTION_REMAINS_DISABLED=PASS');

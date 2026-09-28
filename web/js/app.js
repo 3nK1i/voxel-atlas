@@ -2364,11 +2364,22 @@ async function refreshSegmentationSurfaceDescriptor(labelMapId) {
       throw new Error(payload.detail || `3D segmentation initialization failed (${response.status})`);
     }
     const descriptor = payload.surface;
+    const readOnlyMriSurface = isReadOnlyMri(segmentationWorkflowSnapshot);
     if (
       descriptor?.ready !== true
       || descriptor.label_map_id !== labelMapId
       || descriptor.source_study_id !== state.study.study_id
       || descriptor.coordinate_system !== "patient_lps"
+      || (
+        readOnlyMriSurface
+        && (
+          descriptor.label_map_id !== segmentationWorkflowSnapshot?.label_map_id
+          || descriptor.source_modality !== "MR"
+          || descriptor.provider_id !== "totalsegmentator"
+          || descriptor.model_id !== "total_mr"
+          || descriptor.clinical_validation !== "not_claimed"
+        )
+      )
     ) {
       throw new Error("3D segmentation study binding is invalid");
     }
@@ -2461,12 +2472,7 @@ async function refreshSegmentationOverlayDescriptor(labelMapId) {
       throw new Error("Segmentation overlay study binding is invalid");
     }
     setSegmentationOverlayAvailability(descriptor);
-    if (descriptor.source_modality === "MR" && descriptor.model_id === "total_mr") {
-      // D3 is MPR presentation only. MRI segmentation-derived 3D remains gated to D4.
-      setSegmentationSurfaceAvailability(null);
-    } else {
-      await refreshSegmentationSurfaceDescriptor(descriptor.label_map_id);
-    }
+    await refreshSegmentationSurfaceDescriptor(descriptor.label_map_id);
     return descriptor;
   })();
   try {
