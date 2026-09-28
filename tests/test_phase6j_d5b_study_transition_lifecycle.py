@@ -135,9 +135,11 @@ class StudyTransitionLifecycleTests(unittest.TestCase):
 
     def test_cache_token_and_legacy_mri_harnesses_accept_d5b_suffix(self):
         index = INDEX.read_text(encoding="utf-8")
-        self.assertIn("phase6j-d45c-r2-phase6j-d5b-r1", index)
+        self.assertRegex(index, r"phase6j-d45c-r2-phase6j-d5b-r1(?:-phase6j-d5c-r\d+)?")
         self.assertIn("phase6j-d5b-r\\d+", B1_CHECK.read_text(encoding="utf-8"))
+        self.assertIn("phase6j-d5c-r\\d+", B1_CHECK.read_text(encoding="utf-8"))
         self.assertIn("phase6j-d5b-r\\d+", B2B_CHECK.read_text(encoding="utf-8"))
+        self.assertIn("phase6j-d5c-r\\d+", B2B_CHECK.read_text(encoding="utf-8"))
 
     def test_d5b_does_not_change_scientific_or_inference_contract(self):
         lifecycle = block(

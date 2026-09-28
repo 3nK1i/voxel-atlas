@@ -1333,6 +1333,18 @@ function requestReconstructionSurfaceSourceSelection(sourceId, selected) {
   const effectiveSelection = Boolean(selected && sourceState?.resident && semanticEnabled);
   if (sourceId === "segmentation-derived" && !selected) segmentationSurfaceGate?.invalidate();
   const result = reconstructionVisualizationController.selectSurfaceSource(sourceId, effectiveSelection);
+  // Same-study coexistence: when a semantic surface already keeps Surface/Combined active,
+  // selecting a non-resident Direct CT/MR source should prepare that selected source on
+  // demand. Volume mode remains intent-only, and resident Direct geometry is always reused.
+  if (
+    sourceId === "volume-derived"
+    && selected
+    && result?.mode !== "volume"
+    && !volumeSurfaceLayer.current
+    && canPrepareAutomaticDirectVolumeSurface(result)
+  ) {
+    void ensureAutomaticDirectVolumeSurface();
+  }
   if (sourceId === "segmentation-derived" && selected && canPrepareAutomaticSegmentationSurface()) {
     void syncSegmentationSurface();
   }
