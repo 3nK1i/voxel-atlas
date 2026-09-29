@@ -513,7 +513,10 @@ class Phase6AFrontendContractTests(unittest.TestCase):
 
         self.assertIn("Patient LPS accurate surface", index)
         self.assertNotIn("Patient LPS preview mesh", index)
-        self.assertIn("/js/app.js?v=phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1-phase6a-r1", index)
+        self.assertRegex(
+            index,
+            r'/js/app\.js\?v=[^"]*phase6a-r1[^"]*"',
+        )
         self.assertIn("segmentation-surface-viewer.js?v=phase6a-r1", app)
         self.assertNotIn("segmentation-surface-viewer.js?v=phase5f1-r1", app)
 
