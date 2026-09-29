@@ -76,6 +76,11 @@ const DEFAULT_RECONSTRUCTION_SURFACE_SOURCE_SELECTION = Object.freeze({
 });
 const INITIAL_VIEW_DISTANCE_SCALE = 1.18;
 const CLIPPING_MINIMUM_GAP_PERCENT = 0.1;
+const MRI_PRESENTATION_INITIAL_ISOVALUE = 0.35;
+const SAMPLE_MODALITY_ARTWORK = Object.freeze({
+  CT: "/assets/sample-study-ct.svg",
+  MR: "/assets/sample-study-mr.svg",
+});
 
 const viewport = document.getElementById("viewport");
 const viewerStage = document.getElementById("viewerStage");
@@ -211,10 +216,6 @@ const sampleCatalogEmpty = document.getElementById("sampleCatalogEmpty");
 const sampleCatalogProgress = document.getElementById("sampleCatalogProgress");
 const sampleCatalogProgressTitle = document.getElementById("sampleCatalogProgressTitle");
 const sampleCatalogProgressText = document.getElementById("sampleCatalogProgressText");
-const sampleReplaceConfirm = document.getElementById("sampleReplaceConfirm");
-const sampleReplaceText = document.getElementById("sampleReplaceText");
-const sampleReplaceCancel = document.getElementById("sampleReplaceCancel");
-const sampleReplaceAccept = document.getElementById("sampleReplaceAccept");
 const studyCard = document.querySelector(".study-card");
 const studyLabel = document.getElementById("studyLabel");
 const studyOriginBadge = document.getElementById("studyOriginBadge");
@@ -615,7 +616,6 @@ reconstructionPresentationProfileController = new ReconstructionPresentationProf
 // scientific reference settings remain available for qualification workflows.
 reconstructionPresentationProfileController.requestProfile("presentation");
 const sampleStudyCatalogClient = new SampleStudyCatalogClient();
-let sampleReplacementResolver = null;
 let sampleCatalogLoading = false;
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -2137,6 +2137,14 @@ function setVolumeSurfaceDescriptor(descriptor) {
   const minimum = Number(range?.[0]);
   const maximum = Number(range?.[1]);
   const defaultLevel = Number(descriptor.default_isovalue);
+  const mrPresentationLevelInRange = (
+    !Number.isFinite(minimum)
+    || !Number.isFinite(maximum)
+    || (MRI_PRESENTATION_INITIAL_ISOVALUE > minimum && MRI_PRESENTATION_INITIAL_ISOVALUE < maximum)
+  );
+  const initialLevel = isMr && mrPresentationLevelInRange
+    ? MRI_PRESENTATION_INITIAL_ISOVALUE
+    : defaultLevel;
 
   volumeSurfacePanel.dataset.modality = isMr ? "mr" : "ct";
   if (volumeSurfaceTitle) volumeSurfaceTitle.textContent = `${label} Surface`;
@@ -2174,8 +2182,8 @@ function setVolumeSurfaceDescriptor(descriptor) {
     volumeSurfaceIsovalue.min = String(minimum + epsilon);
     volumeSurfaceIsovalue.max = String(maximum - epsilon);
   }
-  if (Number.isFinite(defaultLevel)) {
-    volumeSurfaceIsovalue.value = isMr ? defaultLevel.toFixed(2) : String(defaultLevel);
+  if (Number.isFinite(initialLevel)) {
+    volumeSurfaceIsovalue.value = isMr ? initialLevel.toFixed(2) : String(initialLevel);
   } else if (Number.isFinite(minimum) && Number.isFinite(maximum) && minimum < maximum) {
     const midpoint = (minimum + maximum) / 2;
     volumeSurfaceIsovalue.value = isMr ? midpoint.toFixed(2) : String(Math.round(midpoint));
@@ -3046,9 +3054,13 @@ function renderSampleCatalog(samples) {
       image.referrerPolicy = "same-origin";
       preview.appendChild(image);
     } else {
-      const monogram = document.createElement("span");
-      monogram.textContent = sample.modality;
-      preview.appendChild(monogram);
+      const artwork = document.createElement("img");
+      artwork.className = "sample-study-modality-art";
+      artwork.src = SAMPLE_MODALITY_ARTWORK[sample.modality];
+      artwork.alt = "";
+      artwork.setAttribute("aria-hidden", "true");
+      artwork.loading = "lazy";
+      preview.appendChild(artwork);
     }
 
     const copy = document.createElement("div");
@@ -3078,7 +3090,7 @@ function renderSampleCatalog(samples) {
     const open = document.createElement("button");
     open.className = "sample-study-open";
     open.type = "button";
-    open.textContent = "Open in VoxelAtlas";
+    open.textContent = "Open";
     open.addEventListener("click", () => void requestSampleLoad(sample));
     copy.append(tags, title, summary, metadata, links, open);
     card.append(preview, copy);
@@ -3099,7 +3111,6 @@ async function openSampleCatalog() {
     sampleCatalogDialog.showModal();
   }
   sampleCatalogEmpty.hidden = true;
-  sampleReplaceConfirm.hidden = true;
   setSampleCatalogProgress(
     true,
     "Loading demonstration studies",
@@ -3120,30 +3131,8 @@ async function openSampleCatalog() {
   }
 }
 
-function confirmSampleReplacement(sample) {
-  if (!state.study) return Promise.resolve(true);
-  if (sampleReplacementResolver) sampleReplacementResolver(false);
-  sampleReplaceText.textContent = (
-    `Opening ${sample.title} will replace the scan currently shown. `
-    + "The source files already stored on the server are not deleted."
-  );
-  sampleReplaceConfirm.hidden = false;
-  sampleReplaceAccept.focus();
-  return new Promise((resolve) => {
-    sampleReplacementResolver = resolve;
-  });
-}
-
-function resolveSampleReplacement(accepted) {
-  if (!sampleReplacementResolver) return;
-  const resolve = sampleReplacementResolver;
-  sampleReplacementResolver = null;
-  sampleReplaceConfirm.hidden = true;
-  resolve(accepted);
-}
 
 async function requestSampleLoad(sample) {
-  if (!await confirmSampleReplacement(sample)) return;
   setSampleCatalogProgress(
     true,
     `Opening ${sample.title}`,
@@ -3451,17 +3440,12 @@ sampleCatalogClose.addEventListener("click", () => {
 });
 sampleCatalogDialog.addEventListener("cancel", (event) => {
   if (sampleCatalogLoading) event.preventDefault();
-  resolveSampleReplacement(false);
 });
 sampleCatalogDialog.addEventListener("click", (event) => {
   if (event.target === sampleCatalogDialog && !sampleCatalogLoading) {
-    resolveSampleReplacement(false);
     sampleCatalogDialog.close();
   }
 });
-sampleReplaceCancel.addEventListener("click", () => resolveSampleReplacement(false));
-sampleReplaceAccept.addEventListener("click", () => resolveSampleReplacement(true));
-
 dicomFileInput.addEventListener("change", () => {
   void uploadDicomFiles(Array.from(dicomFileInput.files || []));
 });

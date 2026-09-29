@@ -243,7 +243,6 @@ class Phase4GSampleStudyCatalogTests(unittest.TestCase):
             "renderSampleCatalog",
             "openSampleCatalog",
             "requestSampleLoad",
-            "confirmSampleReplacement",
             "ensureCanonicalVolume",
             "sample-study-card",
         ):
@@ -252,12 +251,18 @@ class Phase4GSampleStudyCatalogTests(unittest.TestCase):
 
         self.assertNotIn("sample DICOM", html.lower())
         self.assertNotIn("diagnostic", client.lower())
+        self.assertIn('open.textContent = "Open";', app)
+        self.assertNotIn("Open in VoxelAtlas", app)
+        self.assertNotIn("confirmSampleReplacement", app)
+        self.assertNotIn('id="sampleReplaceConfirm"', html)
+        self.assertIn('/assets/sample-study-ct.svg', app)
+        self.assertIn('/assets/sample-study-mr.svg', app)
 
     def test_phase4g_cache_and_validation_entrypoints_are_present(self) -> None:
         html = (ROOT / "web/index.html").read_text(encoding="utf-8")
         app = (ROOT / "web/js/app.js").read_text(encoding="utf-8")
         self.assertIn('/css/styles.css?v=phase3d-r21-phase4h6', html)
-        self.assertIn('/js/app.js?v=phase3d-r21-phase4h6', html)
+        self.assertRegex(html, r'/js/app\.js\?v=[^"\n]*phase3d-r21-phase4h6')
         self.assertIn(
             'from "./sample-study-catalog.js?v=phase4g-r1"',
             app,
