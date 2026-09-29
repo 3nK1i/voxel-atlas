@@ -11,7 +11,7 @@ class RenderingQualificationTests(unittest.TestCase):
         css = (ROOT / 'web/css/styles.css').read_text()
         for selector in ('.clip-range-summary', '.clip-boundary-labels',
                          '.clip-boundary-values strong', '.clip-plane-heading strong',
-                         '.clip-plane-toggle'):
+                         '.clip-plane-label'):
             rules = re.findall(re.escape(selector) + r'\s*\{([^}]+)\}', css)
             sizes = [float(n) for rule in rules for n in re.findall(r'font-size:\s*([\d.]+)px', rule)]
             self.assertEqual(sizes[-1], 11, selector)
@@ -33,16 +33,16 @@ class RenderingQualificationTests(unittest.TestCase):
         self.assertIn('qualification?.resetWindow()', handler)
         self.assertIn('phase3d-r21-phase4h6', (ROOT / 'web/index.html').read_text())
 
-    def test_clipping_is_active_at_full_range_by_default_and_after_reset(self):
+    def test_full_range_is_inactive_by_default_and_after_reset(self):
         app = (ROOT / 'web/js/app.js').read_text()
         html = (ROOT / 'web/index.html').read_text()
         for plane in ('axial', 'coronal', 'sagittal'):
             self.assertIn(
-                f'{plane}: {{ enabled: true, startPercent: 0, endPercent: 100 }}', app)
+                f'{plane}: {{ enabled: false, startPercent: 0, endPercent: 100 }}', app)
             self.assertRegex(
-                html, rf'data-clip-enabled="{plane}"[^>]*checked[^>]*disabled')
+                html, rf'data-clip-enabled="{plane}"[^>]*data-active="false"')
         reset = app.split('function resetPatientClipping()')[1].split('\nfunction ', 1)[0]
-        self.assertIn('state.clipping[plane].enabled = true', reset)
+        self.assertIn('state.clipping[plane].enabled = false', reset)
 
     def test_intensity_interval_uses_one_non_crossing_dual_handle_control(self):
         html = (ROOT / 'web/index.html').read_text()

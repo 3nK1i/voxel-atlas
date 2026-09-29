@@ -19,7 +19,7 @@ const fn = (name) => {
   assert.ok(start >= 0, name);
   return app.slice(start, app.indexOf("\nfunction ", start + 1));
 };
-const functions = ["clamp", "clippingPlaneRange", "setClippingControlsEnabled", "clippingBoundaryLpsMm",
+const functions = ["clamp", "clippingPlaneRange", "clippingRangeIsActive", "setClippingControlsEnabled", "clippingBoundaryLpsMm",
   "clippingRequest", "applyPatientClipping", "syncClippingControlsFromMpr", "updateClippingBoundaryFromControl",
   "resetPatientClipping", "mprPhysicalMetrics", "configureMprSurface", "updateMprCrosshairOverlayForEntry",
   "updateMprClippingOverlays"].map(fn).join("\n");
@@ -86,7 +86,6 @@ try {
   }, { constants, functions, events });
   const pixelsBefore = await page.locator("#mprAxialCanvas").evaluate((c) => c.toDataURL());
   for (const axis of ["axial", "coronal", "sagittal"]) {
-    await page.locator(`[data-clip-enabled="${axis}"]`).check();
     for (const [boundary, value] of [["start", "25"], ["end", "75"]]) {
       await page.locator(`[data-clip-${boundary}="${axis}"]`).evaluate((el, val) => {
         el.value = val; el.dispatchEvent(new Event("input", { bubbles: true }));

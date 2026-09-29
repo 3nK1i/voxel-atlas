@@ -26,7 +26,7 @@
     })();
   </script>
 
-  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4h6-r1">
+  <link rel="stylesheet" href="/css/styles.css?v=phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1-phase6c-r2-phase6d0-r1-phase6d1-r1-phase6d2b-r1-phase6d2c-r1-phase6d2d-r1-phase6e-c-r1-phase6f-b-r1-phase6f-d-r1-phase6f-e-r1-post6f-stab-a-r1-post6f-b1b2b-r1-phase6i-a-r3-phase6i-b2-r1-phase6i-c-r1-phase6i-d-r1-phase6i-polish-r1-ctb2-r1-phase6j-d45c-r2-postd6-ui-r1">
 
   <script type="importmap">
   {
@@ -54,17 +54,6 @@
           </span>
         </a>
 
-        <button
-          id="themeToggle"
-          class="theme-toggle"
-          type="button"
-          aria-label="Switch to light mode"
-          aria-pressed="false"
-        >
-          <span class="theme-icon theme-icon-sun" aria-hidden="true">☀</span>
-          <span class="theme-track" aria-hidden="true"><span class="theme-thumb"></span></span>
-          <span class="theme-icon theme-icon-moon" aria-hidden="true">☾</span>
-        </button>
       </div>
 
       <nav class="workflow" aria-label="VoxelAtlas workflow">
@@ -98,6 +87,22 @@
       </nav>
 
       <div class="account-zone">
+        <button
+          id="themeToggle"
+          class="theme-toggle"
+          type="button"
+          title="Switch to light mode"
+          aria-label="Switch to light mode"
+          aria-pressed="false"
+        >
+          <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="3.5"></circle>
+            <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42"></path>
+          </svg>
+          <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M20.4 15.2A8.5 8.5 0 0 1 8.8 3.6 8.5 8.5 0 1 0 20.4 15.2Z"></path>
+          </svg>
+        </button>
         <div class="account" aria-label="Authenticated account">
           <span class="account-avatar" aria-hidden="true">VA</span>
           <span id="accountName" class="account-name">Authenticated user</span>
@@ -173,9 +178,19 @@
 
           <section id="reconstructionPanel" class="info-section">
             <div class="section-kicker">Reconstruction</div>
-            <div class="status-list">
-              <div id="volumeStatusRow" class="status-row" data-state="pending">
-                <span class="status-icon" aria-hidden="true">
+            <div class="status-list reconstruction-mode-list" role="group" aria-label="3D reconstruction visualization mode">
+              <div>
+              <button
+                id="volumeStatusRow"
+                class="status-row reconstruction-mode-card"
+                type="button"
+                data-state="pending"
+                data-active="false"
+                data-reconstruction-mode="volume"
+                aria-pressed="true"
+                disabled
+              >
+                <span class="status-icon reconstruction-mode-icon reconstruction-mode-icon-volume" aria-hidden="true">
                   <svg class="volume-status-icon" viewBox="0 0 24 24">
                     <path d="m12 2.8 7.4 4.1v10.2L12 21.2l-7.4-4.1V6.9L12 2.8Z"></path>
                     <path d="m4.6 6.9 7.4 4.2 7.4-4.2M12 11.1v10.1M8.2 4.9l7.5 4.2M8.2 19.1V8.9l7.6-4.1M4.7 12l7.3 4.1 7.3-4.1"></path>
@@ -188,6 +203,58 @@
                     <path d="m8 12.2 2.5 2.5 5.6-6"></path>
                   </svg>
                 </span>
+              </button>
+              </div>
+
+              <div>
+              <button
+                class="status-row reconstruction-mode-card"
+                type="button"
+                data-active="false"
+                data-reconstruction-mode="surface"
+                aria-pressed="false"
+                disabled
+              >
+                <span class="status-icon reconstruction-mode-icon reconstruction-mode-icon-surface" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M4.5 16.8 8 7.2l7.1-2.5 4.4 6.1-3.4 8.3-7.4.2-4.2-2.5Z"></path>
+                    <path d="M8 7.2 12.3 12l2.8-7.3M12.3 12l7.2-1.2M12.3 12l3.8 7.1M12.3 12 4.5 16.8M8.7 19.3 8 7.2"></path>
+                  </svg>
+                </span>
+                <span class="status-copy"><strong>Surface</strong><small id="surfaceModeStatusText">Build or select a surface</small></span>
+                <span class="status-mark" aria-hidden="true">
+                  <svg class="readiness-check" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="9"></circle>
+                    <path d="m8 12.2 2.5 2.5 5.6-6"></path>
+                  </svg>
+                </span>
+              </button>
+              </div>
+
+              <div>
+              <button
+                class="status-row reconstruction-mode-card"
+                type="button"
+                data-active="false"
+                data-reconstruction-mode="combined"
+                aria-pressed="false"
+              >
+                <span class="status-icon reconstruction-mode-icon reconstruction-mode-icon-combined" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="m12 3 7 3.8v7.8L12 18.5l-7-3.9V6.8L12 3Z"></path>
+                    <path d="m5 6.8 7 3.9 7-3.9M12 10.7v7.8"></path>
+                    <path d="m6.5 18.1 3-4.4 4.6.4 3.4 5-11 .1Z"></path>
+                    <path d="m9.5 13.7 4 5.4m.6-5-7.6 4"></path>
+                  </svg>
+                </span>
+                <span class="status-copy"><strong>Combined</strong><small id="combinedModeStatusText">Requires volume + surface</small></span>
+                <span class="status-mark" aria-hidden="true">
+                  <svg class="readiness-check" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="9"></circle>
+                    <path d="m8 12.2 2.5 2.5 5.6-6"></path>
+                  </svg>
+                </span>
+              </button>
               </div>
             </div>
           </section>
@@ -297,6 +364,7 @@
             <div class="mpr-empty mpr-view" data-mpr-view="axial" title="Left drag: crosshair - Wheel: slice - Right drag: window/level">
               <div class="mpr-image-surface" data-mpr-surface="axial">
                 <canvas id="mprAxialCanvas" aria-label="Axial patient volume slice"></canvas>
+                <canvas id="mprAxialSegmentationCanvas" class="mpr-segmentation-overlay" aria-label="Axial segmentation overlay" hidden></canvas>
                 <div class="mpr-crosshair" aria-hidden="true"></div>
                 <span class="orientation-label orientation-left">R</span>
                 <span class="orientation-label orientation-right">L</span>
@@ -323,6 +391,7 @@
             <div class="mpr-empty mpr-view" data-mpr-view="coronal" title="Left drag: crosshair - Wheel: slice - Right drag: window/level">
               <div class="mpr-image-surface" data-mpr-surface="coronal">
                 <canvas id="mprCoronalCanvas" aria-label="Coronal patient volume slice"></canvas>
+                <canvas id="mprCoronalSegmentationCanvas" class="mpr-segmentation-overlay" aria-label="Coronal segmentation overlay" hidden></canvas>
                 <div class="mpr-crosshair" aria-hidden="true"></div>
                 <span class="orientation-label orientation-left">R</span>
                 <span class="orientation-label orientation-right">L</span>
@@ -349,6 +418,7 @@
             <div class="mpr-empty mpr-view" data-mpr-view="sagittal" title="Left drag: crosshair - Wheel: slice - Right drag: window/level">
               <div class="mpr-image-surface" data-mpr-surface="sagittal">
                 <canvas id="mprSagittalCanvas" aria-label="Sagittal patient volume slice"></canvas>
+                <canvas id="mprSagittalSegmentationCanvas" class="mpr-segmentation-overlay" aria-label="Sagittal segmentation overlay" hidden></canvas>
                 <div class="mpr-crosshair" aria-hidden="true"></div>
                 <span class="orientation-label orientation-left">A</span>
                 <span class="orientation-label orientation-right">P</span>
@@ -371,87 +441,27 @@
 
       <aside class="right-panel panel" aria-label="3D patient volume controls">
         <div class="panel-scroll">
-          <section id="directionalCutPanel" class="control-section" data-clipping-state="unavailable">
-            <div class="control-heading">
-              <div>
-                <div class="section-kicker">Multi-plane Clipping</div>
-                <p>Combine anatomical planes in DICOM Patient LPS space.</p>
-              </div>
-            </div>
-
-            <div class="clip-plane-list" aria-label="Patient-space clipping planes">
-              <div class="clip-plane-control" data-clip-plane="axial">
-                <div class="clip-plane-heading">
-                  <label class="clip-plane-toggle">
-                    <input type="checkbox" data-clip-enabled="axial" aria-label="Enable axial clipping" checked disabled>
-                    <span>Axial</span>
-                  </label>
-                  <span class="clip-range-summary"><strong data-clip-start-percent="axial">0%</strong><span>to</span><strong data-clip-end-percent="axial">100%</strong></span>
-                </div>
-                <div class="clip-boundary-labels"><span>Inferior</span><span>Superior</span></div>
-                <div class="clip-dual-range" data-clip-range="axial" style="--clip-start-percent: 0%; --clip-end-percent: 100%;">
-                  <div class="clip-retained-track" aria-hidden="true"></div>
-                  <input type="range" min="0" max="100" step="0.1" value="0" data-clip-start="axial" aria-label="Inferior clipping boundary" disabled>
-                  <input type="range" min="0" max="100" step="0.1" value="100" data-clip-end="axial" aria-label="Superior clipping boundary" disabled>
-                </div>
-                <div class="clip-boundary-values"><strong data-clip-start-position="axial">Z: --</strong><strong data-clip-end-position="axial">Z: --</strong></div>
-              </div>
-
-              <div class="clip-plane-control" data-clip-plane="coronal">
-                <div class="clip-plane-heading">
-                  <label class="clip-plane-toggle">
-                    <input type="checkbox" data-clip-enabled="coronal" aria-label="Enable coronal clipping" checked disabled>
-                    <span>Coronal</span>
-                  </label>
-                  <span class="clip-range-summary"><strong data-clip-start-percent="coronal">0%</strong><span>to</span><strong data-clip-end-percent="coronal">100%</strong></span>
-                </div>
-                <div class="clip-boundary-labels"><span>Posterior</span><span>Anterior</span></div>
-                <div class="clip-dual-range" data-clip-range="coronal" style="--clip-start-percent: 0%; --clip-end-percent: 100%;">
-                  <div class="clip-retained-track" aria-hidden="true"></div>
-                  <input type="range" min="0" max="100" step="0.1" value="0" data-clip-start="coronal" aria-label="Posterior clipping boundary" disabled>
-                  <input type="range" min="0" max="100" step="0.1" value="100" data-clip-end="coronal" aria-label="Anterior clipping boundary" disabled>
-                </div>
-                <div class="clip-boundary-values"><strong data-clip-start-position="coronal">Y: --</strong><strong data-clip-end-position="coronal">Y: --</strong></div>
-              </div>
-
-              <div class="clip-plane-control" data-clip-plane="sagittal">
-                <div class="clip-plane-heading">
-                  <label class="clip-plane-toggle">
-                    <input type="checkbox" data-clip-enabled="sagittal" aria-label="Enable sagittal clipping" checked disabled>
-                    <span>Sagittal</span>
-                  </label>
-                  <span class="clip-range-summary"><strong data-clip-start-percent="sagittal">0%</strong><span>to</span><strong data-clip-end-percent="sagittal">100%</strong></span>
-                </div>
-                <div class="clip-boundary-labels"><span>Right</span><span>Left</span></div>
-                <div class="clip-dual-range" data-clip-range="sagittal" style="--clip-start-percent: 0%; --clip-end-percent: 100%;">
-                  <div class="clip-retained-track" aria-hidden="true"></div>
-                  <input type="range" min="0" max="100" step="0.1" value="0" data-clip-start="sagittal" aria-label="Right clipping boundary" disabled>
-                  <input type="range" min="0" max="100" step="0.1" value="100" data-clip-end="sagittal" aria-label="Left clipping boundary" disabled>
-                </div>
-                <div class="clip-boundary-values"><strong data-clip-start-position="sagittal">X: --</strong><strong data-clip-end-position="sagittal">X: --</strong></div>
-              </div>
-            </div>
-            <p class="anatomy-note">Enabled ranges intersect as one Patient LPS region of interest.</p>
-            <label class="mpr-clipping-toggle"><input id="mprClippingOverlayToggle" type="checkbox" checked aria-describedby="mprClippingLegend"> Show clipping on MPR</label>
-            <p id="mprClippingLegend" class="mpr-clipping-legend">Dashed lines: clipping bounds. Shading: excluded region. Reference slices remain unchanged.</p>
-            <button id="clippingResetButton" class="transfer-reset-button" type="button" disabled>Reset clipping</button>
-          </section>
-
-          <section id="anatomicalLayersPanel" class="control-section">
-            <div class="section-kicker">Anatomical Layers</div>
-            <div class="layer-grid volume-only-layer-grid" role="group" aria-label="Anatomical layers">
-              <button id="volumeLayerButton" type="button" class="layer-button is-active" data-layer="volume" disabled aria-pressed="true">Full Volume</button>
-            </div>
-            <p id="anatomyNote" class="anatomy-note">
-              Upload a CT or MRI DICOM study to visualize its voxel volume in 3D.
-            </p>
-          </section>
-
           <section id="volumeRenderingPanel" class="control-section" data-state="unavailable">
             <div class="control-heading compact-heading">
               <div class="section-kicker">Volume Rendering</div>
               <strong id="transferModality" class="control-value">--</strong>
             </div>
+
+            <label class="slider-label rendering-quality-label" for="renderQualityPolicy">
+              Rendering quality
+            </label>
+            <select
+              id="renderQualityPolicy"
+              class="transfer-preset-select"
+              aria-label="Volume rendering quality policy"
+              disabled
+            >
+              <option value="interactive">Interactive</option>
+              <option value="balanced" selected>Balanced</option>
+              <option value="high">High</option>
+              <option value="maximum">Maximum</option>
+            </select>
+
 
             <label class="slider-label" for="transferPresetSelect">Medical preset</label>
             <select
@@ -606,21 +616,6 @@
               </div>
             </div>
 
-            <label class="slider-label rendering-quality-label" for="renderQualityPolicy">
-              Rendering quality
-            </label>
-            <select
-              id="renderQualityPolicy"
-              class="transfer-preset-select"
-              aria-label="Volume rendering quality policy"
-              disabled
-            >
-              <option value="interactive">Interactive</option>
-              <option value="balanced" selected>Balanced</option>
-              <option value="high">High</option>
-              <option value="maximum">Maximum</option>
-            </select>
-
             <details id="advancedRenderingControls" class="advanced-rendering-controls">
               <summary>Advanced rendering</summary>
               <div class="transfer-adjustments">
@@ -765,7 +760,7 @@
 
             <button
               id="transferResetButton"
-              class="transfer-reset-button"
+              class="sidebar-action-button is-secondary transfer-reset-button"
               type="button"
               disabled
             >
@@ -782,11 +777,291 @@
             >Rendering quality: waiting for patient volume</p>
           </section>
 
-        </div>
+          <section id="reconstructionVisualizationPanel" class="control-section reconstruction-visualization-panel" data-state="unavailable" data-mode="volume" aria-labelledby="reconstructionVisualizationTitle">
+            <div class="control-heading compact-heading">
+              <div>
+                <div id="reconstructionVisualizationTitle" class="section-kicker">3D View</div>
+                <p id="reconstructionVisualizationStatus" aria-live="polite">Available after a patient volume or resident surface is ready.</p>
+              </div>
+              <span class="reconstruction-mode-badge">Reconstruction</span>
+            </div>
+            <div class="reconstruction-presentation-profile" aria-labelledby="reconstructionPresentationProfileLabel">
+              <div class="reconstruction-presentation-profile-heading">
+                <span id="reconstructionPresentationProfileLabel" class="reconstruction-source-label">Presentation</span>
+                <span class="reconstruction-presentation-profile-badge">Rendering intent</span>
+              </div>
+              <p id="reconstructionPresentationProfileStatus" class="reconstruction-presentation-profile-status" aria-live="polite">Presentation · Polished rendering intent for stronger anatomical readability.</p>
+              <p class="segmentation-overlay-note">Geometry and source data remain unchanged. Rendering changes affect presentation only.</p>
+            </div>
+            <div class="reconstruction-surface-sources" aria-label="Surface sources">
+              <span class="reconstruction-source-label">Surface sources</span>
+              <div class="reconstruction-source-options">
+                <label class="reconstruction-source-option" data-reconstruction-source-row="volume-derived" data-state="unavailable">
+                  <input type="checkbox" data-reconstruction-surface-source="volume-derived" checked disabled>
+                  <span id="volumeSurfaceSourceLabel">Direct CT</span>
+                </label>
+                <label class="reconstruction-source-option" data-reconstruction-source-row="segmentation-derived" data-state="unavailable">
+                  <input type="checkbox" data-reconstruction-surface-source="segmentation-derived" checked disabled>
+                  <span>Segmentation</span>
+                </label>
+              </div>
+            </div>
+            <p id="reconstructionSurfaceSourceNote" class="segmentation-overlay-note">Surface source selections apply in Surface and Combined modes. Selected direct volume geometry is prepared on demand; existing resident geometry is reused. Switching modes never starts segmentation.</p>
+          </section>
+
+          <section id="volumeSurfacePanel" class="control-section volume-surface-panel" data-state="unavailable" aria-labelledby="volumeSurfaceTitle">
+            <div class="control-heading compact-heading">
+              <div>
+                <div id="volumeSurfaceTitle" class="section-kicker">Direct CT Surface</div>
+                <p id="volumeSurfaceStatus" aria-live="polite">Available after a qualified CT volume is loaded.</p>
+              </div>
+              <span id="volumeSurfaceSourceBadge" class="volume-surface-source-badge">Direct CT</span>
+            </div>
+            <label class="volume-surface-isovalue" for="volumeSurfaceIsovalue">
+              <span class="va-volume-surface-caption"><span id="volumeSurfaceIsovalueTitle" class="va-volume-surface-caption-title">CT isovalue</span><small id="volumeSurfaceIsovalueHint">Bone baseline: 300 HU when in range</small></span>
+              <span class="volume-surface-isovalue-entry">
+                <input id="volumeSurfaceIsovalue" type="number" step="10" value="300" inputmode="decimal" disabled>
+                <strong id="volumeSurfaceIsovalueUnits">HU</strong>
+              </span>
+            </label>
+            <div class="volume-surface-actions" hidden>
+              <button id="volumeSurfaceBuild" class="sidebar-action-button is-primary volume-surface-build" type="button" disabled>Build Surface</button>
+              <button id="volumeSurfaceClear" class="sidebar-action-button is-secondary volume-surface-clear" type="button" disabled>Remove Surface</button>
+            </div>
+            <label id="volumeSurfaceRegionControl" class="volume-surface-region-control" for="volumeSurfaceRegionMode">
+              <span class="va-volume-surface-caption"><span id="volumeSurfaceRegionTitle" class="va-volume-surface-caption-title">Direct CT visibility</span><small>Presentation only · full geometry retained</small></span>
+              <select id="volumeSurfaceRegionMode" disabled>
+                <option value="all">Full geometry</option>
+                <option value="hide-region-1">Hide region 1</option>
+                <option value="hide-region-2">Hide region 2</option>
+              </select>
+            </label>
+            <p id="volumeSurfaceRegionStatus" class="segmentation-overlay-note" aria-live="polite">Build a Direct CT surface to inspect regions.</p>
+            <p id="volumeSurfaceContractNote" class="segmentation-overlay-note">Canonical CT intensity isosurface · Patient LPS · no semantic segmentation required.</p>
+          </section>
+
+          <section id="segmentationWorkflowPanel" class="control-section segmentation-workflow-panel" data-state="waiting" aria-labelledby="segmentationWorkflowTitle">
+            <div class="control-heading compact-heading segmentation-workflow-heading">
+              <div>
+                <div id="segmentationWorkflowTitle" class="section-kicker">Segmentation</div>
+                <p id="segmentationWorkflowStatus" aria-live="polite">Patient volume loads before segmentation becomes available.</p>
+              </div>
+              <span id="segmentationWorkflowBadge" class="segmentation-workflow-badge">Waiting</span>
+            </div>
+            <p id="segmentationWorkflowProvider" class="segmentation-workflow-provider">Segmentation is intentionally off the initial loading path.</p>
+            <div
+              id="segmentationWorkflowProgress"
+              class="segmentation-workflow-progress"
+              role="progressbar"
+              aria-label="Segmentation progress"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="0"
+              hidden
+            >
+              <div class="segmentation-workflow-progress-track" aria-hidden="true">
+                <span id="segmentationWorkflowProgressFill"></span>
+              </div>
+              <span id="segmentationWorkflowProgressText">0% · Waiting</span>
+            </div>
+            <div class="segmentation-workflow-actions">
+              <button id="segmentationWorkflowPrimary" class="sidebar-action-button is-primary segmentation-workflow-primary" type="button" disabled>Start Segmentation</button>
+              <button id="segmentationWorkflowCancel" class="sidebar-action-button is-danger segmentation-workflow-cancel" type="button" hidden>Cancel</button>
+            </div>
+            <p class="segmentation-overlay-note">On-demand workflow · direct volume and MPR remain available while segmentation runs.</p>
+          </section>
+
+          <section id="segmentationOverlayPanel" class="control-section segmentation-overlay-panel" data-state="unavailable">
+            <div class="control-heading compact-heading">
+              <div>
+                <div class="section-kicker">Segmentation Overlay</div>
+                <p id="segmentationOverlayStatus">No canonical label map for this study.</p>
+              </div>
+              <label class="segmentation-overlay-switch">
+                <input id="segmentationOverlayToggle" type="checkbox" checked disabled>
+                <span>Show</span>
+              </label>
+            </div>
+            <label class="slider-label" for="segmentationOverlayOpacity">
+              Overlay opacity
+              <strong id="segmentationOverlayOpacityValue">45%</strong>
+            </label>
+            <input
+              id="segmentationOverlayOpacity"
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value="45"
+              disabled
+            >
+            <p class="segmentation-overlay-note">Patient-LPS label map · nearest-neighbor display · non-clinical visualization</p>
+          </section>
+
+          <section id="segmentationSurfacePanel" class="control-section segmentation-surface-panel" data-state="unavailable">
+            <div class="control-heading compact-heading">
+              <div>
+                <div class="section-kicker">3D Segmentation Surfaces</div>
+                <p id="segmentationSurfaceStatus">No 3D segmentation surfaces available.</p>
+              </div>
+              <label class="segmentation-overlay-switch">
+                <input id="segmentationSurfaceToggle" type="checkbox" checked disabled>
+                <span>Show</span>
+              </label>
+            </div>
+            <p class="segmentation-overlay-note" data-accurate-reference="Patient LPS accurate surface">Visible structures · Patient LPS refined surfaces · polished multi-structure presentation</p>
+            <div class="segmentation-appearance-control">
+              <label for="segmentation3dAppearance">3D surface colors</label>
+              <select id="segmentation3dAppearance" aria-describedby="segmentation3dAppearanceNote" disabled>
+                <option value="scientific">Scientific colors</option>
+                <option value="anatomical">Anatomical colors</option>
+              </select>
+              <p id="segmentation3dAppearanceNote" role="status" aria-live="polite">Available after a segmentation surface is ready. 3D colors only; MPR colors are unchanged.</p>
+            </div>
+          </section>
+
+          <section id="segmentationStructurePanel" class="control-section segmentation-structure-panel" data-state="unavailable" aria-labelledby="segmentationStructureTitle">
+            <div class="control-heading compact-heading">
+              <div>
+                <div class="section-kicker">Anatomical Structures</div>
+                <p id="segmentationStructureSummary">Available after a canonical label map is loaded.</p>
+              </div>
+            </div>
+            <label class="structure-search" for="segmentationStructureSearch">
+              <span id="segmentationStructureTitle">Find a structure</span>
+              <input id="segmentationStructureSearch" type="search" placeholder="Search anatomy or label" autocomplete="off" disabled>
+            </label>
+            <div class="structure-bulk-actions" aria-label="Structure visibility controls">
+              <button id="segmentationStructureShowAll" type="button" class="sidebar-action-button is-secondary is-compact" data-structure-action="show-all" disabled>Show all</button>
+              <button id="segmentationStructureHideAll" type="button" class="sidebar-action-button is-secondary is-compact" data-structure-action="hide-all" disabled>Hide all</button>
+              <button id="segmentationStructureRestoreIsolation" type="button" class="sidebar-action-button is-secondary is-compact" data-structure-action="restore-isolation" disabled>Restore</button>
+              <button id="segmentationStructureReset" type="button" class="sidebar-action-button is-secondary is-compact" data-structure-action="reset" disabled>Reset</button>
+            </div>
+            <div class="structure-explode-control">
+              <label class="slider-label" for="segmentationStructureExplode">
+                Explode anatomy
+                <strong id="segmentationStructureExplodeValue">0 mm</strong>
+              </label>
+              <input id="segmentationStructureExplode" type="range" min="0" max="40" step="1" value="0" disabled>
+              <span>Anatomical groups separate together using bounded display-only Patient-LPS offsets.</span>
+            </div>
+            <div id="segmentationStructureGroups" class="structure-groups" aria-live="polite"></div>
+            <div class="structure-inspector" aria-live="polite">
+              <div class="structure-inspector-heading">
+                <div>
+                  <strong id="segmentationStructureSelectedName">No structure selected</strong>
+                  <span id="segmentationStructureSelectedMetadata">Select a visible structure to edit its presentation.</span>
+                </div>
+                <label class="structure-color-control" title="Selected structure color">
+                  <span class="sr-only">Selected structure color</span>
+                  <input id="segmentationStructureColor" type="color" value="#ffffff" disabled>
+                </label>
+              </div>
+              <label class="slider-label" for="segmentationStructureOpacity">
+                Structure opacity
+                <strong id="segmentationStructureOpacityValue">100%</strong>
+              </label>
+              <input id="segmentationStructureOpacity" type="range" min="0" max="100" step="1" value="100" disabled>
+              <label class="structure-clipping-control" for="segmentationStructureClipParticipation">
+                <input id="segmentationStructureClipParticipation" type="checkbox" checked disabled>
+                <span>Follow Directional Cut</span>
+              </label>
+            </div>
+            <p class="segmentation-overlay-note">Iso temporarily focuses one structure without overwriting Show/Hide choices; Restore returns the previous visibility state. Directional Cut participation and anatomical group explosion are display-only and never edit Patient-LPS geometry. Selecting a visible structure adds its refined 3D surface. Source labels remain immutable.</p>
+          </section>
+
+          <section id="directionalCutPanel" class="control-section" data-clipping-state="unavailable">
+            <div class="control-heading">
+              <div>
+                <div class="section-kicker">Multi-plane Clipping</div>
+                <p>Combine anatomical planes in DICOM Patient LPS space.</p>
+              </div>
+            </div>
+
+            <div class="clip-plane-list" aria-label="Patient-space clipping planes">
+              <div class="clip-plane-control" data-clipping-active="false" data-clip-plane="axial">
+                <div class="clip-plane-heading">
+                  <span class="clip-plane-label">Axial</span>
+                  <span class="clip-plane-state" data-clip-enabled="axial" data-active="false" role="status" aria-live="polite">Full range</span>
+                  <span class="clip-range-summary"><strong data-clip-start-percent="axial">0%</strong><span>to</span><strong data-clip-end-percent="axial">100%</strong></span>
+                </div>
+                <div class="clip-boundary-labels"><span>Inferior</span><span>Superior</span></div>
+                <div class="clip-dual-range" data-clip-range="axial" style="--clip-start-percent: 0%; --clip-end-percent: 100%;">
+                  <div class="clip-retained-track" aria-hidden="true"></div>
+                  <input type="range" min="0" max="100" step="0.1" value="0" data-clip-start="axial" aria-label="Inferior clipping boundary" disabled>
+                  <input type="range" min="0" max="100" step="0.1" value="100" data-clip-end="axial" aria-label="Superior clipping boundary" disabled>
+                </div>
+                <div class="clip-boundary-values"><strong data-clip-start-position="axial">Z: --</strong><strong data-clip-end-position="axial">Z: --</strong></div>
+              </div>
+
+              <div class="clip-plane-control" data-clipping-active="false" data-clip-plane="coronal">
+                <div class="clip-plane-heading">
+                  <span class="clip-plane-label">Coronal</span>
+                  <span class="clip-plane-state" data-clip-enabled="coronal" data-active="false" role="status" aria-live="polite">Full range</span>
+                  <span class="clip-range-summary"><strong data-clip-start-percent="coronal">0%</strong><span>to</span><strong data-clip-end-percent="coronal">100%</strong></span>
+                </div>
+                <div class="clip-boundary-labels"><span>Posterior</span><span>Anterior</span></div>
+                <div class="clip-dual-range" data-clip-range="coronal" style="--clip-start-percent: 0%; --clip-end-percent: 100%;">
+                  <div class="clip-retained-track" aria-hidden="true"></div>
+                  <input type="range" min="0" max="100" step="0.1" value="0" data-clip-start="coronal" aria-label="Posterior clipping boundary" disabled>
+                  <input type="range" min="0" max="100" step="0.1" value="100" data-clip-end="coronal" aria-label="Anterior clipping boundary" disabled>
+                </div>
+                <div class="clip-boundary-values"><strong data-clip-start-position="coronal">Y: --</strong><strong data-clip-end-position="coronal">Y: --</strong></div>
+              </div>
+
+              <div class="clip-plane-control" data-clipping-active="false" data-clip-plane="sagittal">
+                <div class="clip-plane-heading">
+                  <span class="clip-plane-label">Sagittal</span>
+                  <span class="clip-plane-state" data-clip-enabled="sagittal" data-active="false" role="status" aria-live="polite">Full range</span>
+                  <span class="clip-range-summary"><strong data-clip-start-percent="sagittal">0%</strong><span>to</span><strong data-clip-end-percent="sagittal">100%</strong></span>
+                </div>
+                <div class="clip-boundary-labels"><span>Right</span><span>Left</span></div>
+                <div class="clip-dual-range" data-clip-range="sagittal" style="--clip-start-percent: 0%; --clip-end-percent: 100%;">
+                  <div class="clip-retained-track" aria-hidden="true"></div>
+                  <input type="range" min="0" max="100" step="0.1" value="0" data-clip-start="sagittal" aria-label="Right clipping boundary" disabled>
+                  <input type="range" min="0" max="100" step="0.1" value="100" data-clip-end="sagittal" aria-label="Left clipping boundary" disabled>
+                </div>
+                <div class="clip-boundary-values"><strong data-clip-start-position="sagittal">X: --</strong><strong data-clip-end-position="sagittal">X: --</strong></div>
+              </div>
+            </div>
+            <p class="anatomy-note">Move either bound inward to clip automatically. Active plane ranges intersect in Patient LPS space; full range disables clipping.</p>
+            <label class="mpr-clipping-toggle"><input id="mprClippingOverlayToggle" type="checkbox" checked aria-describedby="mprClippingLegend"> Show clipping on MPR</label>
+            <p id="mprClippingLegend" class="mpr-clipping-legend">Dashed lines: clipping bounds. Shading: excluded region. Reference slices remain unchanged.</p>
+            <button id="clippingResetButton" class="sidebar-action-button is-secondary transfer-reset-button" type="button" disabled>Reset clipping</button>
+          </section>
+
+          <section id="segmentationCorrectionPanel" class="control-section segmentation-correction-panel" data-state="unavailable" aria-labelledby="segmentationCorrectionTitle">
+            <div class="control-heading compact-heading">
+              <div>
+                <div id="segmentationCorrectionTitle" class="section-kicker">Segmentation Review</div>
+                <p id="segmentationCorrectionStatus">Select a segmented structure to begin review.</p>
+              </div>
+              <button id="segmentationCorrectionStart" class="sidebar-action-button is-secondary correction-start" type="button" disabled>Start review</button>
+            </div>
+            <div class="correction-controls">
+              <label><span class="va-correction-action-caption">Action</span>
+                <select id="segmentationCorrectionKind" disabled>
+                  <option value="review">Review mark</option>
+                  <option value="include">Include intent</option>
+                  <option value="exclude">Exclude intent</option>
+                </select>
+              </label>
+              <label class="slider-label va-correction-radius-label" for="segmentationCorrectionRadius"><span class="va-correction-radius-caption">Radius</span><strong id="segmentationCorrectionRadiusValue">3.0 mm</strong></label>
+              <input id="segmentationCorrectionRadius" type="range" min="0.5" max="25" step="0.5" value="3" disabled>
+              <button id="segmentationCorrectionApply" class="sidebar-action-button is-primary correction-apply" type="button" disabled>Apply at MPR crosshair</button>
+              <div class="correction-history" aria-label="Correction history controls">
+                <button id="segmentationCorrectionUndo" type="button" class="sidebar-action-button is-secondary is-compact" disabled>Undo</button>
+                <button id="segmentationCorrectionRedo" type="button" class="sidebar-action-button is-secondary is-compact" disabled>Redo</button>
+                <button id="segmentationCorrectionDiscard" type="button" class="sidebar-action-button is-secondary is-compact" disabled>Discard</button>
+              </div>
+            </div>
+            <ul id="segmentationQualityWarnings" class="segmentation-quality-warnings" aria-live="polite"></ul>
+            <p class="segmentation-overlay-note">Reversible Patient-LPS draft. The sealed source label map remains unchanged.</p>
+          </section>
 
         <div class="action-row">
-          <button id="resetButton" type="button">Reset</button>
-          <button id="autoRotateButton" type="button" aria-pressed="false">Auto rotate</button>
+          <button id="resetButton" class="sidebar-action-button is-secondary" type="button">Reset</button>
+          <button id="autoRotateButton" class="sidebar-action-button is-secondary" type="button" aria-pressed="false">Auto rotate</button>
         </div>
       </aside>
     </main>
@@ -837,20 +1112,6 @@
         </div>
       </div>
 
-      <section id="sampleReplaceConfirm" class="sample-replace-confirm" hidden role="alertdialog" aria-labelledby="sampleReplaceTitle">
-        <div>
-          <span class="sample-replace-icon" aria-hidden="true">↻</span>
-          <div>
-            <h3 id="sampleReplaceTitle">Replace the current workspace?</h3>
-            <p id="sampleReplaceText">Opening this demonstration study will replace the scan currently shown.</p>
-          </div>
-        </div>
-        <div class="sample-replace-actions">
-          <button id="sampleReplaceCancel" type="button">Keep current study</button>
-          <button id="sampleReplaceAccept" class="is-primary" type="button">Open sample</button>
-        </div>
-      </section>
-
       <footer class="sample-catalog-footer">
         <span>For product demonstration and workflow evaluation.</span>
         <span>Not a diagnostic claim.</span>
@@ -858,6 +1119,7 @@
     </div>
   </dialog>
 
-  <script type="module" src="/js/app.js?v=phase3d-r21-phase4h6-r1"></script>
+  <script type="module" src="/js/parameter-help.js?v=phase6i-a-r3-phase6i-c-r1-phase6i-polish-r1-phase6j-d45c-r1"></script>
+  <script type="module" src="/js/app.js?v=phase6i-b1-r1-phase3d-r21-phase4h6-r1-phase5f2-r1-phase5g-r1-phase6a-r1-phase6b-r1-phase6c-r2-phase6d0-r1-phase6d0-explicit-r1-phase6d1-r2-phase6d2b-r1-phase6d2c-r1-phase6d2d-r1-phase6e-a-r1-phase6e-b-r1-phase6e-c-r1-phase6e-d-r1-phase6e-e-r1-phase6f-a-r1-phase6f-b-r1-phase6b-fallback-r1-phase6f-c-r3-phase6f-d-r1-phase6f-e-r1-post6f-stab-a-r1-post6f-b1b2b-r1-post6f-b2a-r1-phase6i-b2-r1-phase6i-c-r1-phase6i-d-r1-ctb2-r1-ctb3a-r1-phase6j-b1-r1-phase6j-b2b-r1-phase6j-c4c-r1-phase6j-d3-r1-phase6j-d4-r1-phase6j-d45c-r2-phase6j-d5b-r1-phase6j-d5c-r1-postd6-ui-r1"></script>
 </body>
 </html>

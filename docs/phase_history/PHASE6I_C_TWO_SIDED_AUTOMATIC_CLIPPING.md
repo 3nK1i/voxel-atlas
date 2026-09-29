@@ -1,0 +1,9 @@
+# Phase 6I-C - two-sided automatic Patient-LPS clipping
+
+Scoped to the existing UI and clipping-state presentation. Each of the three anatomical planes keeps independently adjustable start/end bounds; a plane activates when either endpoint is moved inward and deactivates when both return to 0/100. Both can be moved inward together and all enabled plane ranges intersect as before. No single-side clipping mode is introduced.
+
+The three redundant activation checkboxes are replaced by a derived, non-interactive Full range/Active indication. Endpoints remain enabled whenever volume and MPR geometry are ready. Reset restores 0/100 and deactivates all planes. The existing Patient-LPS transforms, shader, Direct CT and segmentation-surface clipping, per-structure Follow Directional Cut toggle and MPR-only overlay toggle are unchanged. The MPR slices retain their source pixels. Source anatomy and cached geometry are not edited.
+
+Historical phase4h6 presentation assertions and the phase4h5 synthetic browser helper were migrated to the intentional new activation semantics; historical geometry contracts are preserved. This is a local non-clinical UI qualification, not a new real-study anatomical validation.
+
+The `data-clip-enabled` marker is retained on a read-only per-plane status element solely for existing DOM-contract compatibility; there is no checkbox or separate activation state. Focused runtime tests exercise the actual clipping request and all three renderer-layer calls. The old full Phase 4E/4H4 test files contain pre-existing assertions tied to obsolete app URL prefixes and pre-segmentation HTML; the Phase 6I-C runner selects their durable geometry tests and runs the current Phase 6I-B2 and scientific-regression gates. Optional Playwright/real-browser qualification remains a local acceptance task.

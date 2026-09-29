@@ -4,6 +4,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -303,6 +304,93 @@ class DicomStudyRepository:
             return None
         return _manifest_to_public(payload)
 
+    @staticmethod
+    def _study_id(value: object) -> str:
+        study_id = str(value).strip().lower()
+        if re.fullmatch(r"[0-9a-f]{32}", study_id) is None:
+            raise DicomStudyValidationError("Stored study identifier is invalid")
+        return study_id
+
+    def _manifest_path(self, study_id: str) -> Path:
+        return self.studies_dir / self._study_id(study_id) / "manifest.json"
+
+    def _raw_manifest(self, study_id: str) -> dict[str, object]:
+        path = self._manifest_path(study_id)
+        if path.parent.is_symlink() or not path.parent.is_dir() or path.is_symlink() or not path.is_file():
+            raise DicomStudyValidationError("Stored study manifest is unavailable")
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise DicomStudyValidationError("Stored study manifest is unreadable") from exc
+        if not isinstance(payload, dict) or payload.get("study_id") != study_id:
+            raise DicomStudyValidationError("Stored study manifest is invalid")
+        return payload
+
+    @staticmethod
+    def _instance_inventory(payload: dict[str, object]) -> tuple[tuple[str, int], ...] | None:
+        series = payload.get("series")
+        if not isinstance(series, list):
+            return None
+        inventory: list[tuple[str, int]] = []
+        for item in series:
+            if not isinstance(item, dict) or not isinstance(item.get("instances"), list):
+                return None
+            for instance in item["instances"]:
+                if not isinstance(instance, dict):
+                    return None
+                digest = instance.get("sha256")
+                size = instance.get("size_bytes")
+                if (
+                    not isinstance(digest, str)
+                    or re.fullmatch(r"[0-9a-f]{64}", digest) is None
+                    or isinstance(size, bool)
+                    or not isinstance(size, int)
+                    or size <= 0
+                ):
+                    return None
+                inventory.append((digest, size))
+        return tuple(sorted(inventory)) if inventory else None
+
+    def find_matching_sample_studies(
+        self,
+        *,
+        sample_id: str,
+        instance_inventory: tuple[tuple[str, int], ...],
+    ) -> list[str]:
+        if not isinstance(sample_id, str) or not sample_id:
+            raise DicomStudyValidationError("Sample study identity is invalid")
+        if not self.studies_dir.is_dir() or self.studies_dir.is_symlink():
+            return []
+        candidates: list[tuple[int, str]] = []
+        for directory in self.studies_dir.iterdir():
+            if not directory.is_dir() or directory.is_symlink():
+                continue
+            try:
+                payload = self._raw_manifest(directory.name)
+            except DicomStudyValidationError:
+                continue
+            origin = payload.get("origin")
+            if not isinstance(origin, dict) or origin.get("kind") != "sample" or origin.get("sample_id") != sample_id:
+                continue
+            if self._instance_inventory(payload) != instance_inventory:
+                continue
+            try:
+                modified = (directory / "manifest.json").stat().st_mtime_ns
+            except OSError:
+                continue
+            candidates.append((modified, directory.name))
+        return [study_id for _, study_id in sorted(candidates, reverse=True)]
+
+    def activate_study(self, study_id: str) -> dict[str, object]:
+        value = self._study_id(study_id)
+        payload = self._raw_manifest(value)
+        path = self._manifest_path(value)
+        try:
+            os.utime(path, None)
+        except OSError as exc:
+            raise DicomStudyValidationError("Stored study could not be activated") from exc
+        return _manifest_to_public(payload)
+
 
 def _tuple_floats(value: object) -> tuple[float, ...] | None:
     if not isinstance(value, (list, tuple)):
@@ -514,6 +602,20 @@ class DicomIngestionService:
 
     def latest_public_study(self) -> dict[str, object] | None:
         return self.repository.latest_manifest()
+
+    def find_matching_sample_studies(
+        self,
+        *,
+        sample_id: str,
+        instance_inventory: tuple[tuple[str, int], ...],
+    ) -> list[str]:
+        return self.repository.find_matching_sample_studies(
+            sample_id=sample_id,
+            instance_inventory=instance_inventory,
+        )
+
+    def activate_study(self, study_id: str) -> dict[str, object]:
+        return self.repository.activate_study(study_id)
 
     def annotate_study_origin(
         self,

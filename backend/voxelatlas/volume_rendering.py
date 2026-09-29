@@ -250,6 +250,11 @@ class VolumeRenderingService:
         payload = _load_json(manifest_path, "Stored DICOM study manifest is unreadable")
         return manifest_path, payload, self._load_source(manifest_path, payload)
 
+    def source_latest(self) -> CanonicalVolumeRenderingSource:
+        """Return the validated canonical source without preparing a rendering derivative."""
+        _, _, source = self._load_latest()
+        return source
+
     def _load_source(
         self,
         manifest_path: Path,

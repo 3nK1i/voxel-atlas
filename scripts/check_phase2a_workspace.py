@@ -27,7 +27,10 @@ def main() -> int:
         'data-clip-enabled="axial"',
         'data-clip-enabled="coronal"',
         'data-clip-enabled="sagittal"',
-        'data-layer="volume"',
+        'id="volumeRenderingPanel"',
+        'id="reconstructionVisualizationPanel"',
+        'id="volumeSurfacePanel"',
+        'id="volumeSurfaceBuild"',
         'id="opacitySlider"',
         'id="logoutButton"',
     )
@@ -54,7 +57,7 @@ def main() -> int:
         return fail("workspace_contract=retired_specialized_cut_present")
     print("PASS workspace_contract=directional_cut_only")
 
-    if '<h1 id="loginTitle">Login</h1>' not in login_html or "Welcome Back" in login_html:
+    if '<h1 id="loginTitle">VoxelAtlas</h1>' not in login_html or "Welcome Back" in login_html:
         return fail("login_copy=not_concise")
     print("PASS login_copy=concise")
 

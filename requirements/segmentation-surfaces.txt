@@ -1,0 +1,4 @@
+# Phase 6A accurate surface extraction runs in an isolated scientific runtime.
+# Do not merge these dependencies into requirements/backend.txt.
+numpy
+scikit-image

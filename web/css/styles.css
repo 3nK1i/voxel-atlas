@@ -185,13 +185,13 @@ button:disabled {
 }
 
 .theme-toggle {
-  min-width: 88px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 0 8px;
+  padding: 0;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--panel-soft);
@@ -205,43 +205,21 @@ button:disabled {
 }
 
 .theme-icon {
-  width: 13px;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1;
-  text-align: center;
-}
-
-.theme-track {
-  position: relative;
-  width: 31px;
+  width: 16px;
   height: 16px;
-  flex: 0 0 auto;
-  border: 1px solid var(--line-strong);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent-bg) 90%, transparent);
-}
-
-.theme-thumb {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 42%, transparent);
-  transition: transform 160ms ease;
-}
-
-[data-theme="light"] .theme-thumb {
-  transform: translateX(15px);
+  color: var(--muted);
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
 }
 
 [data-theme="dark"] .theme-icon-moon,
-[data-theme="light"] .theme-icon-sun {
-  color: var(--accent);
-}
+[data-theme="light"] .theme-icon-sun { display: none; }
+
+[data-theme="dark"] .theme-icon-sun,
+[data-theme="light"] .theme-icon-moon { color: var(--text-soft); }
 
 .workflow {
   min-width: 0;
@@ -404,9 +382,9 @@ button:disabled {
 .upload-button {
   width: 100%;
   min-height: 44px;
-  display: grid;
-  grid-template-columns: 24px 1fr auto;
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 7px;
   padding: 0 10px;
   border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
@@ -415,7 +393,7 @@ button:disabled {
   color: #f4fbff;
   font-size: 9px;
   font-weight: 820;
-  text-align: left;
+  text-align: center;
   box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
@@ -968,7 +946,7 @@ button:disabled {
   transition: border-color 130ms ease, background 130ms ease;
 }
 
-.clip-plane-control:has([data-clip-enabled]:checked) {
+.clip-plane-control[data-clipping-active="true"] {
   border-color: var(--line-strong);
   background: var(--accent-bg);
 }
@@ -979,14 +957,14 @@ button:disabled {
   gap: 8px;
   margin-top: 12px;
   color: var(--text-soft);
-  font-size: 12px;
+  font-size: 8.5px;
   cursor: pointer;
 }
 
 .mpr-clipping-toggle input { accent-color: var(--accent); }
 .mpr-clipping-legend {
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: 8px;
+  line-height: 1.45;
   color: var(--text-soft);
   margin: 6px 0 10px;
 }
@@ -1050,7 +1028,7 @@ button:disabled {
   justify-content: space-between;
   gap: 8px;
   color: var(--text-soft);
-  font-size: 11px;
+  font-size: 8px;
 }
 
 .clip-range-summary {
@@ -1072,21 +1050,25 @@ button:disabled {
   font-variant-numeric: tabular-nums;
 }
 
-.clip-plane-toggle {
+.clip-plane-label {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   color: var(--text-soft);
   font-size: 11px;
   font-weight: 760;
-  cursor: pointer;
 }
 
-.clip-plane-toggle input {
-  width: 13px;
-  height: 13px;
-  margin: 0;
-  accent-color: var(--accent);
+.clip-plane-state {
+  border-radius: 4px;
+  padding: 2px 5px;
+  color: var(--text-soft);
+  font-size: 10px;
+  white-space: nowrap;
+}
+.clip-plane-state[data-active="true"] {
+  color: var(--text);
+  background: var(--accent-bg);
 }
 
 .clip-dual-range {
@@ -1534,11 +1516,12 @@ button:disabled {
   .brand-subtitle { font-size: 9px; }
 
   .theme-toggle {
-    min-width: 92px;
+    width: 36px;
+    min-width: 36px;
     height: 36px;
-    gap: 7px;
+    flex-basis: 36px;
   }
-  .theme-icon { font-size: 14px; }
+  .theme-icon { width: 17px; height: 17px; }
 
   .workflow { grid-template-columns: minmax(0, 1fr) 42px minmax(0, 1fr) 42px minmax(0, 1fr); }
   .workflow-step { gap: 9px; }
@@ -1553,7 +1536,7 @@ button:disabled {
 
   .left-panel .panel-scroll { padding: 13px 13px 3px; }
   .upload-wrap { padding-bottom: 12px; }
-  .upload-button { min-height: 50px; grid-template-columns: 28px 1fr auto; gap: 9px; padding: 0 12px; font-size: 10.5px; }
+  .upload-button { min-height: 50px; gap: 9px; padding: 0 12px; font-size: 10.5px; }
   .upload-icon { width: 27px; height: 27px; font-size: 16px; }
   .phase-chip { font-size: 7.5px; padding: 4px 6px; }
 
@@ -1628,7 +1611,7 @@ button:disabled {
   }
 
   .theme-toggle {
-    min-width: 74px;
+    min-width: 34px;
   }
 
   .workflow-line {
@@ -1701,14 +1684,13 @@ button:disabled {
 
 @media (max-width: 700px) {
   .brand-subtitle,
-  .theme-icon,
   .workflow-copy small {
     display: none;
   }
 
   .theme-toggle {
-    min-width: 49px;
-    padding: 0 7px;
+    min-width: 34px;
+    padding: 0;
   }
 
   .workflow {
@@ -2013,6 +1995,570 @@ button:disabled {
   height: 100%;
   image-rendering: auto;
   background: #000;
+}
+
+.mpr-image-surface canvas.mpr-segmentation-overlay {
+  z-index: 1;
+  background: transparent;
+  pointer-events: none;
+}
+
+.mpr-image-surface canvas.mpr-segmentation-overlay[hidden] {
+  display: none;
+}
+
+.segmentation-overlay-panel[data-state="ready"] {
+  border-top-color: color-mix(in srgb, var(--accent) 46%, var(--line-soft));
+}
+
+.segmentation-surface-panel[data-state="ready"],
+.segmentation-surface-panel[data-state="qualified"] {
+  border-color: color-mix(in srgb, var(--success) 38%, var(--line));
+}
+
+.segmentation-surface-panel[data-state="loading"] {
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--line));
+}
+
+.segmentation-surface-panel[data-state="loading"] #segmentationSurfaceStatus {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+}
+
+.segmentation-surface-panel[data-state="loading"] #segmentationSurfaceStatus::before {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border: 2px solid color-mix(in srgb, var(--accent) 34%, transparent);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  content: "";
+  animation: segmentation-surface-spin 0.8s linear infinite;
+}
+
+@keyframes segmentation-surface-spin {
+  to { transform: rotate(360deg); }
+}
+
+.segmentation-surface-panel[data-state="error"] #segmentationSurfaceStatus {
+  color: var(--danger);
+}
+
+.segmentation-surface-panel .control-heading p {
+  max-width: 210px;
+  overflow-wrap: anywhere;
+}
+
+.segmentation-overlay-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-soft);
+  font-size: var(--ui-readable-small, 8px);
+  font-weight: 740;
+  white-space: nowrap;
+}
+
+.segmentation-overlay-switch input,
+#segmentationOverlayOpacity {
+  accent-color: var(--accent);
+}
+
+#segmentationOverlayOpacity {
+  width: 100%;
+  margin: 0;
+}
+
+#segmentationOverlayOpacity:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.segmentation-overlay-note {
+  margin: 6px 0 0;
+  color: var(--muted-2);
+  font-size: var(--ui-readable-small, 8px);
+  line-height: 1.4;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.segmentation-structure-panel {
+  display: grid;
+  gap: 7px;
+}
+
+.segmentation-structure-panel[data-state="ready"] {
+  border-top-color: color-mix(in srgb, var(--accent) 46%, var(--line-soft));
+}
+
+.structure-search {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: var(--ui-readable-small, 8px);
+  font-weight: 720;
+}
+
+.structure-search input {
+  width: 100%;
+  min-height: 29px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  outline: none;
+  background: var(--panel-soft);
+  color: var(--text);
+  font: inherit;
+}
+
+.structure-search input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.structure-search input:disabled,
+.segmentation-structure-panel button:disabled,
+.segmentation-structure-panel input:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.structure-bulk-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.structure-bulk-actions button,
+.structure-isolate {
+  min-height: 25px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-soft);
+  color: var(--text-soft);
+  font-size: var(--ui-readable-small, 8px);
+  font-weight: 740;
+  cursor: pointer;
+}
+
+.structure-bulk-actions button:hover:not(:disabled),
+.structure-isolate:hover {
+  border-color: var(--line-strong);
+  background: var(--panel-hover);
+}
+
+.structure-isolate[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--panel-soft));
+  color: var(--text);
+}
+
+.structure-explode-control {
+  display: grid;
+  gap: 4px;
+  padding: 6px 7px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel-soft) 72%, transparent);
+}
+
+.structure-explode-control input[type="range"] {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.structure-explode-control > span {
+  color: var(--muted);
+  font-size: 6.5px;
+  line-height: 1.35;
+}
+
+.structure-group[data-exploded="true"] > summary::after {
+  content: "↗";
+  margin-left: 5px;
+  color: var(--accent);
+  font-size: 7px;
+}
+
+.structure-groups {
+  max-height: 244px;
+  overflow: auto;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel-soft) 62%, transparent);
+  scrollbar-width: thin;
+}
+
+.structure-group + .structure-group {
+  border-top: 1px solid var(--line-soft);
+}
+
+.structure-group > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 28px;
+  padding: 0 8px;
+  color: var(--text-soft);
+  font-size: var(--ui-readable-small, 8px);
+  font-weight: 780;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.structure-group > summary::-webkit-details-marker {
+  display: none;
+}
+
+.structure-group > summary::before {
+  content: "+";
+  width: 12px;
+  color: var(--accent);
+}
+
+.structure-group[open] > summary::before {
+  content: "−";
+}
+
+.structure-group > summary span {
+  flex: 1;
+}
+
+.structure-group > summary strong {
+  min-width: 20px;
+  color: var(--muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.structure-list {
+  border-top: 1px solid var(--line-soft);
+}
+
+.structure-row {
+  display: grid;
+  grid-template-columns: 16px 12px minmax(0, 1fr) 14px 30px;
+  align-items: center;
+  gap: 5px;
+  min-height: 29px;
+  padding: 2px 6px;
+  border-bottom: 1px solid color-mix(in srgb, var(--line-soft) 72%, transparent);
+}
+
+.structure-row:last-child {
+  border-bottom: 0;
+}
+
+.structure-row[data-selected="true"] {
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+}
+
+.structure-row input[type="checkbox"] {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.structure-swatch {
+  width: 10px;
+  height: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.52);
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.28);
+}
+
+.structure-select {
+  min-width: 0;
+  padding: 4px 1px;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: var(--ui-readable-small, 8px);
+  font-weight: 690;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.structure-row[data-selected="true"] .structure-select {
+  color: var(--text);
+  font-weight: 780;
+}
+
+.structure-surface-state {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.structure-surface-state[data-surface-state="building"] {
+  width: 10px;
+  height: 10px;
+  justify-self: center;
+  border: 2px solid color-mix(in srgb, var(--accent) 32%, transparent);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: segmentation-surface-spin 0.8s linear infinite;
+}
+
+.structure-surface-state[data-surface-state="queued"] {
+  color: var(--accent);
+}
+
+.structure-surface-state[data-surface-state="ready"] {
+  color: var(--success);
+}
+
+.structure-surface-state[data-surface-state="failed"] {
+  color: var(--danger);
+}
+
+.structure-isolate {
+  min-height: 21px;
+  padding: 0 4px;
+  font-size: 6.5px;
+}
+
+.structure-empty {
+  margin: 0;
+  padding: 12px 8px;
+  color: var(--muted);
+  font-size: var(--ui-readable-small, 8px);
+  text-align: center;
+}
+
+.structure-inspector {
+  display: grid;
+  gap: 5px;
+  padding: 7px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.structure-inspector-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.structure-inspector-heading > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.structure-inspector-heading strong,
+.structure-inspector-heading span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.structure-inspector-heading strong {
+  color: var(--text);
+  font-size: var(--ui-readable-small, 8px);
+}
+
+.structure-inspector-heading span {
+  color: var(--muted);
+  font-size: 6.5px;
+}
+
+.structure-color-control input {
+  width: 25px;
+  height: 25px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  cursor: pointer;
+}
+
+#segmentationStructureOpacity {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.structure-clipping-control {
+  min-height: 27px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding-top: 2px;
+  border-top: 1px solid var(--line-soft);
+  color: var(--text-soft);
+  font-size: var(--ui-readable-small, 8px);
+  font-weight: 710;
+}
+
+.structure-clipping-control input {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.segmentation-correction-panel {
+  display: grid;
+  gap: 7px;
+}
+
+.segmentation-correction-panel[data-state="ready"] {
+  border-top-color: color-mix(in srgb, var(--accent) 46%, var(--line-soft));
+}
+
+.segmentation-correction-panel[data-state="error"] #segmentationCorrectionStatus {
+  color: var(--danger);
+}
+
+.correction-start,
+.correction-controls button {
+  min-height: 25px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-soft);
+  color: var(--text-soft);
+  font-size: var(--ui-readable-small, 8px);
+  font-weight: 740;
+  cursor: pointer;
+}
+
+.correction-start {
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.correction-controls {
+  display: grid;
+  gap: 6px;
+}
+
+.correction-controls > label:first-child {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr);
+  align-items: center;
+  color: var(--muted);
+  font-size: var(--ui-readable-small, 8px);
+  font-weight: 720;
+}
+
+/* Keep help inside the label caption, not in an extra CSS-grid column.
+   The select and the radius value retain separate, readable layout slots. */
+.correction-controls .va-correction-action-caption,
+.correction-controls .va-correction-radius-caption {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  white-space: nowrap;
+}
+.correction-controls .va-correction-action-caption > .va-parameter-help,
+.correction-controls .va-correction-radius-caption > .va-parameter-help {
+  margin-inline: 3px 0;
+}
+.correction-controls .va-correction-radius-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.correction-controls .va-correction-radius-label > strong {
+  margin-inline-start: auto;
+  white-space: nowrap;
+}
+
+.correction-controls select {
+  width: 100%;
+  min-width: 0;
+  min-height: 27px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-soft);
+  color: var(--text);
+  font: inherit;
+}
+
+#segmentationCorrectionRadius {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.correction-apply {
+  border-color: color-mix(in srgb, var(--accent) 64%, var(--line)) !important;
+  background: color-mix(in srgb, var(--accent) 18%, var(--panel-soft)) !important;
+}
+
+.correction-history {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.segmentation-correction-panel button:disabled,
+.segmentation-correction-panel input:disabled,
+.segmentation-correction-panel select:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.segmentation-quality-warnings {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.segmentation-quality-warnings li {
+  padding-left: 11px;
+  color: var(--muted);
+  font-size: var(--ui-readable-small, 8px);
+  line-height: 1.35;
+}
+
+.segmentation-quality-warnings li::before {
+  content: "i";
+  float: left;
+  width: 8px;
+  margin-left: -11px;
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.segmentation-quality-warnings li[data-severity="warning"] {
+  color: var(--warning);
+}
+
+.segmentation-quality-warnings li[data-severity="warning"]::before {
+  content: "!";
+  color: var(--warning);
 }
 
 .mpr-panel[data-volume-state="ready"] .mpr-empty > p {
@@ -2666,11 +3212,11 @@ button:disabled {
   object-fit: contain;
 }
 
-.sample-study-preview span {
-  color: color-mix(in srgb, var(--accent) 80%, #ffffff 20%);
-  font-size: 32px;
-  font-weight: 800;
-  letter-spacing: -0.05em;
+.sample-study-modality-art {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
 }
 
 .sample-study-card-copy {
@@ -2814,61 +3360,6 @@ button:disabled {
   to { transform: rotate(360deg); }
 }
 
-.sample-replace-confirm {
-  margin-top: 16px;
-  padding: 14px;
-  border: 1px solid color-mix(in srgb, #f0b85b 28%, var(--line));
-  border-radius: 12px;
-  background: color-mix(in srgb, #c88227 7%, transparent);
-}
-
-.sample-replace-confirm > div:first-child {
-  display: flex;
-  gap: 10px;
-}
-
-.sample-replace-confirm h3,
-.sample-replace-confirm p {
-  margin: 0;
-}
-
-.sample-replace-confirm h3 {
-  font-size: 12px;
-}
-
-.sample-replace-confirm p {
-  margin-top: 3px;
-  color: var(--muted);
-  font-size: 9px;
-}
-
-.sample-replace-icon {
-  color: #f0b85b;
-  font-size: 20px;
-}
-
-.sample-replace-actions {
-  margin-top: 12px;
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.sample-replace-actions button {
-  padding: 8px 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-soft);
-  font-size: 9px;
-  cursor: pointer;
-}
-
-.sample-replace-actions button.is-primary {
-  border-color: color-mix(in srgb, var(--accent) 65%, var(--line));
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--text);
-}
 
 .sample-catalog-footer {
   margin-top: 17px;
@@ -3209,4 +3700,858 @@ button:disabled {
   .slice-control-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* Phase 6D0 — on-demand segmentation workflow. */
+.segmentation-workflow-panel {
+  border-color: color-mix(in srgb, var(--line) 82%, transparent);
+}
+
+.segmentation-workflow-panel[data-state="idle"],
+.segmentation-workflow-panel[data-state="available"],
+.segmentation-workflow-panel[data-state="active"] {
+  border-color: color-mix(in srgb, var(--success) 36%, var(--line));
+}
+
+.segmentation-workflow-panel[data-state="queued"],
+.segmentation-workflow-panel[data-state="starting"],
+.segmentation-workflow-panel[data-state="running"],
+.segmentation-workflow-panel[data-state="finalizing"],
+.segmentation-workflow-panel[data-state="loading"] {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+}
+
+.segmentation-workflow-panel[data-state="failed"] {
+  border-color: color-mix(in srgb, var(--danger) 52%, var(--line));
+}
+
+.segmentation-workflow-heading {
+  align-items: flex-start;
+}
+
+.segmentation-workflow-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 3px 7px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  color: var(--text-soft);
+  background: color-mix(in srgb, var(--panel-raised) 86%, transparent);
+  font-size: var(--ui-readable-small, 8px);
+  font-weight: 760;
+  white-space: nowrap;
+}
+
+.segmentation-workflow-panel[data-state="active"] .segmentation-workflow-badge,
+.segmentation-workflow-panel[data-state="available"] .segmentation-workflow-badge {
+  color: var(--success);
+  border-color: color-mix(in srgb, var(--success) 42%, var(--line));
+}
+
+.segmentation-workflow-panel[data-state="running"] .segmentation-workflow-badge,
+.segmentation-workflow-panel[data-state="queued"] .segmentation-workflow-badge,
+.segmentation-workflow-panel[data-state="starting"] .segmentation-workflow-badge,
+.segmentation-workflow-panel[data-state="finalizing"] .segmentation-workflow-badge {
+  color: var(--accent-strong);
+  border-color: color-mix(in srgb, var(--accent) 46%, var(--line));
+}
+
+.segmentation-workflow-panel[data-state="failed"] .segmentation-workflow-badge {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 48%, var(--line));
+}
+
+.segmentation-workflow-provider {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: var(--ui-readable-small, 8px);
+  line-height: 1.45;
+}
+
+.segmentation-workflow-progress {
+  margin-top: 9px;
+}
+
+.segmentation-workflow-progress[hidden] {
+  display: none;
+}
+
+.segmentation-workflow-progress-track {
+  width: 100%;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--line) 78%, transparent);
+}
+
+.segmentation-workflow-progress-track > span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 180ms ease;
+}
+
+#segmentationWorkflowProgressText {
+  display: block;
+  margin-top: 5px;
+  color: var(--text-soft);
+  font-size: var(--ui-readable-small, 8px);
+  line-height: 1.35;
+}
+
+.segmentation-workflow-actions {
+  display: flex;
+  gap: 7px;
+  margin-top: 9px;
+}
+
+.segmentation-workflow-actions button {
+  min-height: 28px;
+  padding: 5px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 7px;
+  color: var(--text);
+  background: var(--panel-raised);
+  font: inherit;
+  font-size: var(--ui-readable-small, 8px);
+  font-weight: 760;
+  cursor: pointer;
+}
+
+.segmentation-workflow-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.segmentation-workflow-primary:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  background: color-mix(in srgb, var(--accent) 16%, var(--panel-raised));
+}
+
+.segmentation-workflow-cancel:not(:disabled) {
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--line));
+}
+
+/* Phase 6D1 — direct canonical-volume isosurface preview. */
+.volume-surface-panel[data-state="ready"],
+.volume-surface-panel[data-state="qualified"] {
+  --volume-surface-accent: rgba(138, 196, 255, 0.92);
+}
+
+.volume-surface-panel[data-state="loading"] #volumeSurfaceStatus::before {
+  content: "";
+  display: inline-block;
+  width: 0.72rem;
+  height: 0.72rem;
+  margin-right: 0.45rem;
+  vertical-align: -0.08rem;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: segmentation-surface-spin 0.8s linear infinite;
+}
+
+.volume-surface-panel[data-state="error"] #volumeSurfaceStatus {
+  color: var(--danger, #ff8b96);
+}
+
+.volume-surface-source-badge {
+  flex: 0 0 auto;
+  padding: 0.2rem 0.48rem;
+  border: 1px solid rgba(131, 185, 239, 0.28);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.volume-surface-isovalue {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.7rem;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.volume-surface-isovalue > span:first-child {
+  display: grid;
+  gap: 0.16rem;
+}
+
+.volume-surface-isovalue small {
+  color: var(--muted);
+  font-size: 0.66rem;
+}
+
+.volume-surface-isovalue-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.volume-surface-isovalue input {
+  width: 5.4rem;
+  min-height: 2rem;
+  padding: 0.28rem 0.45rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.45rem;
+  background: var(--surface-inset);
+  color: var(--text);
+  font: inherit;
+  text-align: right;
+}
+
+.volume-surface-isovalue-entry strong {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.volume-surface-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+
+.volume-surface-build,
+.volume-surface-clear {
+  min-height: 2.1rem;
+  border-radius: 0.48rem;
+  border: 1px solid var(--border-subtle);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.volume-surface-build {
+  background: rgba(66, 141, 219, 0.16);
+  color: var(--text);
+}
+
+.volume-surface-clear {
+  padding-inline: 0.72rem;
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.volume-surface-build:disabled,
+.volume-surface-clear:disabled,
+.volume-surface-isovalue input:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+
+/* Phase 6D2B — non-destructive Volume / Surface reconstruction transitions. */
+.reconstruction-mode-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-soft);
+  color: var(--muted);
+  font-size: 0.67rem;
+  font-weight: 700;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+
+/* Phase 6D2C — Combined visualization and presentation-only surface source selection. */
+.reconstruction-surface-sources {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.reconstruction-source-label {
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.reconstruction-source-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.reconstruction-source-option {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 30px;
+  gap: 7px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease, background 140ms ease, opacity 140ms ease;
+}
+
+.reconstruction-source-option[data-state="selected"] {
+  border-color: var(--line-strong);
+  background: var(--accent-bg);
+  color: var(--text);
+}
+
+.reconstruction-source-option[data-state="unavailable"] {
+  cursor: not-allowed;
+  opacity: 0.46;
+}
+
+.reconstruction-source-option input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: currentColor;
+}
+
+.reconstruction-source-option span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* Phase 6D2D — left-sidebar reconstruction mode cards and deterministic closure states. */
+.reconstruction-mode-list {
+  gap: 6px;
+}
+
+.reconstruction-mode-card {
+  width: 100%;
+  margin: 0;
+  appearance: none;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, opacity 140ms ease, transform 140ms ease;
+}
+
+.reconstruction-mode-card:not(:disabled):hover {
+  border-color: var(--line-strong);
+  background: color-mix(in srgb, var(--panel-soft) 88%, var(--accent) 12%);
+}
+
+.reconstruction-mode-card:not(:disabled):active {
+  transform: translateY(1px);
+}
+
+.reconstruction-mode-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.reconstruction-mode-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.reconstruction-mode-card[data-capability="ready"]:not([data-active="true"]) {
+  opacity: 0.88;
+}
+
+.reconstruction-mode-card[data-active="true"] {
+  border-color: var(--line-strong);
+  background: linear-gradient(
+    120deg,
+    color-mix(in srgb, var(--accent-bg) 82%, var(--panel-soft) 18%),
+    var(--panel-soft)
+  );
+  opacity: 1;
+}
+
+.reconstruction-mode-icon svg {
+  width: 21px;
+  height: 21px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.25;
+}
+
+.reconstruction-mode-card[data-active="true"] .reconstruction-mode-icon {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+.reconstruction-mode-card[data-active="false"] .readiness-check,
+.reconstruction-mode-card[data-active="false"] .readiness-check path {
+  opacity: 0;
+}
+
+.reconstruction-mode-card[data-active="true"] .readiness-check {
+  color: #071a16;
+  opacity: 1;
+}
+
+.reconstruction-mode-card[data-active="true"] .readiness-check circle {
+  fill: var(--success);
+  stroke: var(--success);
+}
+
+.reconstruction-mode-card[data-active="true"] .readiness-check path {
+  opacity: 1;
+  stroke: #06231b;
+  stroke-width: 2.2;
+}
+
+.reconstruction-mode-card[data-active="true"] .status-copy strong {
+  color: var(--text);
+}
+
+.reconstruction-mode-card[data-capability="unavailable"] .status-copy small {
+  color: var(--muted-2);
+}
+
+
+/* Phase 6E-A — Fidelity / Presentation profile architecture. */
+.reconstruction-presentation-profile {
+  display: grid;
+  gap: 7px;
+  margin-top: 8px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel-soft) 92%, transparent);
+}
+
+.reconstruction-presentation-profile-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.reconstruction-presentation-profile-badge {
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.reconstruction-presentation-profile-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.reconstruction-presentation-profile-option {
+  min-height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--muted);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, color 140ms ease;
+}
+
+.reconstruction-presentation-profile-option:hover {
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+.reconstruction-presentation-profile-option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.reconstruction-presentation-profile-option[data-active="true"] {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--line));
+  background: color-mix(in srgb, var(--accent-bg) 72%, var(--panel));
+  color: var(--text);
+}
+
+.reconstruction-presentation-profile-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+/* Phase 6E-C — reconstruction-card border consistency.
+   Reconstruction readiness must not leak the legacy green ready-border into one
+   mode card. Non-active ready cards share one neutral base treatment; only the
+   active reconstruction mode receives the emphasized border and green check. */
+.reconstruction-mode-card[data-state="ready"]:not([data-active="true"]),
+.reconstruction-mode-card[data-capability="ready"]:not([data-active="true"]) {
+  border-color: color-mix(in srgb, var(--accent) 13%, var(--line));
+  background: linear-gradient(
+    120deg,
+    color-mix(in srgb, var(--panel-soft) 94%, var(--accent) 6%),
+    var(--panel-soft)
+  );
+}
+
+.reconstruction-mode-card[data-state="ready"]:not([data-active="true"]) .reconstruction-mode-icon,
+.reconstruction-mode-card[data-capability="ready"]:not([data-active="true"]) .reconstruction-mode-icon {
+  color: var(--muted);
+  border-color: var(--line);
+  background: transparent;
+}
+
+.reconstruction-mode-card[data-active="true"] {
+  border-color: var(--line-strong);
+}
+
+/* Post-6F / pre-6G stabilization A — coherent right-sidebar action language. */
+.sidebar-action-button {
+  min-height: 32px;
+  padding: 6px 11px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--panel-raised);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--ui-readable);
+  font-weight: 760;
+  line-height: 1.15;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, color 140ms ease, opacity 140ms ease;
+}
+
+.sidebar-action-button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--line));
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel-raised));
+}
+
+.sidebar-action-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 82%, white 5%);
+  outline-offset: 2px;
+}
+
+.sidebar-action-button.is-primary:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 62%, var(--line));
+  background: linear-gradient(180deg, var(--medical-button-top), var(--medical-button-bottom));
+  color: #f7fbff;
+}
+
+.sidebar-action-button.is-secondary:not(:disabled) {
+  background: color-mix(in srgb, var(--panel-raised) 92%, transparent);
+  color: var(--text-soft);
+}
+
+.sidebar-action-button.is-danger:not(:disabled) {
+  border-color: color-mix(in srgb, var(--danger) 48%, var(--line));
+  color: color-mix(in srgb, var(--danger) 82%, white 12%);
+}
+
+.sidebar-action-button.is-compact {
+  min-height: 28px;
+  padding: 5px 8px;
+  font-size: var(--ui-readable-small);
+}
+
+.sidebar-action-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.volume-surface-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.volume-surface-build,
+.volume-surface-clear {
+  width: 100%;
+}
+
+.volume-surface-clear {
+  padding-inline: 11px;
+}
+
+/* Global-to-specific ordering: quality is the first rendering decision. */
+#volumeRenderingPanel .rendering-quality-label {
+  margin-top: 0;
+}
+
+#volumeRenderingPanel #renderQualityPolicy {
+  margin-bottom: 10px;
+}
+
+/* Post-6F B1B2B: explicit display-only Direct CT region selection. */
+.volume-surface-region-control[hidden],
+#volumeSurfaceRegionStatus[hidden] {
+  display: none !important;
+}
+
+.volume-surface-region-control {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.7rem;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+.volume-surface-region-control span { display: grid; gap: 0.15rem; }
+.volume-surface-region-control small { color: var(--muted); font-size: 0.66rem; }
+.volume-surface-region-control select {
+  min-width: 0;
+  width: 100%;
+  min-height: 2.1rem;
+  padding: 0.32rem 0.48rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.45rem;
+  background: var(--surface-inset);
+  color: var(--text);
+  font: inherit;
+}
+.volume-surface-region-control select:disabled { opacity: 0.48; cursor: not-allowed; }
+
+/* Phase 6I-A — accessible click-to-explain parameter help. Does not alter form state. */
+.va-parameter-help {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 15px;
+  height: 15px;
+  margin-inline: 5px 1px;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background: var(--panel-soft);
+  color: var(--text-soft);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: nowrap;
+  vertical-align: middle;
+  cursor: help;
+  user-select: none;
+}
+.va-parameter-help:hover,
+.va-parameter-help[aria-expanded="true"] {
+  color: var(--text);
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+.va-parameter-help:focus-visible,
+.va-parameter-help-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.va-parameter-help-popover:not([hidden]) {
+  position: fixed;
+  z-index: 10000;
+  box-sizing: border-box;
+  padding: 12px 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--panel-solid);
+  color: var(--text);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.32);
+  font-size: var(--ui-readable, 12px);
+  line-height: 1.5;
+}
+.va-parameter-help-popover[hidden] { display: none !important; }
+.va-parameter-help-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.va-parameter-help-header strong {
+  font-size: 12px;
+  line-height: 1.4;
+}
+.va-parameter-help-close {
+  flex: 0 0 auto;
+  min-width: 22px;
+  min-height: 22px;
+  padding: 0;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: var(--panel-soft);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.va-parameter-help-popover p {
+  margin: 8px 0 0;
+  color: var(--text-soft);
+  font-size: 11px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.structure-row { grid-template-columns: 16px 12px minmax(0, 1fr) 14px 30px 16px; }
+.structure-row > .va-parameter-help { width: 14px; height: 14px; margin: 0; font-size: 9px; }
+
+
+/* Phase 6I-B1: legacy actions remain DOM-stable for prior contracts, but are not user-facing. */
+.volume-surface-actions[hidden] { display: none !important; }
+
+/* Phase 6I-B2: existing-result activation uses the same action language as the
+   reconstruction sidebar; this does not change its on-demand job handler. */
+.segmentation-workflow-panel[data-state="available"] .segmentation-workflow-primary:not(:disabled) {
+  flex: 1 1 auto;
+  min-height: 34px;
+  border-color: color-mix(in srgb, var(--accent) 70%, var(--line));
+  border-radius: 8px;
+  background: linear-gradient(180deg, var(--medical-button-top), var(--medical-button-bottom));
+  color: #f7fbff;
+  font-size: var(--ui-readable, 12px);
+  font-weight: 760;
+  text-align: center;
+}
+.segmentation-workflow-primary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Phase 6I-D — readable native Direct CT visibility menu. */
+.volume-surface-region-control select {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  padding: 7px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background-color: var(--panel-solid);
+  color: var(--text);
+  color-scheme: inherit;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+.volume-surface-region-control select option {
+  background-color: var(--panel-solid);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 550;
+}
+.volume-surface-region-control select:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+.volume-surface-region-control select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Keep the ? on the same typographic line as the control title; small supporting
+   copy remains separate and may wrap rather than squeezing the numeric value. */
+.volume-surface-panel .va-volume-surface-caption {
+  min-width: 0;
+}
+.va-volume-surface-caption-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: max-content;
+  max-width: 100%;
+  white-space: nowrap;
+}
+.volume-surface-panel .va-volume-surface-caption-title > .va-parameter-help {
+  margin: 0;
+}
+.volume-surface-isovalue {
+  gap: 8px;
+}
+.volume-surface-isovalue-entry {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  gap: 5px;
+  padding: 3px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--panel-soft);
+  color: var(--text);
+}
+.volume-surface-isovalue-entry input {
+  box-sizing: border-box;
+  width: 4.1rem;
+  min-width: 0;
+  min-height: 1.65rem;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+}
+.volume-surface-isovalue-entry strong {
+  color: var(--text-soft);
+  font-weight: 750;
+  white-space: nowrap;
+}
+.volume-surface-isovalue-entry:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.volume-surface-isovalue-entry input:focus-visible {
+  outline: 0; /* a single visible focus ring around the number + HU */
+}
+.volume-surface-region-control .va-volume-surface-caption-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* CT-B2: Segmentation-only 3D color appearance; compact in both themes. */
+.segmentation-appearance-control {
+  display: grid;
+  gap: 5px;
+  padding: 9px;
+  margin-top: 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+.segmentation-appearance-control label {
+  color: var(--text);
+  font-size: var(--ui-readable-small, 8px);
+  font-weight: 700;
+}
+.segmentation-appearance-control select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 30px;
+  padding: 5px 8px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+  font-size: var(--ui-readable-small, 8px);
+}
+.segmentation-appearance-control select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.segmentation-appearance-control select:disabled { opacity: 0.65; cursor: not-allowed; }
+.segmentation-appearance-control p {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--ui-readable-small, 8px);
+  line-height: 1.45;
 }

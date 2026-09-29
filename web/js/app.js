@@ -15,25 +15,119 @@ import {
 import {
   AdaptiveVolumeRenderingQuality,
 } from "./volume-rendering-quality.js?v=phase4h1";
+import {
+  PatientVolumeSurfaceLayer,
+} from "./volume-surface-viewer.js?v=phase6d2b-r1-phase6e-b-r1-phase6e-d-r1-phase6e-e-r1-phase6f-c-r3-phase6f-d-r1-post6f-b1b2b-r1-phase6j-d45c-r1";
+import {
+  ReconstructionVisualizationModeController,
+} from "./reconstruction-visualization-mode.js?v=phase6d2a-r1";
+import { AutomaticSurfaceModeCoordinator } from "./automatic-surface-mode.js?v=phase6i-b1-r1";
+import { ExistingSegmentationSurfaceGate } from "./existing-segmentation-mode.js?v=phase6i-b2-r1";
+import {
+  ReconstructionPresentationProfileController,
+} from "./reconstruction-presentation-profile.js?v=phase6e-a-r1-phase6e-c-r1";
+import {
+  createSurfaceLightingRig,
+} from "./reconstruction-surface-presentation.js?v=phase6e-b-r1-phase6e-d-r1-phase6f-c-r3";
+import {
+  enableSurfaceLocalClipping,
+} from "./reconstruction-surface-clipping.js?v=phase6f-d-r1-phase6f-e-r1";
+import {
+  resolveCombinedPresentationBalance,
+} from "./reconstruction-combined-presentation.js?v=phase6e-e-r1";
 import { SampleStudyCatalogClient } from "./sample-study-catalog.js?v=phase4g-r1";
+import { prevolumeMriWorkflow } from "./mri-study-prevolume.js?v=phase6j-b2b-r1";
+import { isReadOnlyMri, workflowMatchesStudy } from "./mri-workflow-display.js?v=phase6j-c4c-r1";
+import {
+  classifySampleStudyActivation,
+} from "./sample-study-activation.js?v=phase5f2-switch-r1";
 import { projectMprClipping, renderMprClippingOverlay } from "./mpr-clipping-overlay.js?v=phase4h6";
 import { installRenderingQualification } from "./rendering-qualification.js?v=phase4h6";
+import {
+  clearSegmentationOverlay,
+  decodeSegmentationLabels,
+  drawSegmentationLabels,
+  drawSegmentationRgba,
+} from "./segmentation-overlay.js?v=phase5e-r1-phase6f-b-r1";
+import {
+  SegmentationStructurePanel,
+} from "./segmentation-structure-panel.js?v=phase5e-r1-phase6c-r2-phase6d0-explicit-r1-phase6f-a-r1-phase6f-b-r1-phase6f-d-r1-phase6f-e-r1";
+import {
+  resolve3dAppearanceContext,
+} from "./segmentation-anatomical-appearance.js?v=ctb2-r1-ctb3a-r1";
+import {
+  resolveStructureInteraction,
+} from "./segmentation-structure-interaction.js?v=phase6f-a-r1-phase6f-b-r1";
+import {
+  PatientSegmentationSurfaceLayer,
+} from "./segmentation-surface-viewer.js?v=phase6a-r1-phase6b-r1-phase6c-r2-phase6d2b-r1-phase6e-b-r1-phase6e-d-r1-phase6f-b-r1-phase6b-fallback-r1-phase6f-c-r3-phase6f-d-r1-phase6f-e-r1-post6f-b2a-r1-ctb2-r1";
+import {
+  SegmentationCorrectionPanel,
+} from "./segmentation-correction-panel.js?v=phase5f2-r1";
+import {
+  SegmentationWorkflowPanel,
+} from "./segmentation-workflow-panel.js?v=phase6d0-r1-phase6j-b1-r1-phase6j-d3-r1";
 
 const THEME_KEY = "voxelatlas-theme";
 const DEFAULT_OPACITY = 1.0;
+const DEFAULT_RECONSTRUCTION_SURFACE_SOURCE_SELECTION = Object.freeze({
+  "volume-derived": true,
+  "segmentation-derived": true,
+});
 const INITIAL_VIEW_DISTANCE_SCALE = 1.18;
 const CLIPPING_MINIMUM_GAP_PERCENT = 0.1;
+const MRI_PRESENTATION_INITIAL_ISOVALUE = 0.35;
+const SAMPLE_MODALITY_ARTWORK = Object.freeze({
+  CT: "/assets/sample-study-ct.svg",
+  MR: "/assets/sample-study-mr.svg",
+});
 
 const viewport = document.getElementById("viewport");
 const viewerStage = document.getElementById("viewerStage");
 const modelStatus = document.getElementById("modelStatus");
 const statusText = document.getElementById("statusText");
 const modelChip = document.getElementById("modelChip");
-const volumeLayerButton = document.getElementById("volumeLayerButton");
-const anatomyNote = document.getElementById("anatomyNote");
 const directionalCutPanel = document.getElementById("directionalCutPanel");
 const clippingResetButton = document.getElementById("clippingResetButton");
 const mprClippingOverlayToggle = document.getElementById("mprClippingOverlayToggle");
+const segmentationWorkflowPanelRoot = document.getElementById("segmentationWorkflowPanel");
+const reconstructionVisualizationPanel = document.getElementById("reconstructionVisualizationPanel");
+const reconstructionVisualizationStatus = document.getElementById("reconstructionVisualizationStatus");
+const surfaceModeStatusText = document.getElementById("surfaceModeStatusText");
+const combinedModeStatusText = document.getElementById("combinedModeStatusText");
+const reconstructionModeButtons = Array.from(document.querySelectorAll("[data-reconstruction-mode]"));
+const reconstructionSurfaceSourceInputs = Array.from(document.querySelectorAll("[data-reconstruction-surface-source]"));
+const reconstructionPresentationProfileStatus = document.getElementById("reconstructionPresentationProfileStatus");
+const reconstructionPresentationProfileButtons = Array.from(document.querySelectorAll("[data-reconstruction-presentation-profile]"));
+const volumeSurfacePanel = document.getElementById("volumeSurfacePanel");
+const volumeSurfaceTitle = document.getElementById("volumeSurfaceTitle");
+const volumeSurfaceSourceLabel = document.getElementById("volumeSurfaceSourceLabel");
+const volumeSurfaceSourceBadge = document.getElementById("volumeSurfaceSourceBadge");
+const reconstructionSurfaceSourceNote = document.getElementById("reconstructionSurfaceSourceNote");
+const volumeSurfaceStatus = document.getElementById("volumeSurfaceStatus");
+const volumeSurfaceIsovalue = document.getElementById("volumeSurfaceIsovalue");
+const volumeSurfaceIsovalueTitle = document.getElementById("volumeSurfaceIsovalueTitle");
+const volumeSurfaceIsovalueHint = document.getElementById("volumeSurfaceIsovalueHint");
+const volumeSurfaceIsovalueUnits = document.getElementById("volumeSurfaceIsovalueUnits");
+const volumeSurfaceBuild = document.getElementById("volumeSurfaceBuild");
+const volumeSurfaceClear = document.getElementById("volumeSurfaceClear");
+const volumeSurfaceRegionControl = document.getElementById("volumeSurfaceRegionControl");
+const volumeSurfaceRegionTitle = document.getElementById("volumeSurfaceRegionTitle");
+const volumeSurfaceRegionMode = document.getElementById("volumeSurfaceRegionMode");
+const volumeSurfaceRegionStatus = document.getElementById("volumeSurfaceRegionStatus");
+const volumeSurfaceContractNote = document.getElementById("volumeSurfaceContractNote");
+const segmentationOverlayPanel = document.getElementById("segmentationOverlayPanel");
+const segmentationOverlayStatus = document.getElementById("segmentationOverlayStatus");
+const segmentationOverlayToggle = document.getElementById("segmentationOverlayToggle");
+const segmentationOverlayOpacity = document.getElementById("segmentationOverlayOpacity");
+const segmentationOverlayOpacityValue = document.getElementById("segmentationOverlayOpacityValue");
+const segmentationSurfacePanel = document.getElementById("segmentationSurfacePanel");
+const segmentationSurfaceToggle = document.getElementById("segmentationSurfaceToggle");
+const segmentationSurfaceStatus = document.getElementById("segmentationSurfaceStatus");
+const segmentation3dAppearance = document.getElementById("segmentation3dAppearance");
+const segmentation3dAppearanceNote = document.getElementById("segmentation3dAppearanceNote");
+const segmentationStructurePanelRoot = document.getElementById("segmentationStructurePanel");
+const segmentationCorrectionPanelRoot = document.getElementById("segmentationCorrectionPanel");
 const CLIPPING_PLANES = Object.freeze({
   axial: Object.freeze({ axis: "z", axisIndex: 2, coordinate: "Z", startLabel: "Inferior", endLabel: "Superior", reversed: false }),
   coronal: Object.freeze({ axis: "y", axisIndex: 1, coordinate: "Y", startLabel: "Posterior", endLabel: "Anterior", reversed: true }),
@@ -42,7 +136,7 @@ const CLIPPING_PLANES = Object.freeze({
 const clippingRegistry = new Map(Object.keys(CLIPPING_PLANES).map((plane) => [
   plane,
   {
-    enabled: document.querySelector(`[data-clip-enabled="${plane}"]`),
+    status: document.querySelector(`[data-clip-enabled="${plane}"]`),
     start: document.querySelector(`[data-clip-start="${plane}"]`),
     end: document.querySelector(`[data-clip-end="${plane}"]`),
     startPosition: document.querySelector(`[data-clip-start-position="${plane}"]`),
@@ -122,10 +216,6 @@ const sampleCatalogEmpty = document.getElementById("sampleCatalogEmpty");
 const sampleCatalogProgress = document.getElementById("sampleCatalogProgress");
 const sampleCatalogProgressTitle = document.getElementById("sampleCatalogProgressTitle");
 const sampleCatalogProgressText = document.getElementById("sampleCatalogProgressText");
-const sampleReplaceConfirm = document.getElementById("sampleReplaceConfirm");
-const sampleReplaceText = document.getElementById("sampleReplaceText");
-const sampleReplaceCancel = document.getElementById("sampleReplaceCancel");
-const sampleReplaceAccept = document.getElementById("sampleReplaceAccept");
 const studyCard = document.querySelector(".study-card");
 const studyLabel = document.getElementById("studyLabel");
 const studyOriginBadge = document.getElementById("studyOriginBadge");
@@ -159,6 +249,7 @@ const mprRegistry = new Map([
     view: document.querySelector('[data-mpr-view="axial"]'),
     surface: document.querySelector('[data-mpr-surface="axial"]'),
     canvas: document.getElementById("mprAxialCanvas"),
+    overlayCanvas: document.getElementById("mprAxialSegmentationCanvas"),
     index: document.getElementById("mprAxialIndex"),
     position: document.getElementById("mprAxialPosition"),
     wl: document.getElementById("mprAxialWl"),
@@ -169,6 +260,7 @@ const mprRegistry = new Map([
     view: document.querySelector('[data-mpr-view="coronal"]'),
     surface: document.querySelector('[data-mpr-surface="coronal"]'),
     canvas: document.getElementById("mprCoronalCanvas"),
+    overlayCanvas: document.getElementById("mprCoronalSegmentationCanvas"),
     index: document.getElementById("mprCoronalIndex"),
     position: document.getElementById("mprCoronalPosition"),
     wl: document.getElementById("mprCoronalWl"),
@@ -179,6 +271,7 @@ const mprRegistry = new Map([
     view: document.querySelector('[data-mpr-view="sagittal"]'),
     surface: document.querySelector('[data-mpr-surface="sagittal"]'),
     canvas: document.getElementById("mprSagittalCanvas"),
+    overlayCanvas: document.getElementById("mprSagittalSegmentationCanvas"),
     index: document.getElementById("mprSagittalIndex"),
     position: document.getElementById("mprSagittalPosition"),
     wl: document.getElementById("mprSagittalWl"),
@@ -200,9 +293,9 @@ const volumeLayer = { available: false, root: null };
 
 const state = {
   clipping: {
-    axial: { enabled: true, startPercent: 0, endPercent: 100 },
-    coronal: { enabled: true, startPercent: 0, endPercent: 100 },
-    sagittal: { enabled: true, startPercent: 0, endPercent: 100 },
+    axial: { enabled: false, startPercent: 0, endPercent: 100 },
+    coronal: { enabled: false, startPercent: 0, endPercent: 100 },
+    sagittal: { enabled: false, startPercent: 0, endPercent: 100 },
   },
   opacity: DEFAULT_OPACITY,
   autoRotate: false,
@@ -211,8 +304,25 @@ const state = {
   mpr: {
     descriptor: null,
     crosshairLpsMm: [0, 0, 0],
+    activePlane: "axial",
     window: 400,
     level: 40,
+  },
+  segmentationOverlay: {
+    descriptor: null,
+    enabled: true,
+    opacity: 0.45,
+    presentation: null,
+  },
+  segmentationSurface: {
+    descriptor: null,
+    enabled: true,
+  },
+  volumeSurface: {
+    descriptor: null,
+  },
+  reconstructionVisualization: {
+    surfaceSourceSelection: { ...DEFAULT_RECONSTRUCTION_SURFACE_SOURCE_SELECTION },
   },
   size: new THREE.Vector3(1, 1, 1),
   cameraPosition: new THREE.Vector3(),
@@ -225,8 +335,145 @@ let mprDescriptorPromise = null;
 let mprRenderGeneration = 0;
 let mprRenderTimer = null;
 let mprAbortController = null;
+let segmentationOverlayDescriptorPromise = null;
+let segmentationSurfaceDescriptorPromise = null;
+let segmentationSurfaceLayer = null;
+let volumeSurfaceDescriptorPromise = null;
+let volumeSurfaceLayer = null;
+let reconstructionVisualizationController = null;
+let automaticSurfaceMode = null;
+let segmentationSurfaceGate = null;
+let autoSurfacePendingMode = null;
+let autoSurfaceBuildPromise = null;
+let autoSurfaceBuildStudyId = null;
+let reconstructionPresentationProfileController = null;
 let viewerRenderRequested = true;
 let lastRenderedTimestamp = null;
+let segmentationCorrectionPanel = null;
+let segmentationWorkflowPanel = null;
+let segmentationWorkflowSnapshot = null;
+let segmentationWorkflowPollTimer = null;
+let segmentationWorkflowGeneration = 0;
+let studyLifecycleGeneration = 0;
+let activeSegmentationLabelMapId = null;
+let segmentation3dAppearanceMode = "scientific";
+let segmentation3dAppearanceLabelMapId = null;
+
+function captureStudyLifecycle() {
+  return {
+    generation: studyLifecycleGeneration,
+    studyId: state.study?.study_id || null,
+  };
+}
+
+function studyLifecycleMatches(token) {
+  return Boolean(
+    token
+    && token.generation === studyLifecycleGeneration
+    && token.studyId === (state.study?.study_id || null)
+  );
+}
+
+function invalidateStudyScopedAsyncState() {
+  studyLifecycleGeneration += 1;
+  mprAbortController?.abort();
+  if (mprRenderTimer !== null) {
+    window.clearTimeout(mprRenderTimer);
+    mprRenderTimer = null;
+  }
+  mprRenderGeneration += 1;
+  mprDescriptorPromise = null;
+  segmentationOverlayDescriptorPromise = null;
+  segmentationSurfaceDescriptorPromise = null;
+  volumeSurfaceDescriptorPromise = null;
+  volumeBuildPromise = null;
+  automaticSurfaceMode?.invalidate();
+  segmentationSurfaceGate?.invalidate();
+  autoSurfaceBuildPromise = null;
+  autoSurfaceBuildStudyId = null;
+}
+
+function syncSegmentation3dAppearance() {
+  const { ready, overrides } = resolve3dAppearanceContext(
+    segmentation3dAppearanceMode,
+    state.segmentationSurface.descriptor,
+    state.segmentationOverlay.presentation,
+  );
+  segmentation3dAppearance.disabled = !ready;
+  segmentation3dAppearance.value = segmentation3dAppearanceMode;
+  // When a new label map is loading, the surface layer clears its old overrides.
+  // Reapply only after the current surface and overlay descriptors agree.
+  if (!ready) {
+    segmentation3dAppearanceNote.textContent = "Available after a segmentation surface is ready. 3D colors only; MPR colors are unchanged.";
+    return;
+  }
+  segmentationSurfaceLayer.set3dColorOverrides(overrides);
+  segmentation3dAppearanceNote.textContent = segmentation3dAppearanceMode === "anatomical"
+    ? `${overrides.size} structures use 3D anatomical colors; others retain their label colors. MPR colors are unchanged.`
+    : "Original structure colors in 3D and MPR. Existing custom colors are preserved.";
+}
+
+
+function syncSegmentationCorrectionContext(presentation) {
+  const descriptor = state.segmentationOverlay.descriptor;
+  const structure = presentation?.structures?.get(presentation.selectedLabelId);
+  if (
+    !descriptor
+    || descriptor.source_modality === "MR"
+    || !state.study?.study_id
+    || !structure
+  ) {
+    segmentationCorrectionPanel?.clear();
+    return;
+  }
+  segmentationCorrectionPanel?.setContext({
+    labelMapId: descriptor.label_map_id,
+    studyId: state.study.study_id,
+    labelId: structure.labelId,
+    displayName: structure.displayName,
+  });
+}
+
+function syncSegmentationOverlayPresentationStatus(presentation) {
+  const descriptor = state.segmentationOverlay.descriptor;
+  if (!descriptor || !(presentation?.structures instanceof Map)) return;
+  const provider = descriptor.provider_id === "totalsegmentator"
+    ? "TotalSegmentator"
+    : String(descriptor.provider_id || "Segmentation");
+  const visibleCount = Array.from(presentation.structures.values()).filter((structure) => (
+    resolveStructureInteraction(presentation, structure.labelId).effectiveVisible
+  )).length;
+  const suffix = visibleCount === 1 ? "visible label" : "visible labels";
+  segmentationOverlayStatus.textContent = `${provider} · ${visibleCount} ${suffix}`;
+}
+
+segmentationWorkflowPanel = new SegmentationWorkflowPanel(
+  segmentationWorkflowPanelRoot,
+  {
+    onPrimary: () => void requestSegmentationStart(),
+    onCancel: () => void requestSegmentationCancel(),
+  },
+);
+
+const segmentationStructurePanel = new SegmentationStructurePanel(
+  segmentationStructurePanelRoot,
+  (presentation) => {
+    state.segmentationOverlay.presentation = presentation;
+    syncSegmentationOverlayPresentationStatus(presentation);
+    redrawSegmentationOverlays();
+    syncSegmentationSurface();
+    syncSegmentation3dAppearance();
+    syncSegmentationCorrectionContext(presentation);
+  },
+);
+segmentationStructurePanel.clear();
+segmentationCorrectionPanel = new SegmentationCorrectionPanel(
+  segmentationCorrectionPanelRoot,
+  {
+    getCrosshair: () => [...state.mpr.crosshairLpsMm],
+    getPlane: () => state.mpr.activePlane,
+  },
+);
 
 function requestViewerRender() {
   viewerRenderRequested = true;
@@ -235,6 +482,11 @@ function requestViewerRender() {
 const scene = new THREE.Scene();
 const anatomyGroup = new THREE.Group();
 scene.add(anatomyGroup);
+const surfaceLightingRig = createSurfaceLightingRig({
+  three: THREE,
+  scene,
+  requestRender: requestViewerRender,
+});
 
 const camera = new THREE.PerspectiveCamera(29, 1, 0.005, 40);
 const renderer = new THREE.WebGLRenderer({
@@ -247,6 +499,7 @@ renderer.setClearColor(0x000000, 0);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.86;
+enableSurfaceLocalClipping(renderer);
 viewport.appendChild(renderer.domElement);
 const volumeRenderingCapabilities = qualifyVolumeRenderingCapabilities(renderer);
 state.volumeRendering = {
@@ -275,8 +528,94 @@ const volumeTextureManager = new PatientVolumeTextureManager({
   initializeTexture: (texture) => renderer.initTexture(texture),
 });
 const volumeRayMarcher = new PatientVolumeRayMarcher({ three: THREE });
+function syncDirectCtRegionControls() {
+  const isCt = state.volumeSurface.descriptor?.source_modality === "CT";
+  if (!isCt) {
+    volumeSurfaceRegionMode.disabled = true;
+    volumeSurfaceRegionMode.value = "all";
+    if (volumeSurfaceRegionControl) volumeSurfaceRegionControl.hidden = true;
+    if (volumeSurfaceRegionStatus) volumeSurfaceRegionStatus.hidden = true;
+    return;
+  }
+  if (volumeSurfaceRegionControl) volumeSurfaceRegionControl.hidden = false;
+  if (volumeSurfaceRegionStatus) volumeSurfaceRegionStatus.hidden = false;
+  const regionState = volumeSurfaceLayer?.current?.regionVisibility;
+  const enabled = Boolean(regionState?.available);
+  volumeSurfaceRegionMode.disabled = !enabled;
+  volumeSurfaceRegionMode.value = enabled ? regionState.mode : "all";
+  if (!volumeSurfaceLayer?.current) {
+    volumeSurfaceRegionStatus.textContent = "Build a Direct CT surface to inspect regions.";
+  } else if (enabled) {
+    volumeSurfaceRegionStatus.textContent = "Regions are unlabeled; inspect before hiding. Full geometry restores every triangle.";
+  } else {
+    volumeSurfaceRegionStatus.textContent = "Region separation is unavailable for this surface; full geometry remains visible.";
+  }
+}
+
+volumeSurfaceLayer = new PatientVolumeSurfaceLayer({
+  three: THREE,
+  parent: anatomyGroup,
+  requestRender: requestViewerRender,
+  readVolumePresentation: () => volumeRayMarcher.current?.presentation || null,
+  onStatusChange: (surfaceStatus) => {
+    volumeSurfacePanel.dataset.state = surfaceStatus.state;
+    volumeSurfaceStatus.textContent = surfaceStatus.message;
+    const busy = surfaceStatus.state === "loading";
+    const available = Boolean(state.volumeSurface.descriptor?.available);
+    volumeSurfaceBuild.disabled = busy || !available;
+    volumeSurfaceIsovalue.disabled = busy || !available;
+    volumeSurfaceClear.disabled = busy || !volumeSurfaceLayer?.current;
+    syncDirectCtRegionControls();
+    syncReconstructionVisualizationResources();
+  },
+});
+segmentationSurfaceLayer = new PatientSegmentationSurfaceLayer({
+  three: THREE,
+  parent: anatomyGroup,
+  requestRender: requestViewerRender,
+  readVolumePresentation: () => volumeRayMarcher.current?.presentation || null,
+  onStatusChange: (surfaceStatus) => {
+    segmentationSurfacePanel.dataset.state = surfaceStatus.state;
+    segmentationSurfaceStatus.textContent = surfaceStatus.message;
+    segmentationSurfaceStatus.setAttribute("aria-live", surfaceStatus.state === "loading" ? "polite" : "off");
+    segmentationStructurePanel.setSurfaceStatusSnapshot(surfaceStatus);
+    syncReconstructionVisualizationResources();
+    segmentationSurfaceGate?.notify(surfaceStatus);
+  },
+});
+reconstructionVisualizationController = new ReconstructionVisualizationModeController({
+  onChange: (snapshot) => applyReconstructionVisualizationSnapshot(snapshot),
+});
+applyReconstructionVisualizationSnapshot(reconstructionVisualizationController.snapshot());
+automaticSurfaceMode = new AutomaticSurfaceModeCoordinator({
+  requestMode: (modeId) => reconstructionVisualizationController.requestMode(modeId),
+  canActivate: (modeId) => {
+    const snapshot = reconstructionVisualizationController.snapshot();
+    return modeId === "surface" ? snapshot.canSurface : snapshot.canCombined;
+  },
+  ensureSurface: () => ensureAutomaticSelectedSurface(),
+  onPending: (modeId) => {
+    autoSurfacePendingMode = modeId;
+    applyReconstructionVisualizationSnapshot(reconstructionVisualizationController.snapshot());
+  },
+  onFailure: () => {
+    // Surface layers retain their actionable errors; no implicit segmentation retry.
+  },
+});
+segmentationSurfaceGate = new ExistingSegmentationSurfaceGate({
+  readIdentity: () => canPrepareAutomaticSegmentationSurface()
+    ? `${state.study.study_id}/${state.segmentationSurface.descriptor.label_map_id}` : null,
+  hasResident: () => hasSelectedResidentSegmentationSurface(),
+  hasDesiredStructures: () => Boolean(segmentationSurfaceLayer?.desiredLabels?.size),
+  startSurface: () => syncSegmentationSurface(),
+});
+reconstructionPresentationProfileController = new ReconstructionPresentationProfileController({
+  onChange: (snapshot) => applyReconstructionPresentationProfileSnapshot(snapshot),
+});
+// Presentation is the normal UI intent. The internal Fidelity profile and
+// scientific reference settings remain available for qualification workflows.
+reconstructionPresentationProfileController.requestProfile("presentation");
 const sampleStudyCatalogClient = new SampleStudyCatalogClient();
-let sampleReplacementResolver = null;
 let sampleCatalogLoading = false;
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -604,11 +943,6 @@ function setMedicalRenderingMode(modeId = renderingModeSelect.value) {
   setSliceRenderingControlsEnabled(mode.usesPlaneControls, mode);
   if (mode.usesPlaneControls) syncSliceRenderingControlsFromMpr();
   modelChip.textContent = `Patient scan - ${mode.label}`;
-  anatomyNote.textContent = mode.usesPlaneControls
-    ? "True patient voxel volume active. Medical plane uses the synchronized Patient LPS crosshair."
-    : mode.usesDvrControls
-      ? "True patient voxel volume active. DVR compositing controls are ready."
-      : "True patient voxel volume active. Projection uses the current Patient LPS clipping volume.";
   requestViewerRender();
   return mode;
 }
@@ -729,11 +1063,296 @@ function applyTransferAdjustments(changedControl = null) {
   return transfer;
 }
 
+function directVolumeSurfaceLabel(descriptor = state.volumeSurface.descriptor) {
+  return descriptor?.source_modality === "MR" ? "Direct MR" : "Direct CT";
+}
+
+function reconstructionSurfaceSourceLabel(sourceId) {
+  return sourceId === "volume-derived" ? directVolumeSurfaceLabel() : "Segmentation";
+}
+
+function applyCombinedPresentationBalance(visualizationSnapshot = null, profileSnapshot = null) {
+  const visualization = visualizationSnapshot || reconstructionVisualizationController?.snapshot();
+  const presentation = profileSnapshot || reconstructionPresentationProfileController?.snapshot();
+  const plan = resolveCombinedPresentationBalance({
+    mode: visualization?.mode || "volume",
+    profile: presentation?.profile || "fidelity",
+    userVolumeOpacity: state.opacity,
+    directCtSurfaceVisible: Boolean(visualization?.visibility?.surfaceSources?.["volume-derived"]),
+    segmentationSurfaceVisible: Boolean(visualization?.visibility?.surfaceSources?.["segmentation-derived"]),
+  });
+  volumeRayMarcher.setOpacity(plan.effectiveVolumeOpacity);
+  volumeSurfaceLayer?.setPresentationOpacity(plan.directCtSurfaceOpacity);
+  if (reconstructionVisualizationPanel) {
+    reconstructionVisualizationPanel.dataset.combinedBalance = plan.active ? "active" : "inactive";
+  }
+  return plan;
+}
+
+function applyReconstructionPresentationProfileSnapshot(snapshot) {
+  if (!snapshot) return;
+  surfaceLightingRig.setProfile(snapshot.profile);
+  volumeSurfaceLayer?.setPresentationProfile(snapshot.profile);
+  segmentationSurfaceLayer?.setPresentationProfile(snapshot.profile);
+  if (reconstructionVisualizationPanel) {
+    reconstructionVisualizationPanel.dataset.presentationProfile = snapshot.profile;
+  }
+  for (const button of reconstructionPresentationProfileButtons) {
+    const profileId = button.dataset.reconstructionPresentationProfile;
+    const active = snapshot.profile === profileId;
+    button.dataset.active = String(active);
+    button.setAttribute("aria-pressed", String(active));
+  }
+  if (reconstructionPresentationProfileStatus) {
+    reconstructionPresentationProfileStatus.textContent = `${snapshot.label} · ${snapshot.description}`;
+  }
+  applyCombinedPresentationBalance(null, snapshot);
+}
+
+function requestReconstructionPresentationProfile(profileId) {
+  if (!reconstructionPresentationProfileController) return null;
+  return reconstructionPresentationProfileController.requestProfile(profileId);
+}
+
+function canPrepareAutomaticDirectVolumeSurface(snapshot) {
+  const descriptor = state.volumeSurface.descriptor;
+  return Boolean(
+    snapshot.volumeAvailable
+    && state.study?.study_id
+    && descriptor?.available
+    && descriptor.study_id === state.study.study_id
+    && state.reconstructionVisualization.surfaceSourceSelection["volume-derived"]
+  );
+}
+
+function hasSelectedResidentSegmentationSurface() {
+  const layer = segmentationSurfaceLayer;
+  if (!layer?.descriptor?.label_map_id || !layer.desiredLabels?.size) return false;
+  if (layer.descriptor.label_map_id !== state.segmentationSurface.descriptor?.label_map_id) return false;
+  return Array.from(layer.desiredLabels).some((labelId) => layer.items.has(labelId));
+}
+
+function canPrepareAutomaticSegmentationSurface() {
+  return Boolean(
+    volumeLayer.available
+    && volumeRayMarcher.current
+    && state.segmentationSurface.descriptor?.ready
+    && state.segmentationSurface.descriptor?.source_study_id === state.study?.study_id
+    && state.segmentationSurface.descriptor?.label_map_id === activeSegmentationLabelMapId
+    && state.segmentationOverlay.presentation?.structures instanceof Map
+    && state.segmentationSurface.enabled
+    && state.reconstructionVisualization.surfaceSourceSelection["segmentation-derived"]
+    && segmentationSurfaceLayer.desiredLabels.size > 0
+  );
+}
+
+function applyReconstructionVisualizationSnapshot(snapshot) {
+  if (!snapshot) return;
+  if (volumeLayer.root) {
+    volumeLayer.root.visible = Boolean(snapshot.visibility.volume) && state.opacity > 0.001;
+  }
+  const surfaceSemanticOverlayActive = Boolean(
+    snapshot.mode === "surface"
+    && snapshot.visibility.surfaceSources["volume-derived"]
+    && snapshot.visibility.surfaceSources["segmentation-derived"]
+  );
+  volumeSurfaceLayer?.setSemanticOverlayActive(surfaceSemanticOverlayActive);
+  volumeSurfaceLayer?.setPresentationVisible(snapshot.visibility.surfaceSources["volume-derived"]);
+  segmentationSurfaceLayer?.setPresentationVisible(snapshot.visibility.surfaceSources["segmentation-derived"]);
+
+  if (reconstructionVisualizationPanel) {
+    reconstructionVisualizationPanel.dataset.mode = snapshot.mode;
+    reconstructionVisualizationPanel.dataset.state = snapshot.volumeAvailable || snapshot.canSurface
+      ? "ready"
+      : "unavailable";
+  }
+  const canPrepareDirectCt = canPrepareAutomaticDirectVolumeSurface(snapshot);
+  const canPrepareSegmentation = canPrepareAutomaticSegmentationSurface();
+  const preparatory = canPrepareDirectCt || canPrepareSegmentation;
+  const pendingSource = canPrepareDirectCt ? directVolumeSurfaceLabel() : "selected segmentation";
+  for (const button of reconstructionModeButtons) {
+    const modeId = button.dataset.reconstructionMode;
+    const available = modeId === "volume"
+      ? snapshot.canVolume
+      : (modeId === "surface"
+        ? snapshot.canSurface || preparatory
+        : snapshot.canCombined || (snapshot.canVolume && preparatory));
+    button.disabled = !available;
+    button.dataset.active = String(snapshot.mode === modeId && available);
+    button.dataset.capability = available ? "ready" : "unavailable";
+    button.dataset.pending = String(autoSurfacePendingMode === modeId);
+    button.setAttribute("aria-pressed", String(snapshot.mode === modeId && available));
+  }
+  const selectedResidentLabels = snapshot.selectedResidentSurfaceSources.map(reconstructionSurfaceSourceLabel);
+  const sourceSummary = selectedResidentLabels.join(" + ");
+  if (surfaceModeStatusText) {
+    surfaceModeStatusText.textContent = autoSurfacePendingMode === "surface"
+      ? `Preparing ${pendingSource} surface…`
+      : (snapshot.canSurface ? `${sourceSummary || "Surface"} ready`
+        : (preparatory ? (canPrepareDirectCt ? `Select to prepare ${directVolumeSurfaceLabel()}` : "Select to prepare selected segmentation") : "Select a surface source"));
+  }
+  if (combinedModeStatusText) {
+    combinedModeStatusText.textContent = autoSurfacePendingMode === "combined"
+      ? `Preparing ${pendingSource} surface…`
+      : (snapshot.canCombined ? "Volume + selected surface ready"
+        : (snapshot.canVolume && preparatory ? `Select to prepare volume + ${pendingSource}` : "Requires volume + surface"));
+  }
+  for (const input of reconstructionSurfaceSourceInputs) {
+    const sourceId = input.dataset.reconstructionSurfaceSource;
+    const sourceState = snapshot.surfaceSources[sourceId];
+    const semanticEnabled = sourceId !== "segmentation-derived" || state.segmentationSurface.enabled;
+    const directCtPreparatory = sourceId === "volume-derived" && Boolean(
+      snapshot.volumeAvailable && state.volumeSurface.descriptor?.available
+      && state.volumeSurface.descriptor.study_id === state.study?.study_id
+    );
+    const segmentationPreparatory = sourceId === "segmentation-derived" && Boolean(
+      state.segmentationSurface.descriptor?.ready
+      && state.segmentationSurface.descriptor?.source_study_id === state.study?.study_id
+      && state.segmentationSurface.descriptor?.label_map_id === activeSegmentationLabelMapId
+    );
+    const selectable = Boolean(semanticEnabled && (sourceState?.resident || directCtPreparatory || segmentationPreparatory));
+    input.disabled = !selectable;
+    input.checked = Boolean(selectable && state.reconstructionVisualization.surfaceSourceSelection[sourceId]);
+    const row = input.closest("[data-reconstruction-source-row]");
+    if (row) {
+      row.dataset.state = !selectable ? "unavailable" : (input.checked ? "selected" : "ready");
+    }
+  }
+  if (reconstructionVisualizationStatus) {
+    if (!snapshot.volumeAvailable && !snapshot.canSurface) {
+      reconstructionVisualizationStatus.textContent = "Available after a patient volume or resident surface is ready.";
+    } else if (snapshot.mode === "combined") {
+      reconstructionVisualizationStatus.textContent = `Combined view · balanced patient volume + ${sourceSummary} · semantic surface colors preserved.`;
+    } else if (snapshot.mode === "surface") {
+      reconstructionVisualizationStatus.textContent = `Surface view · ${sourceSummary} · resident geometry reused without rebuilding.`;
+    } else {
+      reconstructionVisualizationStatus.textContent = snapshot.canSurface
+        ? "Volume view · resident surface sources are ready for Surface or Combined."
+        : (preparatory
+          ? `Volume view · choose Surface or Combined to prepare the selected ${pendingSource} surface.`
+          : "Volume view · select an available surface source to enable Surface and Combined.");
+    }
+  }
+  applyCombinedPresentationBalance(snapshot, null);
+  requestViewerRender();
+}
+
+function syncReconstructionVisualizationResources() {
+  if (!reconstructionVisualizationController) return null;
+  const volumeAvailable = Boolean(volumeLayer.available && volumeLayer.root);
+  const volumeDerivedResident = Boolean(volumeSurfaceLayer?.current);
+  const segmentationDerivedResident = hasSelectedResidentSegmentationSurface();
+  const sourceSelection = state.reconstructionVisualization.surfaceSourceSelection;
+
+  reconstructionVisualizationController.setVolumeAvailable(volumeAvailable);
+  reconstructionVisualizationController.setSurfaceSource("volume-derived", {
+    available: Boolean(state.volumeSurface.descriptor?.available),
+    resident: volumeDerivedResident,
+    selected: volumeDerivedResident && Boolean(sourceSelection["volume-derived"]),
+  });
+  reconstructionVisualizationController.setSurfaceSource("segmentation-derived", {
+    available: Boolean(state.segmentationSurface.descriptor?.ready),
+    resident: segmentationDerivedResident,
+    selected: segmentationDerivedResident
+      && state.segmentationSurface.enabled
+      && Boolean(sourceSelection["segmentation-derived"]),
+  });
+  return reconstructionVisualizationController.snapshot();
+}
+
+function requestReconstructionVisualizationMode(modeId) {
+  if (!reconstructionVisualizationController) return null;
+  const snapshot = reconstructionVisualizationController.snapshot();
+  if (modeId === "volume" || (modeId === "surface" ? snapshot.canSurface : snapshot.canCombined)) {
+    automaticSurfaceMode?.invalidate();
+    segmentationSurfaceGate?.invalidate();
+    const result = reconstructionVisualizationController.requestMode(modeId);
+    // A resident segmentation surface can be shown immediately; prepare the
+    // separately selected direct volume-derived source in the background without replacing it.
+    if (result.accepted && modeId !== "volume" && !volumeSurfaceLayer.current
+        && canPrepareAutomaticDirectVolumeSurface(snapshot)) {
+      void ensureAutomaticDirectVolumeSurface();
+    }
+    if (result.accepted && modeId !== "volume" && canPrepareAutomaticSegmentationSurface()) {
+      void syncSegmentationSurface();
+    }
+    return result;
+  }
+  return automaticSurfaceMode.request(modeId);
+}
+
+function ensureAutomaticSelectedSurface() {
+  const snapshot = reconstructionVisualizationController.snapshot();
+  if (canPrepareAutomaticDirectVolumeSurface(snapshot)) {
+    const build = ensureAutomaticDirectVolumeSurface();
+    if (!build) return null;
+    return Promise.resolve(build).then((ready) => {
+      if (ready || reconstructionVisualizationController.snapshot().canSurface) return true;
+      return canPrepareAutomaticSegmentationSurface()
+        ? ensureAutomaticSegmentationSurface() : false;
+    });
+  }
+  if (canPrepareAutomaticSegmentationSurface()) return ensureAutomaticSegmentationSurface();
+  return null;
+}
+
+function ensureAutomaticSegmentationSurface() {
+  if (!canPrepareAutomaticSegmentationSurface()) return null;
+  return segmentationSurfaceGate?.request() || null;
+}
+
+function ensureAutomaticDirectVolumeSurface() {
+  const snapshot = reconstructionVisualizationController.snapshot();
+  if (!canPrepareAutomaticDirectVolumeSurface(snapshot)) return null;
+  const studyId = state.study.study_id;
+  const requestedLevel = Number(volumeSurfaceIsovalue.value);
+  if (volumeSurfaceLayer.current?.isovalue === requestedLevel) return Promise.resolve(true);
+  if (autoSurfaceBuildPromise && autoSurfaceBuildStudyId === studyId) return autoSurfaceBuildPromise;
+  autoSurfaceBuildStudyId = studyId;
+  const buildPromise = requestVolumeSurfaceBuild().then((built) => (
+    Boolean(built && state.study?.study_id === studyId && volumeSurfaceLayer.current === built)
+  ));
+  autoSurfaceBuildPromise = buildPromise;
+  void buildPromise.finally(() => {
+    if (autoSurfaceBuildPromise === buildPromise) {
+      autoSurfaceBuildPromise = null;
+      autoSurfaceBuildStudyId = null;
+    }
+  });
+  return buildPromise;
+}
+
+function requestReconstructionSurfaceSourceSelection(sourceId, selected) {
+  if (!reconstructionVisualizationController) return null;
+  const selection = state.reconstructionVisualization.surfaceSourceSelection;
+  if (!Object.hasOwn(selection, sourceId)) return null;
+  selection[sourceId] = Boolean(selected);
+  const snapshot = reconstructionVisualizationController.snapshot();
+  const sourceState = snapshot.surfaceSources[sourceId];
+  const semanticEnabled = sourceId !== "segmentation-derived" || state.segmentationSurface.enabled;
+  const effectiveSelection = Boolean(selected && sourceState?.resident && semanticEnabled);
+  if (sourceId === "segmentation-derived" && !selected) segmentationSurfaceGate?.invalidate();
+  const result = reconstructionVisualizationController.selectSurfaceSource(sourceId, effectiveSelection);
+  // Same-study coexistence: when a semantic surface already keeps Surface/Combined active,
+  // selecting a non-resident Direct CT/MR source should prepare that selected source on
+  // demand. Volume mode remains intent-only, and resident Direct geometry is always reused.
+  if (
+    sourceId === "volume-derived"
+    && selected
+    && result?.mode !== "volume"
+    && !volumeSurfaceLayer.current
+    && canPrepareAutomaticDirectVolumeSurface(result)
+  ) {
+    void ensureAutomaticDirectVolumeSurface();
+  }
+  if (sourceId === "segmentation-derived" && selected && canPrepareAutomaticSegmentationSurface()) {
+    void syncSegmentationSurface();
+  }
+  return result;
+}
+
 function setVolumeAvailability(available) {
   volumeLayer.available = Boolean(available);
-  volumeLayerButton.disabled = !volumeLayer.available;
-  volumeLayerButton.classList.add("is-active");
-  volumeLayerButton.setAttribute("aria-pressed", "true");
   modelChip.textContent = "Patient scan - Full Volume";
   const mode = volumeRayMarcher.current?.renderingModeState.current;
   if (mode) modelChip.textContent = `Patient scan - ${mode.label}`;
@@ -743,11 +1362,14 @@ function setVolumeAvailability(available) {
     && Boolean(state.mpr.descriptor),
   );
   setTransferControlsEnabled(volumeLayer.available && Boolean(volumeRayMarcher.current));
+  syncReconstructionVisualizationResources();
 }
 
 function applyVolumeVisibility() {
   if (volumeLayer.root) {
-    volumeLayer.root.visible = volumeLayer.available && state.opacity > 0.001;
+    const snapshot = reconstructionVisualizationController?.snapshot();
+    const modeAllowsVolume = snapshot ? snapshot.visibility.volume : true;
+    volumeLayer.root.visible = volumeLayer.available && state.opacity > 0.001 && modeAllowsVolume;
     requestViewerRender();
   }
 }
@@ -889,15 +1511,20 @@ function clippingPlaneRange(plane) {
     : null;
 }
 
+function clippingRangeIsActive(startPercent, endPercent) {
+  // The full 0..100% acquisition range never clips. Both endpoints independently
+  // activate the same retained interval when moved inward; no hidden toggle state.
+  return Number(startPercent) > 0 || Number(endPercent) < 100;
+}
+
 function setClippingControlsEnabled(enabled) {
   const available = Boolean(enabled);
   directionalCutPanel.dataset.clippingState = available ? "ready" : "unavailable";
   clippingResetButton.disabled = !available;
-  for (const [plane, controlsForPlane] of clippingRegistry.entries()) {
-    controlsForPlane.enabled.disabled = !available;
-    const planeActive = available && state.clipping[plane].enabled;
-    controlsForPlane.start.disabled = !planeActive;
-    controlsForPlane.end.disabled = !planeActive;
+  for (const controlsForPlane of clippingRegistry.values()) {
+    // A full-range plane must remain adjustable, otherwise it cannot activate.
+    controlsForPlane.start.disabled = !available;
+    controlsForPlane.end.disabled = !available;
   }
 }
 
@@ -918,7 +1545,7 @@ function clippingRequest() {
       const startLpsMm = clippingBoundaryLpsMm(definition, range, state.clipping[plane].startPercent);
       const endLpsMm = clippingBoundaryLpsMm(definition, range, state.clipping[plane].endPercent);
       return {
-        enabled: state.clipping[plane].enabled,
+        enabled: clippingRangeIsActive(state.clipping[plane].startPercent, state.clipping[plane].endPercent),
         minimumLpsMm: Math.min(startLpsMm, endLpsMm),
         maximumLpsMm: Math.max(startLpsMm, endLpsMm),
       };
@@ -928,8 +1555,15 @@ function clippingRequest() {
 
 function applyPatientClipping() {
   updateMprClippingOverlays();
-  if (!volumeRayMarcher.current || !state.mpr.descriptor) return null;
-  const clipping = volumeRayMarcher.setClippingPlanes(clippingRequest());
+  if (!state.mpr.descriptor) return null;
+  const request = clippingRequest();
+  volumeSurfaceLayer?.setClippingPlanes(request);
+  segmentationSurfaceLayer?.setClippingPlanes(request);
+  if (!volumeRayMarcher.current) {
+    requestViewerRender();
+    return request;
+  }
+  const clipping = volumeRayMarcher.setClippingPlanes(request);
   requestViewerRender();
   return clipping;
 }
@@ -938,14 +1572,7 @@ function syncClippingControlsFromMpr() {
   for (const [plane, definition] of Object.entries(CLIPPING_PLANES)) {
     const controlsForPlane = clippingRegistry.get(plane);
     const range = clippingPlaneRange(plane);
-    if (controlsForPlane) controlsForPlane.enabled.checked = state.clipping[plane].enabled;
-    if (!controlsForPlane || !range) {
-      if (controlsForPlane) {
-        controlsForPlane.startPosition.textContent = `${definition.coordinate}: --`;
-        controlsForPlane.endPosition.textContent = `${definition.coordinate}: --`;
-      }
-      continue;
-    }
+    if (!controlsForPlane) continue;
     const clipping = state.clipping[plane];
     clipping.startPercent = clamp(Number(clipping.startPercent), 0, 100 - CLIPPING_MINIMUM_GAP_PERCENT);
     clipping.endPercent = clamp(
@@ -953,6 +1580,15 @@ function syncClippingControlsFromMpr() {
       clipping.startPercent + CLIPPING_MINIMUM_GAP_PERCENT,
       100,
     );
+    clipping.enabled = clippingRangeIsActive(clipping.startPercent, clipping.endPercent);
+    controlsForPlane.status.textContent = clipping.enabled ? "Active" : "Full range";
+    controlsForPlane.status.dataset.active = String(clipping.enabled);
+    controlsForPlane.range.closest(".clip-plane-control").dataset.clippingActive = String(clipping.enabled);
+    if (!range) {
+      controlsForPlane.startPosition.textContent = `${definition.coordinate}: --`;
+      controlsForPlane.endPosition.textContent = `${definition.coordinate}: --`;
+      continue;
+    }
     const startLpsMm = clippingBoundaryLpsMm(definition, range, clipping.startPercent);
     const endLpsMm = clippingBoundaryLpsMm(definition, range, clipping.endPercent);
     controlsForPlane.start.value = String(clipping.startPercent);
@@ -998,7 +1634,7 @@ function updateClippingBoundaryFromControl(plane, boundary) {
 
 function resetPatientClipping() {
   for (const plane of Object.keys(CLIPPING_PLANES)) {
-    state.clipping[plane].enabled = true;
+    state.clipping[plane].enabled = false;
     state.clipping[plane].startPercent = 0;
     state.clipping[plane].endPercent = 100;
   }
@@ -1007,9 +1643,21 @@ function resetPatientClipping() {
 
 function applyOpacity() {
   volumeRayMarcher.setOpacity(state.opacity);
+  applyCombinedPresentationBalance();
   applyVolumeVisibility();
   opacityValue.textContent = `${Math.round(state.opacity * 100)}%`;
   requestViewerRender();
+}
+
+function resetReconstructionVisualizationForStudy() {
+  automaticSurfaceMode?.invalidate();
+  segmentationSurfaceGate?.invalidate();
+  autoSurfaceBuildPromise = null;
+  autoSurfaceBuildStudyId = null;
+  state.reconstructionVisualization.surfaceSourceSelection = {
+    ...DEFAULT_RECONSTRUCTION_SURFACE_SOURCE_SELECTION,
+  };
+  reconstructionVisualizationController?.reset();
 }
 
 function clearPatientVolumeRendering() {
@@ -1017,8 +1665,16 @@ function clearPatientVolumeRendering() {
   volumeRenderingQuality.deactivate();
   volumeRayMarcher.dispose();
   volumeLayer.root = null;
+  volumeSurfaceDescriptorPromise = null;
+  state.volumeSurface.descriptor = null;
+  volumeSurfaceLayer.clear();
+  volumeSurfaceBuild.disabled = true;
+  volumeSurfaceClear.disabled = true;
+  volumeSurfaceIsovalue.disabled = true;
+  setSegmentationSurfaceAvailability(null);
   clearTransferControls();
   setVolumeAvailability(false);
+  resetReconstructionVisualizationForStudy();
   applyVolumeVisibility();
   setStatus(
     "loading",
@@ -1060,10 +1716,10 @@ async function activatePatientVolumeRendering(textureResource, task) {
   if (box) fitCamera(box);
   requestViewerRender();
   setStatus("ready", "Patient volume rendering ready");
-  anatomyNote.textContent = "True patient voxel volume active. Medical transfer controls are ready.";
   setWorkflowStep(workflowVisualization, "complete");
   volumeStatusRow.dataset.state = "ready";
   volumeStatusText.textContent = "Patient volume rendered";
+  void syncSegmentationSurface();
   return volumeResource;
 }
 
@@ -1083,6 +1739,9 @@ function resetWorkspace() {
   autoRotateButton.textContent = "Auto rotate";
 
   anatomyGroup.rotation.set(0, 0, 0);
+  if (reconstructionVisualizationController?.snapshot().canVolume) {
+    requestReconstructionVisualizationMode("volume");
+  }
   applyOpacity();
   setViewerInteractionMode("rotate");
   fitSavedView();
@@ -1104,6 +1763,10 @@ function applyTheme(theme, persist = false) {
   themeToggle.setAttribute("aria-pressed", normalized === "light" ? "true" : "false");
   themeToggle.setAttribute(
     "aria-label",
+    normalized === "light" ? "Switch to dark mode" : "Switch to light mode",
+  );
+  themeToggle.setAttribute(
+    "title",
     normalized === "light" ? "Switch to dark mode" : "Switch to light mode",
   );
   if (themeColorMeta) {
@@ -1175,6 +1838,7 @@ function setMprVolumeState(study) {
     entry.renderedPlaneDescriptor = null;
     entry.renderedPositionLpsMm = null;
     renderMprClippingOverlay(entry.surface, null);
+    clearSegmentationOverlay(entry.overlayCanvas);
   }
   clearPatientVolumeRendering();
   volumeTextureManager.dispose();
@@ -1189,6 +1853,7 @@ function setMprVolumeState(study) {
   }
   if (!ready) {
     state.mpr.descriptor = null;
+    setSegmentationOverlayAvailability(null);
     resetPatientClipping();
     for (const entry of mprRegistry.values()) {
       entry.index.textContent = "-- / --";
@@ -1208,20 +1873,24 @@ async function ensureVolumeRenderingFoundation() {
     state.volumeRendering.capabilities,
   );
   if (!deviceQualification.ready) {
-    anatomyNote.textContent = `${deviceQualification.reason}. Synchronized MPR remains available.`;
-    setStatus("error", "Patient volume rendering unavailable");
+    setStatus("error", `${deviceQualification.reason}. Synchronized MPR remains available.`);
     return null;
   }
 
+  const lifecycle = captureStudyLifecycle();
+  const studyId = state.study.study_id;
   const task = { promise: null };
   task.promise = (async () => {
-    anatomyNote.textContent = "Preparing patient volume for GPU rendering...";
+    setStatus("loading", "Preparing patient volume...");
     const response = await fetch("/api/studies/latest/volume-rendering", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Accept": "application/json" },
     });
     const payload = await response.json().catch(() => ({}));
+    if (!studyLifecycleMatches(lifecycle) || state.study?.study_id !== studyId) {
+      throw new DOMException("Patient volume texture load was superseded", "AbortError");
+    }
     if (!response.ok) {
       throw new Error(
         payload.detail || `3D volume preparation failed (${response.status})`,
@@ -1236,19 +1905,19 @@ async function ensureVolumeRenderingFoundation() {
       state.volumeRendering.capabilities,
     );
     if (!qualification.ready) throw new Error(qualification.reason);
-    anatomyNote.textContent = "Downloading and verifying the patient volume texture...";
+    setStatus("loading", "Loading verified patient volume...");
     const textureResource = await volumeTextureManager.load(descriptor);
     if (volumeRenderingTask !== task) {
       throw new DOMException("Patient volume texture load was superseded", "AbortError");
     }
-    anatomyNote.textContent = "Compiling the true patient-volume ray marcher...";
+    setStatus("loading", "Preparing GPU volume rendering...");
     await activatePatientVolumeRendering(textureResource, task);
     if (volumeRenderingTask !== task) {
       throw new DOMException("Patient volume rendering was superseded", "AbortError");
     }
     state.volumeRendering.descriptor = descriptor;
     state.volumeRendering.textureResource = textureResource;
-    anatomyNote.textContent = "True patient voxel volume active. Medical transfer controls are ready.";
+    void refreshVolumeSurfaceDescriptor();
     return descriptor;
   })();
   volumeRenderingTask = task;
@@ -1261,10 +1930,12 @@ async function ensureVolumeRenderingFoundation() {
       volumeTextureManager.dispose();
       state.volumeRendering.descriptor = null;
       state.volumeRendering.textureResource = null;
-      anatomyNote.textContent = error instanceof Error
-        ? `${error.message}. Synchronized MPR remains available.`
-        : "3D volume preparation failed. Synchronized MPR remains available.";
-      setStatus("error", "Patient volume rendering unavailable");
+      setStatus(
+        "error",
+        error instanceof Error
+          ? `${error.message}. Synchronized MPR remains available.`
+          : "3D volume preparation failed. Synchronized MPR remains available.",
+      );
     }
     return null;
   } finally {
@@ -1418,6 +2089,606 @@ function drawGray8(entry, pixels, width, height, planeDescriptor) {
   configureMprSurface(entry, planeDescriptor);
 }
 
+function clearAllSegmentationOverlays() {
+  for (const entry of mprRegistry.values()) {
+    clearSegmentationOverlay(entry.overlayCanvas);
+  }
+}
+
+function redrawSegmentationOverlays() {
+  const presentation = state.segmentationOverlay.presentation;
+  if (!state.segmentationOverlay.enabled || !presentation) {
+    clearAllSegmentationOverlays();
+    return;
+  }
+  for (const entry of mprRegistry.values()) {
+    if (!(entry.segmentationLabels instanceof Uint16Array)) continue;
+    drawSegmentationLabels(
+      entry.overlayCanvas,
+      entry.segmentationLabels,
+      entry.segmentationWidth,
+      entry.segmentationHeight,
+      presentation,
+      state.segmentationOverlay.opacity,
+    );
+  }
+}
+
+function setVolumeSurfaceDescriptor(descriptor) {
+  state.volumeSurface.descriptor = descriptor || null;
+  volumeSurfaceLayer.setDescriptor(descriptor || null);
+  if (!descriptor) {
+    volumeSurfacePanel.dataset.state = "unavailable";
+    volumeSurfacePanel.dataset.modality = "none";
+    volumeSurfaceBuild.disabled = true;
+    volumeSurfaceClear.disabled = true;
+    volumeSurfaceIsovalue.disabled = true;
+    if (volumeSurfaceRegionControl) volumeSurfaceRegionControl.hidden = false;
+    if (volumeSurfaceRegionStatus) volumeSurfaceRegionStatus.hidden = false;
+    syncReconstructionVisualizationResources();
+    return;
+  }
+
+  const modality = String(descriptor.source_modality || "").toUpperCase();
+  const isMr = modality === "MR";
+  const label = isMr ? "Direct MR" : "Direct CT";
+  const range = Array.isArray(descriptor.surface_isovalue_range)
+    ? descriptor.surface_isovalue_range : descriptor.source_value_range;
+  const minimum = Number(range?.[0]);
+  const maximum = Number(range?.[1]);
+  const defaultLevel = Number(descriptor.default_isovalue);
+  const mrPresentationLevelInRange = (
+    !Number.isFinite(minimum)
+    || !Number.isFinite(maximum)
+    || (MRI_PRESENTATION_INITIAL_ISOVALUE > minimum && MRI_PRESENTATION_INITIAL_ISOVALUE < maximum)
+  );
+  const initialLevel = isMr && mrPresentationLevelInRange
+    ? MRI_PRESENTATION_INITIAL_ISOVALUE
+    : defaultLevel;
+
+  volumeSurfacePanel.dataset.modality = isMr ? "mr" : "ct";
+  if (volumeSurfaceTitle) volumeSurfaceTitle.textContent = `${label} Surface`;
+  if (volumeSurfaceSourceLabel) volumeSurfaceSourceLabel.textContent = label;
+  if (volumeSurfaceSourceBadge) volumeSurfaceSourceBadge.textContent = label;
+  if (volumeSurfaceRegionTitle) volumeSurfaceRegionTitle.textContent = `${label} visibility`;
+  if (reconstructionSurfaceSourceNote) {
+    reconstructionSurfaceSourceNote.textContent = `Surface source selections apply in Surface and Combined modes. Selected ${label} geometry is prepared on demand; existing resident geometry is reused. Switching modes never starts segmentation.`;
+  }
+
+  if (isMr) {
+    if (volumeSurfaceIsovalueTitle) volumeSurfaceIsovalueTitle.textContent = "Normalized MRI isovalue";
+    if (volumeSurfaceIsovalueHint) volumeSurfaceIsovalueHint.textContent = "Relative signal after robust 2–98% normalization";
+    if (volumeSurfaceIsovalueUnits) volumeSurfaceIsovalueUnits.textContent = "0–1";
+    volumeSurfaceIsovalue.step = "0.01";
+    if (volumeSurfaceRegionControl) volumeSurfaceRegionControl.hidden = true;
+    if (volumeSurfaceRegionStatus) volumeSurfaceRegionStatus.hidden = true;
+    if (volumeSurfaceContractNote) {
+      volumeSurfaceContractNote.textContent = "Canonical MRI intensity-derived surface · normalized signal · Patient LPS · non-semantic visualization · no segmentation required.";
+    }
+  } else {
+    if (volumeSurfaceIsovalueTitle) volumeSurfaceIsovalueTitle.textContent = "CT isovalue";
+    if (volumeSurfaceIsovalueHint) volumeSurfaceIsovalueHint.textContent = "Bone baseline: 300 HU when in range";
+    if (volumeSurfaceIsovalueUnits) volumeSurfaceIsovalueUnits.textContent = "HU";
+    volumeSurfaceIsovalue.step = "10";
+    if (volumeSurfaceRegionControl) volumeSurfaceRegionControl.hidden = false;
+    if (volumeSurfaceRegionStatus) volumeSurfaceRegionStatus.hidden = false;
+    if (volumeSurfaceContractNote) {
+      volumeSurfaceContractNote.textContent = "Canonical CT intensity isosurface · Patient LPS · no semantic segmentation required.";
+    }
+  }
+
+  if (Number.isFinite(minimum) && Number.isFinite(maximum) && minimum < maximum) {
+    const epsilon = isMr ? 0.001 : Math.max(0.001, Math.abs(maximum - minimum) * 1e-6);
+    volumeSurfaceIsovalue.min = String(minimum + epsilon);
+    volumeSurfaceIsovalue.max = String(maximum - epsilon);
+  }
+  if (Number.isFinite(initialLevel)) {
+    volumeSurfaceIsovalue.value = isMr ? initialLevel.toFixed(2) : String(initialLevel);
+  } else if (Number.isFinite(minimum) && Number.isFinite(maximum) && minimum < maximum) {
+    const midpoint = (minimum + maximum) / 2;
+    volumeSurfaceIsovalue.value = isMr ? midpoint.toFixed(2) : String(Math.round(midpoint));
+  }
+  volumeSurfaceBuild.disabled = !descriptor.available;
+  volumeSurfaceIsovalue.disabled = !descriptor.available;
+  volumeSurfaceClear.disabled = !volumeSurfaceLayer.current;
+  syncReconstructionVisualizationResources();
+}
+
+async function refreshVolumeSurfaceDescriptor() {
+  if (!state.study?.volume_ready || !volumeRayMarcher.current) {
+    setVolumeSurfaceDescriptor(null);
+    return null;
+  }
+  if (volumeSurfaceDescriptorPromise) return volumeSurfaceDescriptorPromise;
+  const studyId = state.study.study_id;
+  const lifecycle = captureStudyLifecycle();
+  const request = (async () => {
+    try {
+      const response = await fetch("/api/studies/latest/volume-surface", {
+        credentials: "same-origin",
+        headers: { "Accept": "application/json" },
+      });
+      const payload = await response.json().catch(() => ({}));
+      // A delayed response from an earlier study, series, or volume revision may never
+      // replace the active study-scoped descriptor.
+      if (!studyLifecycleMatches(lifecycle) || studyId !== state.study?.study_id) return null;
+      if (!response.ok) throw new Error(payload.detail || `Volume surface availability failed (${response.status})`);
+      if (payload.volume_surface?.study_id !== studyId) return null;
+      setVolumeSurfaceDescriptor(payload.volume_surface);
+      return payload.volume_surface;
+    } catch (error) {
+      if (!studyLifecycleMatches(lifecycle) || studyId !== state.study?.study_id) return null;
+      setVolumeSurfaceDescriptor(null);
+      volumeSurfacePanel.dataset.state = "error";
+      volumeSurfaceStatus.textContent = error instanceof Error ? error.message : "Volume-derived surface availability failed";
+      return null;
+    }
+  })();
+  volumeSurfaceDescriptorPromise = request;
+  try {
+    return await request;
+  } finally {
+    if (volumeSurfaceDescriptorPromise === request) volumeSurfaceDescriptorPromise = null;
+  }
+}
+async function requestVolumeSurfaceBuild() {
+  const level = Number(volumeSurfaceIsovalue.value);
+  try {
+    const built = await volumeSurfaceLayer.build(level);
+    if (built && volumeSurfaceLayer.current === built
+        && state.volumeSurface.descriptor?.source_modality === "CT") {
+      volumeSurfaceRegionStatus.textContent = "Qualifying resident Direct CT regions…";
+      try {
+        const evidence = await volumeSurfaceLayer.loadRegionEvidence();
+        if (!evidence.available) {
+          volumeSurfaceRegionStatus.textContent = "This surface has no two distinct qualified regions; full geometry remains visible.";
+        }
+      } catch {
+        // CT evidence failure must never alter or prevent the original surface.
+        if (volumeSurfaceLayer.current === built) {
+          volumeSurfaceRegionStatus.textContent = "Region evidence unavailable. Full geometry is retained.";
+        }
+      }
+    }
+    return built;
+  } catch {
+    // The volume surface layer owns its actionable build error status.
+    return null;
+  } finally {
+    syncReconstructionVisualizationResources();
+    volumeSurfaceClear.disabled = !volumeSurfaceLayer.current;
+    if (volumeSurfaceLayer.current?.regionVisibility?.available) syncDirectCtRegionControls();
+  }
+}
+
+function clearVolumeDerivedSurface() {
+  volumeSurfaceLayer.clearSurface();
+  syncReconstructionVisualizationResources();
+  volumeSurfaceClear.disabled = true;
+}
+
+function clearSegmentationWorkflowPoll() {
+  if (segmentationWorkflowPollTimer !== null) {
+    window.clearTimeout(segmentationWorkflowPollTimer);
+    segmentationWorkflowPollTimer = null;
+  }
+}
+
+function segmentationWorkflowIsActive(workflow) {
+  return ["queued", "starting", "running", "cancelling", "finalizing"].includes(
+    String(workflow?.state || ""),
+  );
+}
+
+function scheduleSegmentationWorkflowPoll(delay = 900) {
+  clearSegmentationWorkflowPoll();
+  const generation = segmentationWorkflowGeneration;
+  segmentationWorkflowPollTimer = window.setTimeout(() => {
+    segmentationWorkflowPollTimer = null;
+    if (generation !== segmentationWorkflowGeneration) return;
+    void refreshSegmentationWorkflowStatus({ activateAvailable: true });
+  }, delay);
+}
+
+function renderSegmentationWorkflow(workflow) {
+  segmentationWorkflowSnapshot = workflow;
+  segmentationWorkflowPanel.render(workflow);
+  if (activeSegmentationLabelMapId) {
+    segmentationWorkflowPanel.setActivated(activeSegmentationLabelMapId);
+  }
+}
+
+async function activateSegmentationResult(labelMapId) {
+  const requestedLabelMapId = String(labelMapId || "");
+  if (!requestedLabelMapId || !state.study?.study_id) return null;
+  if (isReadOnlyMri(segmentationWorkflowSnapshot)) {
+    if (
+      segmentationWorkflowSnapshot?.mri_label_map_ready !== true
+      || requestedLabelMapId !== segmentationWorkflowSnapshot?.label_map_id
+    ) return null;
+  }
+  const descriptor = await refreshSegmentationOverlayDescriptor(requestedLabelMapId);
+  if (!descriptor) return null;
+  activeSegmentationLabelMapId = requestedLabelMapId;
+  syncReconstructionVisualizationResources();
+  segmentationWorkflowPanel.setActivated(requestedLabelMapId);
+  scheduleMprRender();
+  return descriptor;
+}
+
+async function refreshSegmentationWorkflowStatus({ activateAvailable = false } = {}) {
+  if (!state.study?.study_id || !state.study?.volume_ready) {
+    const pendingMr = prevolumeMriWorkflow(state.study);
+    if (pendingMr) renderSegmentationWorkflow(pendingMr);
+    else segmentationWorkflowPanel.reset();
+    return pendingMr;
+  }
+  const generation = segmentationWorkflowGeneration;
+  try {
+    const response = await fetch("/api/studies/latest/segmentation-workflow", {
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { "Accept": "application/json" },
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.detail || `Segmentation status failed (${response.status})`);
+    }
+    const workflow = payload.workflow;
+    if (
+      generation !== segmentationWorkflowGeneration
+      || !workflow
+      || !workflowMatchesStudy(workflow, state.study)
+    ) {
+      return null;
+    }
+    renderSegmentationWorkflow(workflow);
+    if (workflow.state === "available" && activateAvailable && workflow.label_map_id) {
+      clearSegmentationWorkflowPoll();
+      await activateSegmentationResult(workflow.label_map_id);
+    } else if (segmentationWorkflowIsActive(workflow)) {
+      scheduleSegmentationWorkflowPoll();
+    } else {
+      clearSegmentationWorkflowPoll();
+    }
+    return workflow;
+  } catch (error) {
+    if (generation !== segmentationWorkflowGeneration) return null;
+    clearSegmentationWorkflowPoll();
+    segmentationWorkflowPanel.reset(
+      error instanceof Error ? error.message : "Segmentation status unavailable",
+    );
+    return null;
+  }
+}
+
+async function requestSegmentationStart() {
+  if (!state.study?.study_id || !state.study?.volume_ready) return;
+  if (isReadOnlyMri(segmentationWorkflowSnapshot)) {
+    if (
+      segmentationWorkflowSnapshot?.mri_label_map_ready === true
+      && segmentationWorkflowSnapshot?.state === "available"
+      && segmentationWorkflowSnapshot?.label_map_id
+    ) {
+      await activateSegmentationResult(segmentationWorkflowSnapshot.label_map_id);
+    } else {
+      void refreshSegmentationWorkflowStatus();
+    }
+    return;
+  }
+  const generation = segmentationWorkflowGeneration;
+  segmentationWorkflowPanel.setBusy(
+    segmentationWorkflowSnapshot?.state === "available"
+      ? "Activating existing segmentation..."
+      : "Starting segmentation...",
+  );
+  try {
+    const response = await fetch("/api/studies/latest/segmentation-workflow/start", {
+      method: "POST",
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { "Accept": "application/json" },
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.detail || `Segmentation start failed (${response.status})`);
+    }
+    if (generation !== segmentationWorkflowGeneration) return;
+    const workflow = payload.workflow;
+    if (!workflowMatchesStudy(workflow, state.study) || isReadOnlyMri(workflow)) {
+      void refreshSegmentationWorkflowStatus();
+      return;
+    }
+    renderSegmentationWorkflow(workflow);
+    if (workflow?.state === "available" && workflow.label_map_id) {
+      await activateSegmentationResult(workflow.label_map_id);
+    } else if (segmentationWorkflowIsActive(workflow) || workflow?.state === "output_ready") {
+      scheduleSegmentationWorkflowPoll(500);
+    }
+  } catch (error) {
+    if (generation !== segmentationWorkflowGeneration) return;
+    segmentationWorkflowPanel.reset(
+      error instanceof Error ? error.message : "Segmentation could not start",
+    );
+    void refreshSegmentationWorkflowStatus();
+  }
+}
+
+async function requestSegmentationCancel() {
+  if (!state.study?.study_id) return;
+  const generation = segmentationWorkflowGeneration;
+  segmentationWorkflowPanel.setBusy("Requesting segmentation cancellation...");
+  try {
+    const response = await fetch("/api/studies/latest/segmentation-workflow/cancel", {
+      method: "POST",
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { "Accept": "application/json" },
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.detail || `Segmentation cancellation failed (${response.status})`);
+    }
+    if (generation !== segmentationWorkflowGeneration) return;
+    if (!workflowMatchesStudy(payload.workflow, state.study)) {
+      void refreshSegmentationWorkflowStatus();
+      return;
+    }
+    renderSegmentationWorkflow(payload.workflow);
+    if (segmentationWorkflowIsActive(payload.workflow)) scheduleSegmentationWorkflowPoll(500);
+  } catch (error) {
+    if (generation !== segmentationWorkflowGeneration) return;
+    segmentationWorkflowPanel.reset(
+      error instanceof Error ? error.message : "Segmentation cancellation failed",
+    );
+    void refreshSegmentationWorkflowStatus();
+  }
+}
+
+function setSegmentationSurfaceAvailability(descriptor) {
+  segmentationSurfaceGate?.invalidate();
+  const ready = Boolean(descriptor?.ready);
+  state.segmentationSurface.descriptor = ready ? descriptor : null;
+  segmentationSurfaceToggle.disabled = !ready;
+  segmentationSurfacePanel.dataset.state = ready ? "ready" : "unavailable";
+  if (ready) {
+    segmentationSurfaceLayer.setDescriptor(descriptor);
+    segmentationSurfaceLayer.setEnabled(state.segmentationSurface.enabled);
+  } else {
+    segmentationSurfaceLayer.clear();
+  }
+  syncSegmentation3dAppearance();
+  syncReconstructionVisualizationResources();
+}
+
+async function syncSegmentationSurface() {
+  if (!state.segmentationSurface.descriptor || !volumeRayMarcher.current) return null;
+  try {
+    return await segmentationSurfaceLayer.sync(state.segmentationOverlay.presentation);
+  } catch (error) {
+    segmentationSurfacePanel.dataset.state = "error";
+    segmentationSurfaceStatus.textContent = error instanceof Error
+      ? error.message
+      : "Segmentation surface unavailable";
+    return null;
+  }
+}
+
+async function refreshSegmentationSurfaceDescriptor(labelMapId) {
+  if (!labelMapId || !state.study?.study_id) {
+    setSegmentationSurfaceAvailability(null);
+    return null;
+  }
+  if (segmentationSurfaceDescriptorPromise) return segmentationSurfaceDescriptorPromise;
+  const studyId = state.study.study_id;
+  const lifecycle = captureStudyLifecycle();
+  const request = (async () => {
+    const params = new URLSearchParams({ label_map_id: labelMapId });
+    const response = await fetch(`/api/studies/latest/segmentation-surfaces?${params}`, {
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { "Accept": "application/json" },
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!studyLifecycleMatches(lifecycle) || state.study?.study_id !== studyId) return null;
+    if (!response.ok) {
+      throw new Error(payload.detail || `3D segmentation initialization failed (${response.status})`);
+    }
+    const descriptor = payload.surface;
+    const readOnlyMriSurface = isReadOnlyMri(segmentationWorkflowSnapshot);
+    if (
+      descriptor?.ready !== true
+      || descriptor.label_map_id !== labelMapId
+      || descriptor.source_study_id !== studyId
+      || descriptor.coordinate_system !== "patient_lps"
+      || (
+        readOnlyMriSurface
+        && (
+          descriptor.label_map_id !== segmentationWorkflowSnapshot?.label_map_id
+          || descriptor.source_modality !== "MR"
+          || descriptor.provider_id !== "totalsegmentator"
+          || descriptor.model_id !== "total_mr"
+          || descriptor.clinical_validation !== "not_claimed"
+        )
+      )
+    ) {
+      throw new Error("3D segmentation study binding is invalid");
+    }
+    setSegmentationSurfaceAvailability(descriptor);
+    void syncSegmentationSurface();
+    return descriptor;
+  })();
+  segmentationSurfaceDescriptorPromise = request;
+  try {
+    return await request;
+  } catch (error) {
+    if (!studyLifecycleMatches(lifecycle) || state.study?.study_id !== studyId) return null;
+    setSegmentationSurfaceAvailability(null);
+    segmentationSurfacePanel.dataset.state = "error";
+    segmentationSurfaceStatus.textContent = error instanceof Error
+      ? error.message
+      : "3D segmentation unavailable";
+    return null;
+  } finally {
+    if (segmentationSurfaceDescriptorPromise === request) segmentationSurfaceDescriptorPromise = null;
+  }
+}
+
+function setSegmentationOverlayAvailability(descriptor) {
+  const ready = Boolean(descriptor?.ready);
+  const nextLabelMapId = ready ? descriptor.label_map_id : null;
+  if (segmentation3dAppearanceLabelMapId !== nextLabelMapId) {
+    segmentation3dAppearanceMode = "scientific";
+    segmentation3dAppearanceLabelMapId = nextLabelMapId;
+    segmentation3dAppearance.value = "scientific";
+    segmentationSurfaceLayer?.set3dColorOverrides(new Map());
+  }
+  state.segmentationOverlay.descriptor = ready ? descriptor : null;
+  state.segmentationOverlay.presentation = null;
+  segmentationOverlayPanel.dataset.state = ready ? "ready" : "unavailable";
+  segmentationOverlayToggle.disabled = !ready;
+  segmentationOverlayOpacity.disabled = !ready;
+  for (const entry of mprRegistry.values()) {
+    entry.segmentationLabels = null;
+    entry.segmentationWidth = null;
+    entry.segmentationHeight = null;
+  }
+  if (ready) {
+    state.segmentationOverlay.presentation = segmentationStructurePanel.load(descriptor);
+    syncSegmentationCorrectionContext(state.segmentationOverlay.presentation);
+    syncSegmentationOverlayPresentationStatus(state.segmentationOverlay.presentation);
+  } else {
+    segmentationStructurePanel.clear();
+    segmentationCorrectionPanel.clear();
+    segmentationOverlayStatus.textContent = "No canonical label map for this study.";
+    clearAllSegmentationOverlays();
+    setSegmentationSurfaceAvailability(null);
+  }
+  syncSegmentation3dAppearance();
+}
+
+async function refreshSegmentationOverlayDescriptor(labelMapId) {
+  if (!state.study?.study_id || !state.mpr.descriptor || !labelMapId) {
+    setSegmentationOverlayAvailability(null);
+    return null;
+  }
+  if (segmentationOverlayDescriptorPromise) return segmentationOverlayDescriptorPromise;
+  const studyId = state.study.study_id;
+  const lifecycle = captureStudyLifecycle();
+  const request = (async () => {
+    const params = new URLSearchParams({ label_map_id: String(labelMapId) });
+    const response = await fetch(`/api/studies/latest/segmentation-overlay?${params}`, {
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { "Accept": "application/json" },
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!studyLifecycleMatches(lifecycle) || state.study?.study_id !== studyId) return null;
+    if (!response.ok) {
+      throw new Error(payload.detail || `Segmentation overlay initialization failed (${response.status})`);
+    }
+    const descriptor = payload.overlay;
+    if (!descriptor?.ready) {
+      setSegmentationOverlayAvailability(null);
+      return null;
+    }
+    if (
+      descriptor.source_study_id !== studyId
+      || descriptor.label_map_id !== labelMapId
+      || (
+        isReadOnlyMri(segmentationWorkflowSnapshot)
+        && (
+          descriptor.source_modality !== "MR"
+          || descriptor.provider_id !== "totalsegmentator"
+          || descriptor.model_id !== "total_mr"
+          || descriptor.label_map_id !== segmentationWorkflowSnapshot?.label_map_id
+        )
+      )
+    ) {
+      throw new Error("Segmentation overlay study binding is invalid");
+    }
+    setSegmentationOverlayAvailability(descriptor);
+    await refreshSegmentationSurfaceDescriptor(descriptor.label_map_id);
+    if (!studyLifecycleMatches(lifecycle) || state.study?.study_id !== studyId) return null;
+    return descriptor;
+  })();
+  segmentationOverlayDescriptorPromise = request;
+  try {
+    return await request;
+  } catch (error) {
+    if (!studyLifecycleMatches(lifecycle) || state.study?.study_id !== studyId) return null;
+    setSegmentationOverlayAvailability(null);
+    segmentationOverlayPanel.dataset.state = "error";
+    segmentationOverlayStatus.textContent = error instanceof Error
+      ? error.message
+      : "Segmentation overlay unavailable";
+    return null;
+  } finally {
+    if (segmentationOverlayDescriptorPromise === request) segmentationOverlayDescriptorPromise = null;
+  }
+}
+
+async function renderSegmentationOverlayPlane(
+  plane,
+  index,
+  generation,
+  signal,
+  expectedWidth,
+  expectedHeight,
+) {
+  const descriptor = state.segmentationOverlay.descriptor;
+  const entry = mprRegistry.get(plane);
+  if (!entry) return;
+  if (!descriptor || !state.segmentationOverlay.enabled) {
+    clearSegmentationOverlay(entry.overlayCanvas);
+    return;
+  }
+  const params = new URLSearchParams({
+    index: String(index),
+    label_map_id: descriptor.label_map_id,
+  });
+  const response = await fetch(
+    `/api/studies/latest/segmentation-overlay/${plane}?${params}`,
+    {
+      credentials: "same-origin",
+      headers: { "Accept": "application/x-voxelatlas-rgba8" },
+      signal,
+    },
+  );
+  if (!response.ok) {
+    const detail = await response.json().catch(() => ({}));
+    throw new Error(detail.detail || `Segmentation overlay rendering failed (${response.status})`);
+  }
+  const width = Number(response.headers.get("X-VoxelAtlas-Width"));
+  const height = Number(response.headers.get("X-VoxelAtlas-Height"));
+  const labelMapId = response.headers.get("X-VoxelAtlas-Label-Map-Id");
+  const pixels = new Uint8Array(await response.arrayBuffer());
+  if (generation !== mprRenderGeneration) return;
+  if (
+    width !== expectedWidth
+    || height !== expectedHeight
+    || labelMapId !== descriptor.label_map_id
+  ) {
+    throw new Error("Segmentation overlay geometry binding is invalid");
+  }
+  entry.segmentationLabels = decodeSegmentationLabels(
+    pixels,
+    width,
+    height,
+    descriptor.palette,
+  );
+  entry.segmentationWidth = width;
+  entry.segmentationHeight = height;
+  drawSegmentationLabels(
+    entry.overlayCanvas,
+    entry.segmentationLabels,
+    width,
+    height,
+    state.segmentationOverlay.presentation,
+    state.segmentationOverlay.opacity,
+  );
+}
+
 async function renderMprPlane(plane, generation, signal) {
   const descriptor = state.mpr.descriptor;
   const entry = mprRegistry.get(plane);
@@ -1449,6 +2720,23 @@ async function renderMprPlane(plane, generation, signal) {
   entry.renderedPlaneDescriptor = planeDescriptor;
   entry.renderedPositionLpsMm = position;
   drawGray8(entry, buffer, width, height, planeDescriptor);
+  try {
+    await renderSegmentationOverlayPlane(
+      plane,
+      index,
+      generation,
+      signal,
+      width,
+      height,
+    );
+  } catch (error) {
+    if (error?.name === "AbortError") throw error;
+    clearSegmentationOverlay(entry.overlayCanvas);
+    segmentationOverlayPanel.dataset.state = "error";
+    segmentationOverlayStatus.textContent = error instanceof Error
+      ? error.message
+      : "Segmentation overlay rendering failed";
+  }
   entry.panel.dataset.volumeState = "ready";
   entry.index.textContent = `${index + 1} / ${planeDescriptor.slice_count}`;
   entry.position.textContent = `${planeDescriptor.coordinate}: ${position.toFixed(2)} mm`;
@@ -1496,12 +2784,14 @@ async function ensureMprReady() {
   }
   if (mprDescriptorPromise) return mprDescriptorPromise;
 
-  mprDescriptorPromise = (async () => {
+  const lifecycle = captureStudyLifecycle();
+  const request = (async () => {
     const response = await fetch("/api/studies/latest/mpr", {
       credentials: "same-origin",
       headers: { "Accept": "application/json" },
     });
     const payload = await response.json().catch(() => ({}));
+    if (!studyLifecycleMatches(lifecycle)) return null;
     if (!response.ok || !payload.mpr?.ready) {
       throw new Error(payload.detail || `MPR initialization failed (${response.status})`);
     }
@@ -1515,19 +2805,22 @@ async function ensureMprReady() {
       entry.message.textContent = "Rendering patient volume...";
     }
     await renderAllMprPlanes();
+    if (!studyLifecycleMatches(lifecycle)) return null;
     return payload.mpr;
   })();
+  mprDescriptorPromise = request;
 
   try {
-    return await mprDescriptorPromise;
+    return await request;
   } catch (error) {
+    if (!studyLifecycleMatches(lifecycle)) return null;
     for (const entry of mprRegistry.values()) {
       entry.panel.dataset.volumeState = "loading";
       entry.message.textContent = error instanceof Error ? error.message : "MPR initialization failed";
     }
     return null;
   } finally {
-    mprDescriptorPromise = null;
+    if (mprDescriptorPromise === request) mprDescriptorPromise = null;
   }
 }
 
@@ -1590,6 +2883,7 @@ for (const [plane, entry] of mprRegistry.entries()) {
       entry.view.dataset.interaction = "window-level";
     } else if (event.button === 0) {
       pointerMode = "crosshair";
+      state.mpr.activePlane = plane;
       setMprCrosshairFromPointer(plane, event);
     } else {
       return;
@@ -1760,9 +3054,13 @@ function renderSampleCatalog(samples) {
       image.referrerPolicy = "same-origin";
       preview.appendChild(image);
     } else {
-      const monogram = document.createElement("span");
-      monogram.textContent = sample.modality;
-      preview.appendChild(monogram);
+      const artwork = document.createElement("img");
+      artwork.className = "sample-study-modality-art";
+      artwork.src = SAMPLE_MODALITY_ARTWORK[sample.modality];
+      artwork.alt = "";
+      artwork.setAttribute("aria-hidden", "true");
+      artwork.loading = "lazy";
+      preview.appendChild(artwork);
     }
 
     const copy = document.createElement("div");
@@ -1792,7 +3090,7 @@ function renderSampleCatalog(samples) {
     const open = document.createElement("button");
     open.className = "sample-study-open";
     open.type = "button";
-    open.textContent = "Open in VoxelAtlas";
+    open.textContent = "Open";
     open.addEventListener("click", () => void requestSampleLoad(sample));
     copy.append(tags, title, summary, metadata, links, open);
     card.append(preview, copy);
@@ -1813,7 +3111,6 @@ async function openSampleCatalog() {
     sampleCatalogDialog.showModal();
   }
   sampleCatalogEmpty.hidden = true;
-  sampleReplaceConfirm.hidden = true;
   setSampleCatalogProgress(
     true,
     "Loading demonstration studies",
@@ -1834,30 +3131,8 @@ async function openSampleCatalog() {
   }
 }
 
-function confirmSampleReplacement(sample) {
-  if (!state.study) return Promise.resolve(true);
-  if (sampleReplacementResolver) sampleReplacementResolver(false);
-  sampleReplaceText.textContent = (
-    `Opening ${sample.title} will replace the scan currently shown. `
-    + "The source files already stored on the server are not deleted."
-  );
-  sampleReplaceConfirm.hidden = false;
-  sampleReplaceAccept.focus();
-  return new Promise((resolve) => {
-    sampleReplacementResolver = resolve;
-  });
-}
-
-function resolveSampleReplacement(accepted) {
-  if (!sampleReplacementResolver) return;
-  const resolve = sampleReplacementResolver;
-  sampleReplacementResolver = null;
-  sampleReplaceConfirm.hidden = true;
-  resolve(accepted);
-}
 
 async function requestSampleLoad(sample) {
-  if (!await confirmSampleReplacement(sample)) return;
   setSampleCatalogProgress(
     true,
     `Opening ${sample.title}`,
@@ -1865,14 +3140,18 @@ async function requestSampleLoad(sample) {
   );
   try {
     const payload = await sampleStudyCatalogClient.load(sample.sampleId);
-    if (!payload?.study) throw new Error("The sample study response was incomplete");
+    const activation = classifySampleStudyActivation(payload);
     applyStudy(payload.study);
     sampleCatalogDialog.close();
-    setUploadStatus(
-      "uploading",
-      `${sample.title} verified. Building its canonical patient volume...`,
-    );
-    if (payload.study.reconstruction_ready) {
+    if (activation === "restore") {
+      await restoreReadyPatientVolume(
+        `${sample.title} restored. Loading its synchronized patient volume...`,
+      );
+    } else if (activation === "construct") {
+      setUploadStatus(
+        "uploading",
+        `${sample.title} verified. Building its canonical patient volume...`,
+      );
       await ensureCanonicalVolume(payload.study);
     } else {
       setUploadStatus("warning", "Demonstration study loaded, but its geometry needs review.");
@@ -1921,7 +3200,29 @@ function renderSeriesDialog(study) {
 }
 
 function applyStudy(study) {
+  const previousStudyId = state.study?.study_id || null;
+  const nextStudyId = study?.study_id || null;
+  const previousSeriesUid = state.study?.reconstruction_series_uid || state.study?.primary_series_uid || null;
+  const nextSeriesUid = study?.reconstruction_series_uid || study?.primary_series_uid || null;
+  const previousVolumeRevision = state.study?.volume?.revision || state.study?.volume?.artifact_sha256 || null;
+  const nextVolumeRevision = study?.volume?.revision || study?.volume?.artifact_sha256 || null;
+  if (previousStudyId !== nextStudyId || previousSeriesUid !== nextSeriesUid
+      || previousVolumeRevision !== nextVolumeRevision) {
+    invalidateStudyScopedAsyncState();
+    mprAbortController?.abort();
+    state.mpr.descriptor = null;
+    segmentationWorkflowGeneration += 1;
+    clearSegmentationWorkflowPoll();
+    segmentationWorkflowSnapshot = null;
+    activeSegmentationLabelMapId = null;
+    segmentationWorkflowPanel.reset();
+    setSegmentationOverlayAvailability(null);
+  }
   state.study = study;
+  // Both sample activation and user upload converge here. Before a canonical MR
+  // volume exists, expose the selected series qualification without ML execution.
+  const pendingMr = prevolumeMriWorkflow(study);
+  if (pendingMr) renderSegmentationWorkflow(pendingMr);
   setWorkflowForStudy(study);
   setMprVolumeState(study);
 
@@ -1943,7 +3244,6 @@ function applyStudy(study) {
     seriesButton.disabled = true;
     seriesButtonLabel.textContent = "DICOM series unavailable";
     uploadDicomLabel.textContent = "Upload DICOM";
-    anatomyNote.textContent = "Upload a CT or MRI DICOM study to visualize its voxel volume in 3D.";
     setVolumeAvailability(false);
     return;
   }
@@ -1972,59 +3272,94 @@ function applyStudy(study) {
     : "-";
   seriesButton.disabled = false;
   seriesButtonLabel.textContent = `${study.series_count} DICOM series discovered`;
-  uploadDicomLabel.textContent = "Replace DICOM Study";
-  anatomyNote.textContent = study.volume_ready
-    ? "Patient volume and synchronized MPR are available. Preparing direct 3D volume rendering."
-    : "Canonical patient volume construction is required before direct 3D rendering.";
+  uploadDicomLabel.textContent = "Upload DICOM";
   renderSeriesDialog(study);
   setVolumeAvailability(volumeLayer.available);
 }
 
 async function ensureCanonicalVolume(study) {
   if (!study?.reconstruction_ready || study.volume_ready) return study;
+  const studyId = study.study_id;
+  let lifecycle = captureStudyLifecycle();
+  if (!studyLifecycleMatches(lifecycle) || state.study?.study_id !== studyId) return state.study;
   if (volumeBuildPromise) return volumeBuildPromise;
 
   volumeStatusRow.dataset.state = "pending";
   volumeStatusText.textContent = "Building patient volume...";
   setUploadStatus("uploading", "Geometry qualified. Building canonical patient volume...");
 
-  volumeBuildPromise = (async () => {
+  const request = (async () => {
     const response = await fetch("/api/studies/latest/volume", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Accept": "application/json" },
     });
     const payload = await response.json().catch(() => ({}));
+    if (!studyLifecycleMatches(lifecycle) || state.study?.study_id !== studyId) return null;
     if (!response.ok) {
       throw new Error(payload.detail || `Patient volume construction failed (${response.status})`);
     }
-    applyStudy(payload.study || null);
+    if (!payload.study || payload.study.study_id !== studyId) {
+      throw new Error("Patient volume construction study binding is invalid");
+    }
+    applyStudy(payload.study);
+    lifecycle = captureStudyLifecycle();
+    if (!studyLifecycleMatches(lifecycle) || state.study?.study_id !== studyId) return null;
     setUploadStatus(
       "ready",
       "Canonical patient volume built. Loading synchronized MPR views...",
     );
+    // Post-6F stabilization: start the independent GPU volume path immediately
+    // while synchronized MPR initializes. The later await reuses the same task.
+    void ensureVolumeRenderingFoundation();
     await ensureMprReady();
+    if (!studyLifecycleMatches(lifecycle) || state.study?.study_id !== studyId) return null;
     setPatientVolumeReadyStatus();
     await ensureVolumeRenderingFoundation();
-    return payload.study || null;
+    if (!studyLifecycleMatches(lifecycle) || state.study?.study_id !== studyId) return null;
+    void refreshSegmentationWorkflowStatus({ activateAvailable: false });
+    return payload.study;
   })();
+  volumeBuildPromise = request;
 
   try {
-    return await volumeBuildPromise;
+    return await request;
   } catch (error) {
+    if (!studyLifecycleMatches(lifecycle) || state.study?.study_id !== studyId) return state.study;
     setUploadStatus(
       "error",
       error instanceof Error ? error.message : "Patient volume construction failed",
     );
     volumeStatusRow.dataset.state = "pending";
     volumeStatusText.textContent = "Geometry ready - volume construction failed";
+    if (state.study?.study_id === studyId) {
+      const failedMr = prevolumeMriWorkflow(state.study, { volumeBuildFailed: true });
+      if (failedMr) renderSegmentationWorkflow(failedMr);
+    }
     return study;
   } finally {
-    volumeBuildPromise = null;
+    if (volumeBuildPromise === request) volumeBuildPromise = null;
   }
 }
 
+async function restoreReadyPatientVolume(message) {
+  const lifecycle = captureStudyLifecycle();
+  const studyId = state.study?.study_id || null;
+  setUploadStatus("ready", message);
+  // Post-6F stabilization: restore MPR and the GPU volume in parallel so the
+  // workspace becomes useful sooner when switching between ready studies.
+  void ensureVolumeRenderingFoundation();
+  await ensureMprReady();
+  if (!studyLifecycleMatches(lifecycle) || state.study?.study_id !== studyId) return null;
+  setPatientVolumeReadyStatus();
+  await ensureVolumeRenderingFoundation();
+  if (!studyLifecycleMatches(lifecycle) || state.study?.study_id !== studyId) return null;
+  void refreshSegmentationWorkflowStatus({ activateAvailable: false });
+  return state.study;
+}
+
 async function refreshLatestStudy() {
+  const lifecycle = captureStudyLifecycle();
   try {
     const response = await fetch("/api/studies/latest", {
       credentials: "same-origin",
@@ -2032,13 +3367,13 @@ async function refreshLatestStudy() {
     });
     if (!response.ok) return;
     const payload = await response.json();
+    if (!studyLifecycleMatches(lifecycle)) return;
     applyStudy(payload.study || null);
     if (payload.study) {
       if (payload.study.volume_ready) {
-        setUploadStatus("ready", "Stored canonical patient volume restored. Loading MPR views...");
-        await ensureMprReady();
-        setPatientVolumeReadyStatus();
-        await ensureVolumeRenderingFoundation();
+        await restoreReadyPatientVolume(
+          "Stored canonical patient volume restored. Loading MPR views...",
+        );
       } else if (payload.study.reconstruction_ready) {
         setUploadStatus("uploading", "Stored DICOM geometry restored. Building patient volume...");
         await ensureCanonicalVolume(payload.study);
@@ -2061,7 +3396,7 @@ async function uploadDicomFiles(files) {
 
   uploadDicomButton.disabled = true;
   uploadDicomButton.dataset.state = "uploading";
-  uploadDicomLabel.textContent = `Uploading ${files.length} file${files.length === 1 ? "" : "s"}...`;
+  uploadDicomLabel.textContent = "Upload DICOM";
   setUploadStatus("uploading", "Validating DICOM headers and grouping Study/Series metadata...");
 
   try {
@@ -2090,8 +3425,8 @@ async function uploadDicomFiles(files) {
     }
   } catch (error) {
     setUploadStatus("error", error instanceof Error ? error.message : "DICOM upload failed");
-    uploadDicomLabel.textContent = state.study ? "Replace DICOM Study" : "Upload DICOM";
   } finally {
+    uploadDicomLabel.textContent = "Upload DICOM";
     uploadDicomButton.disabled = false;
     uploadDicomButton.dataset.state = "idle";
     dicomFileInput.value = "";
@@ -2105,17 +3440,12 @@ sampleCatalogClose.addEventListener("click", () => {
 });
 sampleCatalogDialog.addEventListener("cancel", (event) => {
   if (sampleCatalogLoading) event.preventDefault();
-  resolveSampleReplacement(false);
 });
 sampleCatalogDialog.addEventListener("click", (event) => {
   if (event.target === sampleCatalogDialog && !sampleCatalogLoading) {
-    resolveSampleReplacement(false);
     sampleCatalogDialog.close();
   }
 });
-sampleReplaceCancel.addEventListener("click", () => resolveSampleReplacement(false));
-sampleReplaceAccept.addEventListener("click", () => resolveSampleReplacement(true));
-
 dicomFileInput.addEventListener("change", () => {
   void uploadDicomFiles(Array.from(dicomFileInput.files || []));
 });
@@ -2134,12 +3464,6 @@ seriesDialog.addEventListener("click", (event) => {
 });
 
 for (const [plane, controlsForPlane] of clippingRegistry.entries()) {
-  controlsForPlane.enabled.addEventListener("change", () => {
-    state.clipping[plane].enabled = controlsForPlane.enabled.checked;
-    setClippingControlsEnabled(true);
-    applyPatientClipping();
-    volumeRenderingQuality.pulseInteraction("clipping");
-  });
   controlsForPlane.start.addEventListener("input", () => {
     updateClippingBoundaryFromControl(plane, "start");
     volumeRenderingQuality.pulseInteraction("clipping");
@@ -2156,6 +3480,101 @@ clippingResetButton.addEventListener("click", () => {
 });
 
 mprClippingOverlayToggle.addEventListener("change", updateMprClippingOverlays);
+
+for (const button of reconstructionModeButtons) {
+  button.addEventListener("click", () => {
+    if (button.disabled) return;
+    requestReconstructionVisualizationMode(button.dataset.reconstructionMode);
+  });
+}
+
+for (const input of reconstructionSurfaceSourceInputs) {
+  input.addEventListener("change", () => {
+    if (input.disabled) return;
+    requestReconstructionSurfaceSourceSelection(
+      input.dataset.reconstructionSurfaceSource,
+      input.checked,
+    );
+  });
+}
+
+for (const button of reconstructionPresentationProfileButtons) {
+  button.addEventListener("click", () => {
+    requestReconstructionPresentationProfile(button.dataset.reconstructionPresentationProfile);
+  });
+}
+
+volumeSurfaceBuild.addEventListener("click", () => {
+  void requestVolumeSurfaceBuild();
+});
+
+volumeSurfaceClear.addEventListener("click", clearVolumeDerivedSurface);
+
+volumeSurfaceRegionMode.addEventListener("change", () => {
+  try {
+    volumeSurfaceLayer.setRegionDisplayMode(volumeSurfaceRegionMode.value);
+    syncDirectCtRegionControls();
+  } catch {
+    // Fail closed: disable the control rather than guess a region identity.
+    volumeSurfaceRegionMode.disabled = true;
+    volumeSurfaceRegionMode.value = "all";
+    volumeSurfaceRegionStatus.textContent = "Region selection unavailable. Rebuild the full surface if needed.";
+  }
+});
+
+volumeSurfaceIsovalue.addEventListener("change", () => {
+  const snapshot = reconstructionVisualizationController?.snapshot();
+  if ((snapshot?.mode === "surface" || snapshot?.mode === "combined")
+      && state.reconstructionVisualization.surfaceSourceSelection["volume-derived"]
+      && Number(volumeSurfaceIsovalue.value) !== volumeSurfaceLayer.current?.isovalue
+      && !volumeSurfaceIsovalue.disabled) {
+    void requestVolumeSurfaceBuild();
+  }
+});
+
+volumeSurfaceIsovalue.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !volumeSurfaceBuild.disabled) {
+    event.preventDefault();
+    void requestVolumeSurfaceBuild();
+  }
+});
+
+segmentationOverlayToggle.addEventListener("change", () => {
+  state.segmentationOverlay.enabled = segmentationOverlayToggle.checked;
+  if (state.segmentationOverlay.enabled) {
+    scheduleMprRender();
+  } else {
+    clearAllSegmentationOverlays();
+  }
+});
+
+segmentationOverlayOpacity.addEventListener("input", () => {
+  state.segmentationOverlay.opacity = clamp(
+    Number(segmentationOverlayOpacity.value) / 100,
+    0,
+    1,
+  );
+  segmentationOverlayOpacityValue.textContent = `${Math.round(state.segmentationOverlay.opacity * 100)}%`;
+  for (const entry of mprRegistry.values()) {
+    entry.overlayCanvas.style.opacity = String(state.segmentationOverlay.opacity);
+  }
+});
+
+segmentation3dAppearance.addEventListener("change", () => {
+  if (segmentation3dAppearance.disabled) return;
+  const requested = segmentation3dAppearance.value;
+  if (requested !== "scientific" && requested !== "anatomical") return;
+  segmentation3dAppearanceMode = requested;
+  syncSegmentation3dAppearance();
+});
+
+segmentationSurfaceToggle.addEventListener("change", () => {
+  state.segmentationSurface.enabled = segmentationSurfaceToggle.checked;
+  if (!state.segmentationSurface.enabled) segmentationSurfaceGate?.invalidate();
+  segmentationSurfaceLayer.setEnabled(state.segmentationSurface.enabled);
+  syncReconstructionVisualizationResources();
+  if (state.segmentationSurface.enabled) void syncSegmentationSurface();
+});
 
 transferPresetSelect.addEventListener("change", () => {
   applyTransferPreset(transferPresetSelect.value);
@@ -2424,9 +3843,12 @@ void refreshLatestStudy();
 const timer = new THREE.Timer();
 timer.connect(document);
 window.addEventListener("pagehide", () => {
+  clearSegmentationWorkflowPoll();
   qualification?.dispose();
   volumeRenderingQuality.deactivate();
   volumeRayMarcher.dispose();
+  volumeSurfaceLayer.dispose();
+  segmentationSurfaceLayer.dispose();
   volumeTextureManager.dispose();
   timer.dispose();
 }, { once: true });
@@ -2449,6 +3871,7 @@ function animate(timestamp) {
   if (shouldRender) {
     viewerRenderRequested = false;
     updateOrientationGizmo();
+    surfaceLightingRig.syncToView(camera, controls.target);
     const qualificationStart = qualification ? performance.now() : 0;
     renderer.render(scene, camera);
     if (volumeLayer.available && volumeRayMarcher.current) {

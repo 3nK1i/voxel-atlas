@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import timedelta
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, File, HTTPException, Query, Request, Response, UploadFile, status
+from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, Query, Request, Response, UploadFile, status
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -44,12 +44,42 @@ from .sample_catalog import (
     SampleStudyIntegrityError,
     SampleStudyNotFoundError,
 )
+from .segmentation import (
+    SegmentationConflictError,
+    SegmentationError,
+    SegmentationJobService,
+    build_default_segmentation_registry,
+    SegmentationModelRegistry,
+    SegmentationNotFoundError,
+    SegmentationUnavailableError,
+    SegmentationValidationError,
+)
+from .segmentation_label_maps import SegmentationLabelMapService
+from .segmentation_corrections import SegmentationCorrectionService
+from .segmentation_overlays import (
+    OVERLAY_MEDIA_TYPE,
+    SegmentationOverlayService,
+)
+from .segmentation_workflow import SegmentationWorkflowService
+from .mri_provider_qualification import build_mri_model_descriptor
+from .totalsegmentator_execution import TotalSegmentatorProvider
+from .segmentation_surfaces import (
+    SURFACE_MEDIA_TYPE,
+    SegmentationSurfaceService,
+)
 from .volume_rendering import (
     RENDERING_MEDIA_TYPE,
     VolumeRenderingDependencyUnavailable,
     VolumeRenderingError,
     VolumeRenderingService,
     VolumeRenderingValidationError,
+)
+from .volume_surfaces import (
+    VOLUME_SURFACE_MEDIA_TYPE,
+    VolumeSurfaceError,
+    VolumeSurfaceService,
+    VolumeSurfaceUnavailableError,
+    VolumeSurfaceValidationError,
 )
 
 
@@ -73,6 +103,37 @@ class AnonymousResponse(BaseModel):
     authenticated: bool
 
 
+class SegmentationJobCreateRequest(BaseModel):
+    provider_id: str = Field(
+        min_length=1,
+        max_length=64,
+        pattern=r"^[a-z0-9][a-z0-9._-]*$",
+    )
+    model_id: str = Field(
+        min_length=1,
+        max_length=64,
+        pattern=r"^[a-z0-9][a-z0-9._-]*$",
+    )
+    device: str = Field(default="auto", min_length=1, max_length=16)
+    parameters: dict[str, object] = Field(default_factory=dict)
+
+
+class VolumeSurfaceCreateRequest(BaseModel):
+    isovalue: float = Field(ge=-1000000.0, le=1000000.0)
+
+
+class SegmentationCorrectionSessionCreateRequest(BaseModel):
+    label_map_id: str = Field(pattern=r"^map-[0-9a-f]{32}$")
+
+
+class SegmentationCorrectionActionCreateRequest(BaseModel):
+    kind: str = Field(pattern=r"^(include|exclude|review)$")
+    label_id: int = Field(ge=1, le=65535)
+    center_lps_mm: list[float] = Field(min_length=3, max_length=3)
+    radius_mm: float = Field(ge=0.5, le=25.0)
+    plane: str = Field(pattern=r"^(axial|coronal|sagittal)$")
+
+
 def _build_auth_service(settings: AppSettings) -> AuthenticationService | None:
     if settings.auth_username is None or settings.auth_password_hash is None:
         return None
@@ -94,7 +155,14 @@ def create_app(
     mpr_service: CanonicalMprService | None = None,
     anatomy_service: AnatomyReconstructionService | None = None,
     volume_rendering_service: VolumeRenderingService | None = None,
+    volume_surface_service: VolumeSurfaceService | None = None,
     sample_catalog_service: SampleStudyCatalogService | None = None,
+    segmentation_service: SegmentationJobService | None = None,
+    segmentation_label_map_service: SegmentationLabelMapService | None = None,
+    segmentation_overlay_service: SegmentationOverlayService | None = None,
+    segmentation_surface_service: SegmentationSurfaceService | None = None,
+    segmentation_correction_service: SegmentationCorrectionService | None = None,
+    segmentation_workflow_service: SegmentationWorkflowService | None = None,
 ) -> FastAPI:
     runtime_settings = load_settings() if settings is None else settings
     if (
@@ -136,12 +204,92 @@ def create_app(
         if volume_rendering_service is not None
         else VolumeRenderingService(data_dir=runtime_settings.data_dir)
     )
+    patient_volume_surface_service = (
+        volume_surface_service
+        if volume_surface_service is not None
+        else VolumeSurfaceService(
+            data_dir=runtime_settings.data_dir,
+            volume_rendering_service=patient_volume_rendering_service,
+            worker_python=runtime_settings.surface_worker_python,
+            worker_script=REPOSITORY_ROOT / "scripts" / "phase6d1_volume_surface_worker.py",
+        )
+    )
+    if segmentation_service is not None:
+        # Preserve explicitly injected services and their registry untouched.
+        patient_segmentation_service = segmentation_service
+    else:
+        if runtime_settings.segmentation_worker_python is not None:
+            provider = TotalSegmentatorProvider(
+                data_dir=runtime_settings.data_dir,
+                python_executable=runtime_settings.segmentation_worker_python,
+                bridge_script=REPOSITORY_ROOT / "scripts" / "phase5b2_nifti_worker.py",
+            )
+            registry = SegmentationModelRegistry()
+            registry.register_provider(provider)
+        else:
+            registry = build_default_segmentation_registry()
+        # A descriptive, unavailable MRI model is not an executable provider.
+        # Keep the CT runtime and source selection unchanged until C4B/C5.
+        registry.register_descriptor(build_mri_model_descriptor(
+            data_dir=runtime_settings.data_dir,
+            python_executable=runtime_settings.mri_worker_python,
+        ))
+        patient_segmentation_service = SegmentationJobService(
+            data_dir=runtime_settings.data_dir, registry=registry,
+        )
+    patient_segmentation_label_map_service = (
+        segmentation_label_map_service
+        if segmentation_label_map_service is not None
+        else SegmentationLabelMapService(
+            data_dir=runtime_settings.data_dir,
+            job_service=patient_segmentation_service,
+        )
+    )
     patient_sample_catalog_service = (
         sample_catalog_service
         if sample_catalog_service is not None
         else SampleStudyCatalogService(
             data_dir=runtime_settings.data_dir,
             dicom_service=study_service,
+            label_map_service=patient_segmentation_label_map_service,
+        )
+    )
+    patient_segmentation_overlay_service = (
+        segmentation_overlay_service
+        if segmentation_overlay_service is not None
+        else SegmentationOverlayService(
+            data_dir=runtime_settings.data_dir,
+            mpr_service=patient_mpr_service,
+            label_map_service=patient_segmentation_label_map_service,
+        )
+    )
+    patient_segmentation_surface_service = (
+        segmentation_surface_service
+        if segmentation_surface_service is not None
+        else SegmentationSurfaceService(
+            data_dir=runtime_settings.data_dir,
+            label_map_service=patient_segmentation_label_map_service,
+            worker_python=runtime_settings.surface_worker_python,
+        )
+    )
+    patient_segmentation_correction_service = (
+        segmentation_correction_service
+        if segmentation_correction_service is not None
+        else SegmentationCorrectionService(
+            data_dir=runtime_settings.data_dir,
+            label_map_service=patient_segmentation_label_map_service,
+        )
+    )
+    patient_segmentation_workflow_service = (
+        segmentation_workflow_service
+        if segmentation_workflow_service is not None
+        else SegmentationWorkflowService(
+            data_dir=runtime_settings.data_dir,
+            job_service=patient_segmentation_service,
+            label_map_service=patient_segmentation_label_map_service,
+            python_executable=runtime_settings.segmentation_worker_python,
+            import_worker_script=REPOSITORY_ROOT / "scripts" / "phase5c_label_map_worker.py",
+            mri_presentation_only=True,  # C4C status only; C5 owns real model execution.
         )
     )
 
@@ -157,7 +305,14 @@ def create_app(
     app.state.mpr_service = patient_mpr_service
     app.state.anatomy_service = patient_anatomy_service
     app.state.volume_rendering_service = patient_volume_rendering_service
+    app.state.volume_surface_service = patient_volume_surface_service
     app.state.sample_catalog_service = patient_sample_catalog_service
+    app.state.segmentation_service = patient_segmentation_service
+    app.state.segmentation_label_map_service = patient_segmentation_label_map_service
+    app.state.segmentation_overlay_service = patient_segmentation_overlay_service
+    app.state.segmentation_surface_service = patient_segmentation_surface_service
+    app.state.segmentation_correction_service = patient_segmentation_correction_service
+    app.state.segmentation_workflow_service = patient_segmentation_workflow_service
 
     app.mount("/assets", StaticFiles(directory=WEB_ROOT / "assets"), name="assets")
     app.mount("/css", StaticFiles(directory=WEB_ROOT / "css"), name="css")
@@ -608,6 +763,571 @@ def create_app(
                 "X-VoxelAtlas-Volume-SHA256": descriptor.artifact_sha256,
             },
         )
+
+    def raise_segmentation_http_error(exc: SegmentationError) -> None:
+        if isinstance(exc, SegmentationNotFoundError):
+            code = status.HTTP_404_NOT_FOUND
+        elif isinstance(exc, (SegmentationConflictError, SegmentationUnavailableError)):
+            code = status.HTTP_409_CONFLICT
+        elif isinstance(exc, SegmentationValidationError):
+            code = status.HTTP_422_UNPROCESSABLE_ENTITY
+        else:
+            code = status.HTTP_400_BAD_REQUEST
+        raise HTTPException(
+            status_code=code,
+            detail=str(exc),
+            headers={"Cache-Control": "no-store"},
+        ) from exc
+
+    @app.get("/api/studies/latest/volume-surface")
+    def latest_volume_surface_descriptor(
+        response: Response,
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        current_service: VolumeSurfaceService = app.state.volume_surface_service
+        try:
+            descriptor = current_service.descriptor_latest()
+        except VolumeSurfaceUnavailableError as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc), headers={"Cache-Control":"no-store"}) from exc
+        except VolumeSurfaceValidationError as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc), headers={"Cache-Control":"no-store"}) from exc
+        except VolumeSurfaceError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc), headers={"Cache-Control":"no-store"}) from exc
+        return {"volume_surface": descriptor}
+
+    @app.post("/api/studies/latest/volume-surface")
+    def build_latest_volume_surface(
+        payload: VolumeSurfaceCreateRequest,
+        username: str = Depends(require_username),
+    ) -> Response:
+        del username
+        current_service: VolumeSurfaceService = app.state.volume_surface_service
+        try:
+            surface = current_service.surface_latest(isovalue=payload.isovalue)
+        except VolumeSurfaceUnavailableError as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc), headers={"Cache-Control":"no-store"}) from exc
+        except VolumeSurfaceValidationError as exc:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc), headers={"Cache-Control":"no-store"}) from exc
+        except VolumeSurfaceError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc), headers={"Cache-Control":"no-store"}) from exc
+        bounds = ",".join(f"{value:.6f}" for value in surface.bounds_lps_mm)
+        return Response(
+            content=surface.payload,
+            media_type=VOLUME_SURFACE_MEDIA_TYPE,
+            headers={
+                "Cache-Control": "no-store",
+                "X-Content-Type-Options": "nosniff",
+                "X-VoxelAtlas-Volume-Surface-Id": surface.surface_id,
+                "X-VoxelAtlas-Volume-Surface-Source": surface.source_type,
+                "X-VoxelAtlas-Volume-Surface-Isovalue": f"{surface.isovalue:.6f}",
+                "X-VoxelAtlas-Volume-Surface-Units": surface.intensity_units,
+                "X-VoxelAtlas-Volume-Surface-Extraction": surface.extraction,
+                "X-VoxelAtlas-Volume-Surface-SHA256": surface.payload_sha256,
+                "X-VoxelAtlas-Volume-Surface-Provenance-SHA256": surface.provenance_sha256,
+                "X-VoxelAtlas-Volume-Surface-Vertices": str(surface.vertex_count),
+                "X-VoxelAtlas-Volume-Surface-Triangles": str(surface.triangle_count),
+                "X-VoxelAtlas-Volume-Surface-Degenerate-Triangles-Removed": str(surface.degenerate_triangle_count),
+                "X-VoxelAtlas-Volume-Surface-Unreferenced-Vertices-Removed": str(surface.unreferenced_vertex_count),
+                "X-VoxelAtlas-Volume-Surface-Bounds-LPS-MM": bounds,
+            },
+        )
+
+    @app.get("/api/studies/latest/volume-surface/regions")
+    def latest_direct_ct_region_evidence(
+        surface_id: str,
+        username: str = Depends(require_username),
+    ) -> Response:
+        del username
+        current_service: VolumeSurfaceService = app.state.volume_surface_service
+        try:
+            evidence = current_service.region_evidence_latest(surface_id=surface_id)
+        except VolumeSurfaceUnavailableError as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc),
+                                headers={"Cache-Control": "no-store"}) from exc
+        except VolumeSurfaceValidationError as exc:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc),
+                                headers={"Cache-Control": "no-store"}) from exc
+        return Response(
+            content=evidence.labels,
+            media_type="application/x-voxelatlas-direct-ct-regions-v1",
+            headers={
+                "Cache-Control": "no-store",
+                "X-Content-Type-Options": "nosniff",
+                "X-VoxelAtlas-Volume-Surface-Id": evidence.surface_id,
+                "X-VoxelAtlas-Volume-Surface-SHA256": evidence.surface_sha256,
+                "X-VoxelAtlas-Region-Labels-SHA256": evidence.labels_sha256,
+                "X-VoxelAtlas-Region-Triangles": str(evidence.triangle_count),
+                "X-VoxelAtlas-Region-Face-Counts": ",".join(map(str, evidence.face_counts)),
+                "X-VoxelAtlas-Region-Body-Count": str(evidence.body_region_count),
+                "X-VoxelAtlas-Region-Classification": evidence.classification,
+            },
+        )
+
+    @app.get("/api/studies/latest/segmentation-workflow")
+    def latest_segmentation_workflow(
+        response: Response,
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        current_service: SegmentationWorkflowService = (
+            app.state.segmentation_workflow_service
+        )
+        try:
+            workflow = current_service.snapshot_latest()
+        except SegmentationError as exc:
+            raise_segmentation_http_error(exc)
+        return {"workflow": workflow}
+
+    @app.post("/api/studies/latest/segmentation-workflow/start")
+    def start_latest_segmentation_workflow(
+        background_tasks: BackgroundTasks,
+        response: Response,
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        current_service: SegmentationWorkflowService = (
+            app.state.segmentation_workflow_service
+        )
+        try:
+            requested = current_service.request_start()
+        except SegmentationError as exc:
+            raise_segmentation_http_error(exc)
+        if requested.background_job_id is not None:
+            background_tasks.add_task(
+                current_service.execute_requested, requested.background_job_id
+            )
+        return {"workflow": requested.workflow}
+
+    @app.post("/api/studies/latest/segmentation-workflow/cancel")
+    def cancel_latest_segmentation_workflow(
+        response: Response,
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        current_service: SegmentationWorkflowService = (
+            app.state.segmentation_workflow_service
+        )
+        try:
+            workflow = current_service.cancel_latest()
+        except SegmentationError as exc:
+            raise_segmentation_http_error(exc)
+        return {"workflow": workflow}
+
+    @app.get("/api/segmentation/models")
+    def segmentation_models(
+        response: Response,
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        current_service: SegmentationJobService = app.state.segmentation_service
+        return {"models": current_service.list_models()}
+
+    @app.get("/api/segmentation/devices")
+    def segmentation_devices(
+        response: Response,
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        current_service: SegmentationJobService = app.state.segmentation_service
+        return {"devices": current_service.list_devices()}
+
+    @app.post("/api/segmentation/jobs", status_code=status.HTTP_201_CREATED)
+    def create_segmentation_job(
+        payload: SegmentationJobCreateRequest,
+        response: Response,
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        current_service: SegmentationJobService = app.state.segmentation_service
+        try:
+            job = current_service.create_job(
+                provider_id=payload.provider_id,
+                model_id=payload.model_id,
+                device_request=payload.device,
+                parameters=payload.parameters,
+            )
+        except SegmentationError as exc:
+            raise_segmentation_http_error(exc)
+        return {"job": job}
+
+    @app.get("/api/segmentation/jobs")
+    def segmentation_jobs(
+        response: Response,
+        limit: int = Query(default=50, ge=1, le=100),
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        current_service: SegmentationJobService = app.state.segmentation_service
+        return {"jobs": current_service.list_jobs()[:limit]}
+
+    @app.get("/api/segmentation/jobs/{job_id}")
+    def segmentation_job(
+        job_id: str,
+        response: Response,
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        current_service: SegmentationJobService = app.state.segmentation_service
+        try:
+            job = current_service.get_job(job_id)
+        except SegmentationError as exc:
+            raise_segmentation_http_error(exc)
+        return {"job": job}
+
+    @app.post("/api/segmentation/jobs/{job_id}/cancel")
+    def cancel_segmentation_job(
+        job_id: str,
+        response: Response,
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        current_service: SegmentationJobService = app.state.segmentation_service
+        try:
+            job = current_service.cancel_job(job_id)
+        except SegmentationError as exc:
+            raise_segmentation_http_error(exc)
+        return {"job": job}
+
+    @app.get("/api/segmentation/label-maps")
+    def segmentation_label_maps(
+        response: Response,
+        study_id: str | None = Query(
+            default=None,
+            min_length=32,
+            max_length=32,
+            pattern=r"^[0-9a-f]{32}$",
+        ),
+        limit: int = Query(default=50, ge=1, le=100),
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        current_service: SegmentationLabelMapService = (
+            app.state.segmentation_label_map_service
+        )
+        try:
+            label_maps = current_service.list(study_id=study_id)
+        except SegmentationError as exc:
+            raise_segmentation_http_error(exc)
+        return {"label_maps": label_maps[:limit]}
+
+    @app.get("/api/segmentation/label-maps/{label_map_id}")
+    def segmentation_label_map(
+        label_map_id: str,
+        response: Response,
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        current_service: SegmentationLabelMapService = (
+            app.state.segmentation_label_map_service
+        )
+        try:
+            label_map = current_service.get(label_map_id)
+        except SegmentationError as exc:
+            raise_segmentation_http_error(exc)
+        return {"label_map": label_map}
+
+    @app.get("/api/studies/latest/segmentation-overlay")
+    def latest_segmentation_overlay_descriptor(
+        response: Response,
+        label_map_id: str | None = Query(
+            default=None,
+            min_length=36,
+            max_length=36,
+            pattern=r"^map-[0-9a-f]{32}$",
+        ),
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        current_service: SegmentationOverlayService = (
+            app.state.segmentation_overlay_service
+        )
+        try:
+            overlay = current_service.descriptor_latest(label_map_id=label_map_id)
+        except SegmentationError as exc:
+            raise_segmentation_http_error(exc)
+        return {"overlay": overlay}
+
+    @app.get("/api/studies/latest/segmentation-overlay/{plane}")
+    def latest_segmentation_overlay_plane(
+        plane: str,
+        index: int = Query(ge=0),
+        label_map_id: str | None = Query(
+            default=None,
+            min_length=36,
+            max_length=36,
+            pattern=r"^map-[0-9a-f]{32}$",
+        ),
+        username: str = Depends(require_username),
+    ) -> Response:
+        del username
+        current_service: SegmentationOverlayService = (
+            app.state.segmentation_overlay_service
+        )
+        try:
+            image = current_service.render_latest(
+                plane,
+                index=index,
+                label_map_id=label_map_id,
+            )
+        except SegmentationError as exc:
+            raise_segmentation_http_error(exc)
+        return Response(
+            content=image.pixels,
+            media_type=OVERLAY_MEDIA_TYPE,
+            headers={
+                "Cache-Control": "no-store",
+                "X-VoxelAtlas-Plane": image.plane,
+                "X-VoxelAtlas-Index": str(image.index),
+                "X-VoxelAtlas-Position-Mm": f"{image.position_mm:.6f}",
+                "X-VoxelAtlas-Width": str(image.width),
+                "X-VoxelAtlas-Height": str(image.height),
+                "X-VoxelAtlas-Label-Map-Id": image.label_map_id,
+            },
+        )
+
+    @app.get("/api/studies/latest/segmentation-surfaces")
+    def latest_segmentation_surface_descriptor(
+        response: Response,
+        label_map_id: str | None = Query(
+            default=None,
+            min_length=36,
+            max_length=36,
+            pattern=r"^map-[0-9a-f]{32}$",
+        ),
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        current_service: SegmentationSurfaceService = (
+            app.state.segmentation_surface_service
+        )
+        try:
+            surface = current_service.descriptor_latest(label_map_id=label_map_id)
+        except SegmentationError as exc:
+            raise_segmentation_http_error(exc)
+        return {"surface": surface}
+
+    @app.get("/api/studies/latest/segmentation-surfaces/{label_id}")
+    def latest_segmentation_surface(
+        label_id: int,
+        label_map_id: str = Query(
+            min_length=36,
+            max_length=36,
+            pattern=r"^map-[0-9a-f]{32}$",
+        ),
+        quality: str = Query(default="accurate", pattern=r"^(refined|accurate|preview|balanced)$"),
+        username: str = Depends(require_username),
+    ) -> Response:
+        del username
+        current_service: SegmentationSurfaceService = (
+            app.state.segmentation_surface_service
+        )
+        try:
+            surface = current_service.surface_latest(
+                label_id=label_id,
+                label_map_id=label_map_id,
+                quality=quality,
+            )
+        except SegmentationError as exc:
+            raise_segmentation_http_error(exc)
+        bounds = ",".join(f"{value:.6f}" for value in surface.bounds_lps_mm)
+        return Response(
+            content=surface.payload,
+            media_type=surface.media_type,
+            headers={
+                "Cache-Control": "no-store",
+                "X-Content-Type-Options": "nosniff",
+                "X-VoxelAtlas-Label-Map-Id": surface.label_map_id,
+                "X-VoxelAtlas-Label-Id": str(surface.label_id),
+                "X-VoxelAtlas-Surface-Quality": surface.quality,
+                "X-VoxelAtlas-Surface-Extraction": surface.extraction,
+                "X-VoxelAtlas-Surface-SHA256": surface.payload_sha256,
+                "X-VoxelAtlas-Surface-Vertices": str(surface.vertex_count),
+                "X-VoxelAtlas-Surface-Triangles": str(surface.triangle_count),
+                "X-VoxelAtlas-Surface-Stride": str(surface.stride),
+                "X-VoxelAtlas-Surface-Schema": str(surface.schema_version),
+                "X-VoxelAtlas-Surface-Id": surface.surface_id,
+                "X-VoxelAtlas-Surface-Provenance-SHA256": surface.provenance_sha256,
+                "X-VoxelAtlas-Surface-Refinement": surface.refinement,
+                "X-VoxelAtlas-Surface-Reference-Id": surface.reference_surface_id,
+                "X-VoxelAtlas-Surface-Reference-SHA256": surface.reference_payload_sha256,
+                "X-VoxelAtlas-Surface-Topology-Repairs": str(surface.topology_repair_count),
+                "X-VoxelAtlas-Surface-Boundary-Edges": str(surface.boundary_edge_count),
+                "X-VoxelAtlas-Surface-Nonmanifold-Edges": str(surface.nonmanifold_edge_count),
+                "X-VoxelAtlas-Surface-Components": str(surface.connected_component_count),
+                "X-VoxelAtlas-Surface-Euler": str(surface.euler_characteristic),
+                "X-VoxelAtlas-Surface-Max-Displacement-Mm": f"{surface.max_displacement_mm:.6f}",
+                "X-VoxelAtlas-Surface-Displacement-Limit-Mm": f"{surface.displacement_limit_mm:.6f}",
+                "X-VoxelAtlas-Surface-Triangle-Retention": f"{surface.triangle_retention_ratio:.9f}",
+                "X-VoxelAtlas-Surface-Decimation-Applied": (
+                    "true" if surface.decimation_applied else "false"
+                ),
+                "X-VoxelAtlas-Surface-Decimation-Cell-Index": (
+                    f"{surface.decimation_cell_size_index:.6f}"
+                ),
+                "X-VoxelAtlas-Surface-Bounds-LPS-Mm": bounds,
+            },
+        )
+
+    @app.get("/api/studies/latest/segmentation-quality/{label_id}")
+    def latest_segmentation_quality(
+        label_id: int,
+        response: Response,
+        label_map_id: str = Query(
+            min_length=36,
+            max_length=36,
+            pattern=r"^map-[0-9a-f]{32}$",
+        ),
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        current_service: SegmentationCorrectionService = (
+            app.state.segmentation_correction_service
+        )
+        try:
+            report = current_service.quality_report(
+                label_map_id=label_map_id,
+                label_id=label_id,
+            )
+        except SegmentationError as exc:
+            raise_segmentation_http_error(exc)
+        return {"quality": report}
+
+    @app.post("/api/segmentation/correction-sessions", status_code=status.HTTP_201_CREATED)
+    def create_segmentation_correction_session(
+        payload: SegmentationCorrectionSessionCreateRequest,
+        response: Response,
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        current_service: SegmentationCorrectionService = (
+            app.state.segmentation_correction_service
+        )
+        try:
+            session = current_service.create(payload.label_map_id)
+        except SegmentationError as exc:
+            raise_segmentation_http_error(exc)
+        return {"correction_session": session}
+
+    @app.get("/api/segmentation/correction-sessions")
+    def list_segmentation_correction_sessions(
+        response: Response,
+        label_map_id: str = Query(
+            min_length=36,
+            max_length=36,
+            pattern=r"^map-[0-9a-f]{32}$",
+        ),
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        try:
+            sessions = app.state.segmentation_correction_service.list(
+                label_map_id=label_map_id
+            )
+        except SegmentationError as exc:
+            raise_segmentation_http_error(exc)
+        return {"correction_sessions": sessions}
+
+    @app.get("/api/segmentation/correction-sessions/{session_id}")
+    def get_segmentation_correction_session(
+        session_id: str,
+        response: Response,
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        current_service: SegmentationCorrectionService = (
+            app.state.segmentation_correction_service
+        )
+        try:
+            session = current_service.get(session_id)
+        except SegmentationError as exc:
+            raise_segmentation_http_error(exc)
+        return {"correction_session": session}
+
+    @app.post("/api/segmentation/correction-sessions/{session_id}/actions")
+    def add_segmentation_correction_action(
+        session_id: str,
+        payload: SegmentationCorrectionActionCreateRequest,
+        response: Response,
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        current_service: SegmentationCorrectionService = (
+            app.state.segmentation_correction_service
+        )
+        try:
+            session = current_service.add_action(
+                session_id,
+                kind=payload.kind,
+                label_id=payload.label_id,
+                center_lps_mm=payload.center_lps_mm,
+                radius_mm=payload.radius_mm,
+                plane=payload.plane,
+            )
+        except SegmentationError as exc:
+            raise_segmentation_http_error(exc)
+        return {"correction_session": session}
+
+    @app.post("/api/segmentation/correction-sessions/{session_id}/undo")
+    def undo_segmentation_correction(
+        session_id: str,
+        response: Response,
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        try:
+            session = app.state.segmentation_correction_service.undo(session_id)
+        except SegmentationError as exc:
+            raise_segmentation_http_error(exc)
+        return {"correction_session": session}
+
+    @app.post("/api/segmentation/correction-sessions/{session_id}/redo")
+    def redo_segmentation_correction(
+        session_id: str,
+        response: Response,
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        try:
+            session = app.state.segmentation_correction_service.redo(session_id)
+        except SegmentationError as exc:
+            raise_segmentation_http_error(exc)
+        return {"correction_session": session}
+
+    @app.post("/api/segmentation/correction-sessions/{session_id}/discard")
+    def discard_segmentation_correction(
+        session_id: str,
+        response: Response,
+        username: str = Depends(require_username),
+    ) -> dict[str, object]:
+        del username
+        response.headers["Cache-Control"] = "no-store"
+        try:
+            session = app.state.segmentation_correction_service.discard(session_id)
+        except SegmentationError as exc:
+            raise_segmentation_http_error(exc)
+        return {"correction_session": session}
 
     @app.get("/api/protected/ping")
     def protected_ping(username: str = Depends(require_username)) -> dict[str, object]:
