@@ -11,7 +11,7 @@ const index = readFileSync(resolve(root, 'web/index.html'), 'utf8');
 const volumeViewer = readFileSync(resolve(root, 'web/js/volume-surface-viewer.js'), 'utf8');
 const segmentationViewer = readFileSync(resolve(root, 'web/js/segmentation-surface-viewer.js'), 'utf8');
 
-assert.match(index, /phase6j-d45c-r2-phase6j-d5b-r1(?:-phase6j-d5c-r\d+)?"/);
+assert.match(index, /phase6j-d45c-r2-phase6j-d5b-r1(?:-phase6j-d5c-r\d+)?(?:-postd6-ui-r\d+)?"/);
 assert.match(app, /let studyLifecycleGeneration = 0;/);
 assert.match(app, /function invalidateStudyScopedAsyncState\(\)[\s\S]*?studyLifecycleGeneration \+= 1;[\s\S]*?mprDescriptorPromise = null;[\s\S]*?segmentationOverlayDescriptorPromise = null;[\s\S]*?segmentationSurfaceDescriptorPromise = null;[\s\S]*?volumeSurfaceDescriptorPromise = null;[\s\S]*?volumeBuildPromise = null;/);
 assert.match(app, /function applyStudy\(study\)[\s\S]*?invalidateStudyScopedAsyncState\(\);[\s\S]*?state\.study = study;[\s\S]*?setMprVolumeState\(study\);/);
