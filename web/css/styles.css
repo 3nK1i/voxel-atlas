@@ -3009,19 +3009,20 @@ button:disabled {
 
 /* Phase 4G - curated sample study catalog */
 .sample-catalog-button {
+  position: relative;
   width: 100%;
-  min-height: 54px;
+  min-height: 44px;
+  height: 44px;
   margin-top: 9px;
-  padding: 9px 11px;
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) 16px;
+  padding: 0 40px;
+  display: flex;
   align-items: center;
-  gap: 9px;
+  justify-content: center;
   border: 1px solid color-mix(in srgb, var(--line) 72%, var(--accent) 28%);
   border-radius: 10px;
   background: linear-gradient(120deg, color-mix(in srgb, var(--panel-solid) 91%, var(--accent) 9%), var(--panel-solid));
   color: var(--text);
-  text-align: left;
+  text-align: center;
   cursor: pointer;
   transition: border-color 150ms ease, transform 150ms ease, box-shadow 150ms ease;
 }
@@ -3030,6 +3031,20 @@ button:disabled {
   border-color: color-mix(in srgb, var(--accent) 68%, var(--line));
   box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 12%, transparent);
   transform: translateY(-1px);
+}
+
+.sample-catalog-button-content {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sample-catalog-button-heading {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
 }
 
 .sample-catalog-button-icon {
@@ -3065,9 +3080,13 @@ button:disabled {
 }
 
 .sample-catalog-button-arrow {
+  position: absolute;
+  right: 11px;
+  top: 50%;
   color: var(--accent);
   font-size: 23px;
   line-height: 1;
+  transform: translateY(-50%);
 }
 
 .study-origin-badge {
@@ -4553,3 +4572,28 @@ button:disabled {
   font-size: var(--ui-readable-small, 8px);
   line-height: 1.45;
 }
+
+/* POSTDEPLOY_SAMPLE_BUTTON_PARITY_START */
+/*
+ * Canonical left-panel primary launcher footprint.
+ * Upload DICOM and Explore Sample Studies must have identical X/Y size.
+ */
+.upload-wrap {
+  --left-panel-primary-action-height: 44px;
+}
+
+.upload-button,
+.sample-catalog-button {
+  width: 100%;
+  max-width: none;
+  height: var(--left-panel-primary-action-height);
+  min-height: var(--left-panel-primary-action-height);
+  box-sizing: border-box;
+}
+
+@media (min-width: 981px) {
+  .upload-wrap {
+    --left-panel-primary-action-height: 50px;
+  }
+}
+/* POSTDEPLOY_SAMPLE_BUTTON_PARITY_END */
