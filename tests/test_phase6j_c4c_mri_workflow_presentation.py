@@ -159,11 +159,12 @@ class MRIWorkflowC4CTests(unittest.TestCase):
         self.assertEqual(snap['state'], 'unsupported')
         self.assertFalse(snap['can_start'] or snap['can_cancel'])
 
-    def test_default_app_wires_read_only_without_registering_executable_adapter(self):
+    def test_default_app_preserves_read_only_fallback_when_mri_is_unqualified(self):
         code = (ROOT / 'backend/voxelatlas/app.py').read_text(encoding='utf-8')
-        self.assertIn('mri_presentation_only=True', code)
-        self.assertNotIn('from .mri_job_binding import', code)
-        self.assertNotIn('MRIStudyBoundProvider(', code)
+        self.assertIn('mri_presentation_only=not mri_execution_enabled', code)
+        self.assertIn('MRIStudyBoundProvider(', code)
+        self.assertIn('if mri_qualification.runtime_qualified and mri_qualification.weights_qualified', code)
+        self.assertIn('else:\n            registry.register_descriptor(build_mri_model_descriptor(', code)
 
 
 if __name__ == '__main__':

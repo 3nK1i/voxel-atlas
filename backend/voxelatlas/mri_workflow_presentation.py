@@ -1,7 +1,7 @@
-"""Read-only MRI job status bound to the current canonical source (Phase 6J-C4C).
+"""Study-bound MRI workflow presentation helpers.
 
-No CT label maps or CT import workers are compatible with this presentation path.
-Normal MRI model execution remains disabled until independent C5 acceptance.
+The read-only snapshot remains the fail-closed fallback when MRI execution is not
+qualified. Persisted MRI label maps are reusable only for the exact immutable source.
 """
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ def matching_mri_jobs(source: Any, jobs: list[dict[str, object]]) -> list[dict[s
     return [job for job in jobs if matching_mri_job(source, job)]
 
 
-def _matching_mri_label_map(
+def matching_mri_label_map(
     source: Any, jobs: list[dict[str, object]], descriptor: object,
 ) -> bool:
     """Accept only a persisted MRI map bound to this exact source and succeeded job."""
@@ -79,6 +79,14 @@ def _matching_mri_label_map(
     )
 
 
+def matching_mri_label_maps(
+    source: Any, jobs: list[dict[str, object]], descriptors: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    """Return only persisted MRI maps bound to the exact current source/job."""
+    return [descriptor for descriptor in descriptors
+            if matching_mri_label_map(source, jobs, descriptor)]
+
+
 def mri_read_only_snapshot(
     source: Any, base: dict[str, object], jobs: list[dict[str, object]],
     label_maps: list[dict[str, object]] | None = None,
@@ -104,7 +112,7 @@ def mri_read_only_snapshot(
     else:
         presentation = next(
             (descriptor for descriptor in (label_maps or [])
-             if _matching_mri_label_map(source, matches, descriptor)),
+             if matching_mri_label_map(source, matches, descriptor)),
             None,
         )
         if presentation is not None:

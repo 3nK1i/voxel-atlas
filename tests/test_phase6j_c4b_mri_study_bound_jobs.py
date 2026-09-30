@@ -189,12 +189,14 @@ class MRIBoundJobs(unittest.TestCase):
         self.assertEqual(self.jobs.run_job(job["job_id"])["state"], "failed")
         self.assertEqual(self.executor.calls, [])
 
-    def test_ct_and_default_app_are_not_registered_with_this_adapter(self):
+    def test_default_app_registers_mri_adapter_only_behind_qualification(self):
         self.assertEqual(self.jobs.list_models()[0]["model_id"], "total_mr")
         code = (ROOT / "backend" / "voxelatlas" / "app.py").read_text()
-        self.assertNotIn("from .mri_job_binding import", code)
-        self.assertNotIn("MRIStudyBoundProvider(", code)
-        # Real app remains on C4A unavailable descriptor and unchanged CT provider.
+        self.assertIn("from .mri_job_binding import MRIStudyBoundProvider", code)
+        self.assertIn("MRIStudyBoundProvider(", code)
+        self.assertIn("mri_qualification.runtime_qualified and mri_qualification.weights_qualified", code)
+        self.assertIn("execution_permission=mri_execution_permission", code)
+        # Unconfigured MRI remains fail-closed; CT registration is unchanged.
         from voxelatlas.mri_provider_qualification import build_mri_model_descriptor
         planned = build_mri_model_descriptor(data_dir=self.data, python_executable=None)
         self.assertFalse(planned.available)

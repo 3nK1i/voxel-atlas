@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import secrets
 import threading
-from typing import Any
+from typing import Any, Callable
 
 from .segmentation import (
     NON_TERMINAL_JOB_STATES,
@@ -19,7 +19,9 @@ from .segmentation import (
 from .segmentation_label_maps import SegmentationLabelMapService
 from .mri_task_contract import model_for_source_modality
 from .mri_source_qualification import qualify_mri_stored_source
-from .mri_workflow_presentation import matching_mri_jobs, mri_read_only_snapshot
+from .mri_workflow_presentation import (
+    matching_mri_jobs, matching_mri_label_maps, mri_read_only_snapshot,
+)
 from .segmentation import CanonicalSegmentationSource
 
 
@@ -53,6 +55,9 @@ class SegmentationWorkflowService:
         model_id: str = "total",
         import_timeout_seconds: float = 30 * 60,
         mri_presentation_only: bool = True,
+        mri_python_executable: str | None = None,
+        mri_result_importer: Any | None = None,
+        mri_start_qualification: Callable[[], bool] | None = None,
     ) -> None:
         self.data_dir = Path(data_dir).expanduser().resolve()
         self.job_service = job_service
@@ -63,6 +68,9 @@ class SegmentationWorkflowService:
         self.model_id = str(model_id).strip().lower()
         self.import_timeout_seconds = float(import_timeout_seconds)
         self.mri_presentation_only = bool(mri_presentation_only)
+        self.mri_python_executable = str(mri_python_executable or "").strip() or None
+        self.mri_result_importer = mri_result_importer
+        self.mri_start_qualification = mri_start_qualification
         if (
             not self.provider_id
             or not self.model_id
@@ -73,10 +81,17 @@ class SegmentationWorkflowService:
             or not self.import_worker_script.is_file()
         ):
             raise SegmentationValidationError("Segmentation workflow configuration is invalid")
-        if self.python_executable is not None and any(
-            ord(character) < 32 for character in self.python_executable
+        if any(
+            executable is not None and any(ord(character) < 32 for character in executable)
+            for executable in (self.python_executable, self.mri_python_executable)
         ):
             raise SegmentationValidationError("Segmentation runtime path is invalid")
+        if not self.mri_presentation_only and (
+            self.mri_python_executable is None
+            or self.mri_result_importer is None
+            or self.mri_start_qualification is None
+        ):
+            raise SegmentationValidationError("Executable MRI workflow configuration is incomplete")
         self.workflow_root = self.data_dir / "segmentation" / "workflow-status"
         self._lock = threading.RLock()
         self._finalizing_jobs: set[str] = set()
@@ -211,16 +226,22 @@ class SegmentationWorkflowService:
 
             # The common stored source is used by sample activation and new
             # DICOM uploads. Keep CT and injected test sources unchanged.
+            jobs = self._jobs_for_study(study_id)
+            maps = self.label_map_service.list(study_id=study_id)
             if (model_id == "total_mr" and str(source.modality).upper() == "MR"
                     and isinstance(source, CanonicalSegmentationSource)):
                 source_ready, source_reason = qualify_mri_stored_source(source)
-                base = base | {"source_qualified": source_ready,
-                               "source_qualification_reason": source_reason}
-                if getattr(self, "mri_presentation_only", False):
-                    base = base | {"source_series_uid": str(source.source_series_uid),
-                                   "presentation_only": True,
-                                   "mri_execution_authorized": False,
-                                   "mri_label_map_ready": False}
+                presentation_only = bool(getattr(self, "mri_presentation_only", False))
+                base = base | {
+                    "source_qualified": source_ready,
+                    "source_qualification_reason": source_reason,
+                    "source_series_uid": str(source.source_series_uid),
+                    "presentation_only": presentation_only,
+                    "mri_execution_authorized": bool(
+                        not presentation_only and base["provider_available"]
+                    ),
+                    "mri_label_map_ready": False,
+                }
                 if not source_ready:
                     return base | {
                         "state": "unsupported", "message": source_reason,
@@ -229,15 +250,11 @@ class SegmentationWorkflowService:
                         "present_label_count": 0, "job_id": None,
                         "progress": None,
                     }
-                if getattr(self, "mri_presentation_only", False):
-                    return mri_read_only_snapshot(
-                        source,
-                        base,
-                        self._jobs_for_study(study_id),
-                        self.label_map_service.list(study_id=study_id),
-                    )
+                if presentation_only:
+                    return mri_read_only_snapshot(source, base, jobs, maps)
+                jobs = matching_mri_jobs(source, jobs)
+                maps = matching_mri_label_maps(source, jobs, maps)
 
-            maps = self.label_map_service.list(study_id=study_id)
             if maps:
                 descriptor = maps[0]
                 labels = descriptor.get("present_labels")
@@ -245,6 +262,7 @@ class SegmentationWorkflowService:
                 return base | {
                     "state": "available",
                     "message": "Existing segmentation is ready to use",
+                    "mri_label_map_ready": bool(model_id == "total_mr"),
                     "can_start": False,
                     "can_cancel": False,
                     "can_use": True,
@@ -254,7 +272,6 @@ class SegmentationWorkflowService:
                     "progress": {"stage": "complete", "percent": 100.0, "message": "Segmentation ready"},
                 }
 
-            jobs = self._jobs_for_study(study_id)
             active = next((item for item in jobs if item.get("state") in NON_TERMINAL_JOB_STATES), None)
             if active is not None:
                 state = str(active.get("state") or "queued")
@@ -288,7 +305,10 @@ class SegmentationWorkflowService:
                 return base | {
                     "state": state,
                     "message": message,
-                    "can_start": not finalizing and self.python_executable is not None,
+                    "can_start": not finalizing and (
+                        getattr(self, "mri_python_executable", None) is not None
+                        if model_id == "total_mr" else self.python_executable is not None
+                    ),
                     "can_cancel": False,
                     "can_use": False,
                     "label_map_id": None,
@@ -366,18 +386,39 @@ class SegmentationWorkflowService:
                 except SegmentationError:
                     job = None
                 if isinstance(job, dict) and job.get("state") == "succeeded":
-                    if self.python_executable is None:
+                    import_runtime = (
+                        self.mri_python_executable
+                        if snapshot.get("modality") == "MR" and snapshot.get("model_id") == "total_mr"
+                        else self.python_executable
+                    )
+                    if import_runtime is None:
                         raise SegmentationUnavailableError("Segmentation import runtime is not configured")
                     self._clear_finalization_failure(job_id)
                     return SegmentationWorkflowStart(snapshot, job_id)
             source = self._source()
             if not bool(snapshot.get("provider_available")):
                 raise SegmentationUnavailableError(str(snapshot.get("provider_reason") or "Segmentation is unavailable"))
+            is_mri = snapshot.get("modality") == "MR" and snapshot.get("model_id") == "total_mr"
+            if is_mri and isinstance(source, CanonicalSegmentationSource):
+                start_qualification = getattr(self, "mri_start_qualification", None)
+                try:
+                    qualified_now = bool(
+                        start_qualification is not None and start_qualification()
+                    )
+                except Exception:  # noqa: BLE001 - qualification details stay server-side.
+                    qualified_now = False
+                if not qualified_now:
+                    raise SegmentationUnavailableError(
+                        "MRI provider qualification changed; segmentation was not started"
+                    )
+                source_ready, source_reason = qualify_mri_stored_source(source)
+                if not source_ready:
+                    raise SegmentationUnavailableError(source_reason)
             job = self.job_service.create_job(
                 provider_id=self.provider_id,
                 model_id=str(snapshot["model_id"]),
-                device_request="auto",
-                parameters={},
+                device_request="cuda:0" if is_mri else "auto",
+                parameters={"mode": "fastest"} if is_mri else {},
                 source_study_id=str(source.study_id),
             )
             created = self.snapshot_latest()
@@ -386,28 +427,40 @@ class SegmentationWorkflowService:
     def execute_requested(self, job_id: str) -> None:
         try:
             job = self.job_service.get_job(job_id)
-            if getattr(self, "mri_presentation_only", False):
-                provenance = job.get("provenance")
-                if isinstance(provenance, dict) and (provenance.get("model_id") == "total_mr"
-                        or provenance.get("source_modality") == "MR"):
-                    return  # C4C is presentation-only; not the MRI worker execution gate.
+            provenance = job.get("provenance")
+            is_mri = bool(
+                isinstance(provenance, dict)
+                and provenance.get("model_id") == "total_mr"
+                and provenance.get("source_modality") == "MR"
+            )
+            if self.mri_presentation_only and is_mri:
+                return
             if job.get("state") == "queued":
                 job = self.job_service.run_job(job_id)
             if job.get("state") != "succeeded":
                 return
-            if self.python_executable is None:
+            import_runtime = self.mri_python_executable if is_mri else self.python_executable
+            if import_runtime is None:
                 self._write_finalization_failure(job_id)
                 return
             with self._lock:
                 self._finalizing_jobs.add(job_id)
                 self._clear_finalization_failure(job_id)
             try:
-                self.label_map_service.import_succeeded_job(
-                    job_id=job_id,
-                    python_executable=self.python_executable,
-                    worker_script=self.import_worker_script,
-                    timeout_seconds=self.import_timeout_seconds,
-                )
+                if is_mri:
+                    if self.mri_python_executable is None or self.mri_result_importer is None:
+                        raise SegmentationUnavailableError("MRI canonical import runtime is unavailable")
+                    self.mri_result_importer.import_current(
+                        python_executable=import_runtime,
+                        worker_script=self.import_worker_script,
+                    )
+                else:
+                    self.label_map_service.import_succeeded_job(
+                        job_id=job_id,
+                        python_executable=import_runtime,
+                        worker_script=self.import_worker_script,
+                        timeout_seconds=self.import_timeout_seconds,
+                    )
             except Exception:  # noqa: BLE001 - private artifact details must not reach workflow state.
                 self._write_finalization_failure(job_id)
             else:
@@ -422,7 +475,7 @@ class SegmentationWorkflowService:
         with self._lock:
             source = self._source()
             jobs = self._jobs_for_study(str(source.study_id))
-            if getattr(self, "mri_presentation_only", False) and getattr(source, "modality", None) == "MR":
+            if getattr(source, "modality", None) == "MR":
                 jobs = matching_mri_jobs(source, jobs)
             for job in jobs:
                 if job.get("state") in NON_TERMINAL_JOB_STATES:

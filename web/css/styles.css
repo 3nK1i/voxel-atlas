@@ -3038,9 +3038,14 @@ button:disabled {
   display: grid;
   place-items: center;
   border-radius: 9px;
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--accent);
-  font-size: 16px;
+  overflow: hidden;
+}
+
+.sample-catalog-button-icon img {
+  width: 32px;
+  height: 32px;
+  display: block;
+  object-fit: contain;
 }
 
 .sample-catalog-button strong,
@@ -3803,36 +3808,10 @@ button:disabled {
 }
 
 .segmentation-workflow-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 7px;
   margin-top: 9px;
-}
-
-.segmentation-workflow-actions button {
-  min-height: 28px;
-  padding: 5px 10px;
-  border: 1px solid var(--line-soft);
-  border-radius: 7px;
-  color: var(--text);
-  background: var(--panel-raised);
-  font: inherit;
-  font-size: var(--ui-readable-small, 8px);
-  font-weight: 760;
-  cursor: pointer;
-}
-
-.segmentation-workflow-actions button:disabled {
-  cursor: not-allowed;
-  opacity: 0.48;
-}
-
-.segmentation-workflow-primary:not(:disabled) {
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
-  background: color-mix(in srgb, var(--accent) 16%, var(--panel-raised));
-}
-
-.segmentation-workflow-cancel:not(:disabled) {
-  border-color: color-mix(in srgb, var(--danger) 42%, var(--line));
 }
 
 /* Phase 6D1 — direct canonical-volume isosurface preview. */
@@ -4407,22 +4386,41 @@ button:disabled {
 /* Phase 6I-B1: legacy actions remain DOM-stable for prior contracts, but are not user-facing. */
 .volume-surface-actions[hidden] { display: none !important; }
 
-/* Phase 6I-B2: existing-result activation uses the same action language as the
-   reconstruction sidebar; this does not change its on-demand job handler. */
-.segmentation-workflow-panel[data-state="available"] .segmentation-workflow-primary:not(:disabled) {
-  flex: 1 1 auto;
+/* Canonical segmentation-workflow action. Use Segmentation is the visual source
+   of truth; Start / Use / Retry / Cancel share this exact footprint and state styling. */
+.segmentation-workflow-action {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
   min-height: 34px;
-  border-color: color-mix(in srgb, var(--accent) 70%, var(--line));
+  padding: 6px 11px;
+  border: 1px solid color-mix(in srgb, var(--accent) 70%, var(--line));
   border-radius: 8px;
   background: linear-gradient(180deg, var(--medical-button-top), var(--medical-button-bottom));
   color: #f7fbff;
+  font: inherit;
   font-size: var(--ui-readable, 12px);
   font-weight: 760;
+  line-height: 1.15;
   text-align: center;
 }
-.segmentation-workflow-primary:focus-visible {
+.segmentation-workflow-action:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 82%, var(--line));
+  background: linear-gradient(180deg, var(--medical-button-top), var(--medical-button-bottom));
+}
+.segmentation-workflow-action:active:not(:disabled) {
+  border-color: var(--accent);
+  background: linear-gradient(180deg, var(--medical-button-bottom), var(--medical-button-top));
+}
+.segmentation-workflow-action:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+.segmentation-workflow-action:disabled {
+  min-height: 34px;
+  padding: 6px 11px;
+  cursor: not-allowed;
+  opacity: 0.48;
 }
 
 /* Phase 6I-D — readable native Direct CT visibility menu. */

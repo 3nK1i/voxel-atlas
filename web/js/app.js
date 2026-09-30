@@ -37,7 +37,7 @@ import {
 } from "./reconstruction-combined-presentation.js?v=phase6e-e-r1";
 import { SampleStudyCatalogClient } from "./sample-study-catalog.js?v=phase4g-r1";
 import { prevolumeMriWorkflow } from "./mri-study-prevolume.js?v=phase6j-b2b-r1";
-import { isReadOnlyMri, workflowMatchesStudy } from "./mri-workflow-display.js?v=phase6j-c4c-r1";
+import { isMriWorkflow, isReadOnlyMri, workflowMatchesStudy } from "./mri-workflow-display.js?v=phase6j-c4c-r1-postdeploy-mri-colors-r1";
 import {
   classifySampleStudyActivation,
 } from "./sample-study-activation.js?v=phase5f2-switch-r1";
@@ -54,19 +54,19 @@ import {
 } from "./segmentation-structure-panel.js?v=phase5e-r1-phase6c-r2-phase6d0-explicit-r1-phase6f-a-r1-phase6f-b-r1-phase6f-d-r1-phase6f-e-r1";
 import {
   resolve3dAppearanceContext,
-} from "./segmentation-anatomical-appearance.js?v=ctb2-r1-ctb3a-r1";
+} from "./segmentation-anatomical-appearance.js?v=ctb2-r1-ctb3a-r1-postdeploy-mri-colors-r1";
 import {
   resolveStructureInteraction,
 } from "./segmentation-structure-interaction.js?v=phase6f-a-r1-phase6f-b-r1";
 import {
   PatientSegmentationSurfaceLayer,
-} from "./segmentation-surface-viewer.js?v=phase6a-r1-phase6b-r1-phase6c-r2-phase6d2b-r1-phase6e-b-r1-phase6e-d-r1-phase6f-b-r1-phase6b-fallback-r1-phase6f-c-r3-phase6f-d-r1-phase6f-e-r1-post6f-b2a-r1-ctb2-r1";
+} from "./segmentation-surface-viewer.js?v=phase6a-r1-phase6b-r1-phase6c-r2-phase6d2b-r1-phase6e-b-r1-phase6e-d-r1-phase6f-b-r1-phase6b-fallback-r1-phase6f-c-r3-phase6f-d-r1-phase6f-e-r1-post6f-b2a-r1-ctb2-r1-postdeploy-mri-colors-r1";
 import {
   SegmentationCorrectionPanel,
 } from "./segmentation-correction-panel.js?v=phase5f2-r1";
 import {
   SegmentationWorkflowPanel,
-} from "./segmentation-workflow-panel.js?v=phase6d0-r1-phase6j-b1-r1-phase6j-d3-r1";
+} from "./segmentation-workflow-panel.js?v=phase6d0-r1-phase6j-b1-r1-phase6j-d3-r1-postdeploy-mri-colors-r1";
 
 const THEME_KEY = "voxelatlas-theme";
 const DEFAULT_OPACITY = 1.0;
@@ -2301,7 +2301,7 @@ function renderSegmentationWorkflow(workflow) {
 async function activateSegmentationResult(labelMapId) {
   const requestedLabelMapId = String(labelMapId || "");
   if (!requestedLabelMapId || !state.study?.study_id) return null;
-  if (isReadOnlyMri(segmentationWorkflowSnapshot)) {
+  if (isMriWorkflow(segmentationWorkflowSnapshot)) {
     if (
       segmentationWorkflowSnapshot?.mri_label_map_ready !== true
       || requestedLabelMapId !== segmentationWorkflowSnapshot?.label_map_id
@@ -2495,14 +2495,14 @@ async function refreshSegmentationSurfaceDescriptor(labelMapId) {
       throw new Error(payload.detail || `3D segmentation initialization failed (${response.status})`);
     }
     const descriptor = payload.surface;
-    const readOnlyMriSurface = isReadOnlyMri(segmentationWorkflowSnapshot);
+    const mriSemanticSurface = isMriWorkflow(segmentationWorkflowSnapshot);
     if (
       descriptor?.ready !== true
       || descriptor.label_map_id !== labelMapId
       || descriptor.source_study_id !== studyId
       || descriptor.coordinate_system !== "patient_lps"
       || (
-        readOnlyMriSurface
+        mriSemanticSurface
         && (
           descriptor.label_map_id !== segmentationWorkflowSnapshot?.label_map_id
           || descriptor.source_modality !== "MR"
@@ -2596,7 +2596,7 @@ async function refreshSegmentationOverlayDescriptor(labelMapId) {
       descriptor.source_study_id !== studyId
       || descriptor.label_map_id !== labelMapId
       || (
-        isReadOnlyMri(segmentationWorkflowSnapshot)
+        isMriWorkflow(segmentationWorkflowSnapshot)
         && (
           descriptor.source_modality !== "MR"
           || descriptor.provider_id !== "totalsegmentator"

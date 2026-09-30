@@ -1,8 +1,7 @@
-"""6J-C3B: isolated MR-only supervised executor; no provider registration.
+"""Isolated MR-only supervised executor.
 
 Model execution is NEVER initiated by import, qualification, or normal app startup.
-A future C4 job adapter must supply a study-bound source and an explicit authorization;
-C5 separately qualifies real MRI inference and hardware requirements.
+A study-bound provider must supply the immutable source and explicit authorization.
 """
 from __future__ import annotations
 
@@ -210,7 +209,7 @@ print(json.dumps({"schema": 1, "index": idx, "total_mib": total // (1024*1024),
 
 
 class MRIWorkerExecutor:
-    """No app/job/UI binding: invoke only with explicit C5-controlled authorization."""
+    """Invoke only through a qualified study-bound provider with explicit authorization."""
 
     def __init__(self, *, python_executable: Path, bridge_script: Path,
                  process_runner: SupervisedProcessRunner | None = None,

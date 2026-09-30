@@ -61,7 +61,15 @@ from .segmentation_overlays import (
     SegmentationOverlayService,
 )
 from .segmentation_workflow import SegmentationWorkflowService
-from .mri_provider_qualification import build_mri_model_descriptor
+from .mri_job_binding import MRIStudyBoundProvider
+from .mri_label_map_import import QualifiedMRIResultImporter
+from .mri_provider_qualification import (
+    MRIProviderQualification,
+    build_mri_execution_descriptor,
+    build_mri_model_descriptor,
+    qualify_mri_provider,
+)
+from .mri_worker_execution import MRIWorkerError, MRIWorkerExecutor
 from .totalsegmentator_execution import TotalSegmentatorProvider
 from .segmentation_surfaces import (
     SURFACE_MEDIA_TYPE,
@@ -87,6 +95,27 @@ COOKIE_SAMESITE = "lax"
 COOKIE_PATH = "/"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 WEB_ROOT = REPOSITORY_ROOT / "web"
+
+
+def _canonical_mri_worker_python(configured: str | None) -> Path:
+    """Resolve an allowed same-runtime interpreter alias before worker binding."""
+    if not isinstance(configured, str) or not configured.strip():
+        raise MRIWorkerError("MRI worker runtime configuration is invalid")
+    try:
+        requested = Path(configured.strip()).expanduser()
+        parent = requested.parent.resolve(strict=True)
+        canonical = requested.resolve(strict=True)
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise MRIWorkerError("MRI worker runtime configuration is invalid") from exc
+    if (
+        not requested.is_absolute()
+        or not parent.is_dir()
+        or canonical.parent != parent
+        or canonical.is_symlink()
+        or not canonical.is_file()
+    ):
+        raise MRIWorkerError("MRI worker runtime configuration is invalid")
+    return canonical
 
 
 class LoginRequest(BaseModel):
@@ -214,6 +243,7 @@ def create_app(
             worker_script=REPOSITORY_ROOT / "scripts" / "phase6d1_volume_surface_worker.py",
         )
     )
+    mri_execution_enabled = False
     if segmentation_service is not None:
         # Preserve explicitly injected services and their registry untouched.
         patient_segmentation_service = segmentation_service
@@ -228,15 +258,58 @@ def create_app(
             registry.register_provider(provider)
         else:
             registry = build_default_segmentation_registry()
-        # A descriptive, unavailable MRI model is not an executable provider.
-        # Keep the CT runtime and source selection unchanged until C4B/C5.
-        registry.register_descriptor(build_mri_model_descriptor(
+
+        mri_qualification = qualify_mri_provider(
             data_dir=runtime_settings.data_dir,
             python_executable=runtime_settings.mri_worker_python,
-        ))
+        )
         patient_segmentation_service = SegmentationJobService(
             data_dir=runtime_settings.data_dir, registry=registry,
         )
+        if mri_qualification.runtime_qualified and mri_qualification.weights_qualified:
+            try:
+                mri_descriptor = build_mri_execution_descriptor(qualification=mri_qualification)
+                mri_executor = MRIWorkerExecutor(
+                    python_executable=_canonical_mri_worker_python(
+                        runtime_settings.mri_worker_python
+                    ),
+                    bridge_script=REPOSITORY_ROOT / "scripts" / "phase6j_c3a_mri_nifti_worker.py",
+                )
+
+                def mri_execution_permission() -> bool:
+                    current = qualify_mri_provider(
+                        data_dir=runtime_settings.data_dir,
+                        python_executable=runtime_settings.mri_worker_python,
+                    )
+                    return bool(current.runtime_qualified and current.weights_qualified)
+
+                mri_provider = MRIStudyBoundProvider(
+                    data_dir=runtime_settings.data_dir,
+                    job_service=patient_segmentation_service,
+                    descriptor=mri_descriptor,
+                    executor=mri_executor,
+                    execution_permission=mri_execution_permission,
+                )
+                registry.register_provider(mri_provider)
+                mri_execution_enabled = True
+            except (MRIWorkerError, SegmentationError, OSError, ValueError, TypeError):
+                fallback = MRIProviderQualification(
+                    "worker_unavailable",
+                    "MRI worker runtime is unavailable",
+                    runtime_qualified=mri_qualification.runtime_qualified,
+                    weights_qualified=mri_qualification.weights_qualified,
+                )
+                registry.register_descriptor(build_mri_model_descriptor(
+                    data_dir=runtime_settings.data_dir,
+                    python_executable=runtime_settings.mri_worker_python,
+                    qualification=fallback,
+                ))
+        else:
+            registry.register_descriptor(build_mri_model_descriptor(
+                data_dir=runtime_settings.data_dir,
+                python_executable=runtime_settings.mri_worker_python,
+                qualification=mri_qualification,
+            ))
     patient_segmentation_label_map_service = (
         segmentation_label_map_service
         if segmentation_label_map_service is not None
@@ -244,6 +317,15 @@ def create_app(
             data_dir=runtime_settings.data_dir,
             job_service=patient_segmentation_service,
         )
+    )
+    patient_mri_result_importer = (
+        QualifiedMRIResultImporter(
+            data_dir=runtime_settings.data_dir,
+            jobs=patient_segmentation_service,
+            label_maps=patient_segmentation_label_map_service,
+        )
+        if mri_execution_enabled
+        else None
     )
     patient_sample_catalog_service = (
         sample_catalog_service
@@ -289,7 +371,12 @@ def create_app(
             label_map_service=patient_segmentation_label_map_service,
             python_executable=runtime_settings.segmentation_worker_python,
             import_worker_script=REPOSITORY_ROOT / "scripts" / "phase5c_label_map_worker.py",
-            mri_presentation_only=True,  # C4C status only; C5 owns real model execution.
+            mri_presentation_only=not mri_execution_enabled,
+            mri_python_executable=(
+                runtime_settings.mri_worker_python if mri_execution_enabled else None
+            ),
+            mri_result_importer=patient_mri_result_importer,
+            mri_start_qualification=(mri_execution_permission if mri_execution_enabled else None),
         )
     )
 

@@ -42,8 +42,10 @@ class ExistingSegmentationModeTests(unittest.TestCase):
         css = CSS.read_text()
         self.assertEqual(html.count('id="segmentationWorkflowPrimary"'), 1)
         self.assertIn('segmentation-workflow-primary', html)
-        self.assertIn('.segmentation-workflow-panel[data-state="available"] .segmentation-workflow-primary:not(:disabled)', css)
-        self.assertIn('.segmentation-workflow-primary:focus-visible', css)
+        self.assertIn('segmentation-workflow-action', html)
+        self.assertIn('.segmentation-workflow-action {', css)
+        self.assertIn('.segmentation-workflow-action:focus-visible', css)
+        self.assertNotIn('.segmentation-workflow-cancel:not(:disabled)', css)
         self.assertIn('onPrimary: () => void requestSegmentationStart()', APP.read_text())
 
     @unittest.skipUnless(shutil.which('node'), 'Node.js unavailable')

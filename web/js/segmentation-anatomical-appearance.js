@@ -1,5 +1,5 @@
-// CT-B3A: illustrative, 3D-only anatomical surface colors for the pinned
-// TotalSegmentator "total" structure names. Do not infer anatomy from label ID
+// Canonical semantic-segmentation 3D anatomical colors for pinned TotalSegmentator
+// structure identities. Never infer anatomy from label ID, intensity-derived Direct MR,
 // or a structure's previous RGB. Do not mutate the shared MPR label palette.
 const ANATOMICAL_3D_COLORS = Object.freeze({
   bone: '#d8c9a5',
@@ -73,6 +73,8 @@ const KNOWN_CARDIOVASCULAR = Object.freeze({
 });
 
 const KNOWN_RESPIRATORY = Object.freeze({
+  lung_left: ANATOMICAL_3D_COLORS.lung,
+  lung_right: ANATOMICAL_3D_COLORS.lung,
   lung_upper_lobe_left: ANATOMICAL_3D_COLORS.lung,
   lung_lower_lobe_left: ANATOMICAL_3D_COLORS.lung,
   lung_upper_lobe_right: ANATOMICAL_3D_COLORS.lung,
@@ -100,7 +102,9 @@ function anatomicalColorForStructure(structure) {
   if (typeof name !== 'string') return null;
   switch (structure.groupId) {
     case 'spine':
-      return name === 'sacrum' || /^vertebrae_[CLST](?:[1-9]|1[0-2])$/.test(name)
+      if (name === 'intervertebral_discs') return ANATOMICAL_3D_COLORS.cartilage;
+      return name === 'sacrum' || name === 'vertebrae'
+        || /^vertebrae_[CLST](?:[1-9]|1[0-2])$/.test(name)
         ? ANATOMICAL_3D_COLORS.bone : null;
     case 'skeletal':
       if (name === 'costal_cartilages') return ANATOMICAL_3D_COLORS.cartilage;
@@ -138,7 +142,19 @@ export function resolve3dAppearanceContext(mode, descriptor, presentation) {
   if (mode !== 'scientific' && mode !== 'anatomical') {
     throw new RangeError('Unknown segmentation 3D color appearance');
   }
-  const ready = descriptor?.ready === true
+  const hasSemanticIdentity = descriptor?.provider_id !== undefined
+    || descriptor?.model_id !== undefined
+    || descriptor?.source_modality !== undefined;
+  const semanticTask = !hasSemanticIdentity
+    || (
+      descriptor?.provider_id === 'totalsegmentator'
+      && (
+        (descriptor?.source_modality === 'CT' && descriptor?.model_id === 'total')
+        || (descriptor?.source_modality === 'MR' && descriptor?.model_id === 'total_mr')
+      )
+    );
+  const ready = semanticTask
+    && descriptor?.ready === true
     && typeof descriptor.label_map_id === 'string'
     && descriptor.label_map_id.length > 0
     && descriptor.label_map_id === presentation?.labelMapId

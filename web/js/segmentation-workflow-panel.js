@@ -62,9 +62,10 @@ export class SegmentationWorkflowPanel {
     this.busy = false;
     const state = String(workflow.state || "unavailable");
     const active = ACTIVE_STATES.has(state);
-    const readOnlyMri = workflow.modality === "MR" && workflow.model_id === "total_mr";
-    const mriPresentationReady = readOnlyMri && workflow.mri_label_map_ready === true;
-    const ready = state === "available" && (!readOnlyMri || mriPresentationReady);
+    const mriWorkflow = workflow.modality === "MR" && workflow.model_id === "total_mr";
+    const readOnlyMri = mriWorkflow && workflow.presentation_only === true;
+    const mriPresentationReady = mriWorkflow && workflow.mri_label_map_ready === true;
+    const ready = state === "available" && (!mriWorkflow || mriPresentationReady);
     const activated = ready
       && this.activatedLabelMapId
       && this.activatedLabelMapId === String(workflow.label_map_id || "");
@@ -111,7 +112,7 @@ export class SegmentationWorkflowPanel {
     }
 
     if (readOnlyMri && !mriPresentationReady) {
-      // MRI execution remains disabled; D3 may only reuse an already persisted qualified map.
+      // A fail-closed MRI runtime may still reuse an already persisted qualified map.
       this.primary.textContent = "Start Segmentation";
       this.primary.disabled = true;
     }

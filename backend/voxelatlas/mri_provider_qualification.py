@@ -1,7 +1,7 @@
-"""6J-C4A: MRI-only model descriptor and fail-closed preregistration checks.
+"""MRI provider qualification and fail-closed model descriptors.
 
-No executable MRI provider is registered here. Study/job binding is C4B and
-real-model execution acceptance is C5. CT registration is not changed.
+The historical unavailable descriptor remains the fallback. The executable descriptor
+is constructed only from an already-qualified runtime and sealed MRI weights.
 """
 from __future__ import annotations
 
@@ -115,4 +115,31 @@ def build_mri_model_descriptor(*, data_dir: Path, python_executable: str | None,
         available=False, availability_reason=result.reason,
         execution=SegmentationExecutionRequirements(supported_devices=("cuda",),
                                                      minimum_cuda_memory_mib=0),
+    )
+
+
+def build_mri_execution_descriptor(
+    *, qualification: MRIProviderQualification,
+) -> SegmentationModelDescriptor:
+    """Build the normal-app MRI descriptor only after runtime and sealed weights pass.
+
+    Source/study qualification is intentionally not cached in this descriptor; the
+    workflow and provider re-check the current immutable MR source before execution.
+    """
+    if (
+        not isinstance(qualification, MRIProviderQualification)
+        or qualification.runtime_qualified is not True
+        or qualification.weights_qualified is not True
+        or qualification.execution_authorized is not False
+    ):
+        raise ValueError("MRI execution descriptor requires qualified runtime and weights")
+    return SegmentationModelDescriptor(
+        provider_id="totalsegmentator", provider_version="2.18.0",
+        model_id="total_mr", model_version="2.18.0",
+        display_name="TotalSegmentator MRI total_mr task", task="multi_structure",
+        capabilities=("anatomical_segmentation",), supported_modalities=("MR",),
+        available=True, availability_reason=None,
+        execution=SegmentationExecutionRequirements(
+            supported_devices=("cuda",), minimum_cuda_memory_mib=0,
+        ),
     )

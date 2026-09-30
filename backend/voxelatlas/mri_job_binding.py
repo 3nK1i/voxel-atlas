@@ -1,8 +1,7 @@
-"""Phase 6J-C4B: study/series-bound MRI provider adapter, NOT registered at startup.
+"""Study/series-bound MRI provider adapter.
 
-C4A's normal application keeps its MRI descriptor unavailable. This adapter can
-participate in the existing segmentation job service only after an independent,
-explicit execution permission is supplied. No implicit model authorization.
+Normal-app registration is permitted only after independent runtime/weight qualification,
+and every invocation still requires an explicit execution-permission check.
 """
 from __future__ import annotations
 
