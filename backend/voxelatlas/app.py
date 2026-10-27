@@ -245,7 +245,6 @@ def create_app(
     )
     mri_execution_enabled = False
     if segmentation_service is not None:
-        # Preserve explicitly injected services and their registry untouched.
         patient_segmentation_service = segmentation_service
     else:
         if runtime_settings.segmentation_worker_python is not None:

@@ -311,8 +311,7 @@ class VolumeSurfaceService:
         source_range_valid = low < high
         backend_available = (ct_qualified or mr_qualified) and runtime_configured and source_range_valid
         bone_available = ct_qualified and low < DEFAULT_CT_BONE_ISOVALUE_HU < high
-        # D4.5C activates the already-qualified Direct MR backend in the
-        # modality-aware presentation layer without changing CT semantics.
+        # Direct MR uses the qualified backend without changing CT semantics.
         available = bool(backend_available)
         reason = None
         if not (ct_qualified or mr_qualified):

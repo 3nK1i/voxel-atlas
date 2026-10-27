@@ -10,9 +10,8 @@ STRUCTURE_CATALOG_SCHEMA_VERSION = 1
 _HEX_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 
-# TotalSegmentator's public ``total`` task taxonomy.  The numeric contract is
-# This mapping is pinned and intentionally kept in the lightweight application
-# environment instead of importing the heavy provider runtime.
+# TotalSegmentator `total` task taxonomy; numeric IDs are part of the contract.
+# Kept local to avoid importing the provider runtime.
 # Source: wasserth/TotalSegmentator, totalsegmentator/map_to_binary.py.
 TOTAL_SEGMENTATOR_TOTAL_STRUCTURES: dict[int, str] = {
     1: "spleen",

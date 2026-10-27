@@ -47,7 +47,7 @@ def main() -> int:
     require("phase6f-a-r1" in app, "Structure-panel cache key not advanced")
     require("phase6f-a-r1" in html, "App cache key not advanced")
 
-    # The 6F-A foundation must remain intact as later interaction steps layer on top.
+    # Preserve the existing segmentation overlay and surface foundations.
     require("drawSegmentationLabels" in overlay, "Segmentation overlay implementation changed unexpectedly")
     require("class PatientSegmentationSurfaceLayer" in surface, "Segmentation surface layer missing")
     require("segmentationStructureClipParticipation" not in html, "6F-D UI enabled prematurely")

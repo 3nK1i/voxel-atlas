@@ -1,5 +1,4 @@
-// Wait only for surfaces from an already activated, source-bound label map.
-// This adapter never calls a segmentation job endpoint or modifies the surface layer.
+// Uses existing source-bound segmentation surfaces; does not start jobs or mutate the layer.
 export class ExistingSegmentationSurfaceGate {
   constructor({ readIdentity, hasResident, hasDesiredStructures, startSurface }) {
     if (![readIdentity, hasResident, hasDesiredStructures, startSurface]

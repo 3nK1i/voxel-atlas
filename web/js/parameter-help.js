@@ -77,15 +77,13 @@ function addToCaption(caption, key, title, dialogId) {
 }
 
 function installStatic(dialogId) {
-  // Reconstruction mode cards intentionally have no contextual "?" controls.
-  // Their concise status copy is sufficient and avoids visual clutter.
+  // Reconstruction mode cards do not use contextual help controls.
   for (const [id, [title]] of Object.entries(HELP)) {
     const control = document.getElementById(id);
     if (!control) continue;
     const label = document.querySelector(`label[for="${id}"]`) || control.closest("label");
     if (!label) continue;
-    // CT titles use a dedicated inline caption so their help never slips below
-    // the label or detaches from the editable HU value / visibility selector.
+    // Keep CT help inline with the caption and editable control.
     const caption = label.querySelector(".va-volume-surface-caption-title") || Array.from(label.children).find((child) => (
       child.tagName === "SPAN"
       && !child.classList.contains("sr-only")
@@ -185,15 +183,13 @@ export function installParameterHelp() {
       open(event.target);
     }
   }, true);
-  // Do not dismiss on scroll: keyboard focus can scroll the sidebar asynchronously
-  // immediately after opening help, which would close it before it is readable.
+  // Keep help open during scroll; keyboard focus can scroll the sidebar.
   window.addEventListener("resize", () => { if (!dialog.hidden) close(); });
 
   installStatic(dialog.id);
   const groups = document.getElementById("segmentationStructureGroups");
   if (groups) {
-    // The anatomy rows are recreated when filtering or toggling. Reuse delegated
-    // listeners and only enhance newly inserted rows; never attach per-row listeners.
+    // Rows are recreated during filtering; use delegated listeners for new rows.
     const enhanceRows = () => {
       for (const row of groups.querySelectorAll(".structure-row:not([data-va-help-ready])")) {
         row.dataset.vaHelpReady = "true";
@@ -206,8 +202,7 @@ export function installParameterHelp() {
     observer.observe(groups, { childList: true, subtree: true });
     enhanceRows();
   }
-  // Window level is rewritten using textContent when the modality changes.
-  // Reinsert help for that label without changing any application's event state.
+  // Modality changes rewrite the window-level label; restore its help control afterward.
   const windowLevel = document.getElementById("transferWindowCenterLabel");
   if (windowLevel) {
     new MutationObserver(() => {

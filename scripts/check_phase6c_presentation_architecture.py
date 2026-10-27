@@ -63,7 +63,7 @@ def main() -> int:
     require('aria-live' in app,
             "Phase 6C asynchronous surface status is not announced")
 
-    # Geometry and provenance stay owned by 6A/6B; 6C is presentation only.
+    # Presentation-only check; geometry and provenance remain unchanged.
     require("this.descriptor.presentation_quality" in viewer,
             "Phase 6B refined presentation quality was bypassed")
     require("requestedQuality === \"refined\"" in viewer,

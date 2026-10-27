@@ -12,8 +12,6 @@ VoxelAtlas is a self-hosted medical-imaging workspace for exploring volumetric C
        width="100%">
 </p>
 
----
-
 ## Overview
 
 VoxelAtlas is built around a patient-specific imaging pipeline:
@@ -352,6 +350,10 @@ VoxelAtlas builds on the open-source medical-imaging, scientific Python, and web
 Notable technologies used by the project include TotalSegmentator, pydicom, NumPy, FastAPI, and Three.js.
 
 Third-party libraries, models, datasets, and bundled assets remain subject to their respective licenses and terms.
+
+## License
+
+VoxelAtlas is licensed under the [Apache License 2.0](LICENSE).
 
 ## Disclaimer
 

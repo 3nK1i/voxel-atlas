@@ -89,9 +89,7 @@ def sitk_mask_to_pyvista(mask: sitk.Image) -> pv.PolyData:
         method="flying_edges",
     )
 
-    # This series has identity direction, confirmed during inspection.
-    # For a future generic implementation we will explicitly apply arbitrary
-    # DICOM direction matrices here.
+    # This sample uses identity direction; generic DICOM directions are not applied here.
 
     surface = surface.clean()
 
