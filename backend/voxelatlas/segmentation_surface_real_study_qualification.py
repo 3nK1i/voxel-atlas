@@ -39,9 +39,9 @@ class QualificationServices:
 
 
 def _latest_manifest(mpr: object, expected_path: Path) -> None:
-    # Phase 3D MPR descriptors do not expose a source-study ID. Pin the
+    # MPR descriptors do not expose a source-study ID. Pin the
     # repository-selected manifest *path* before/after taking MPR snapshots.
-    actual = mpr._latest_manifest_path()  # Existing Phase 3D service contract.
+    actual = mpr._latest_manifest_path()  # Existing MPR service contract.
     if actual.is_symlink() or actual.resolve(strict=True) != expected_path.resolve(strict=True):
         raise RealStudyQualificationError('MPR latest-study manifest differs from the source')
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Phase 6J-D4 synthetic browser contract. No patient data or model execution.
+// Synthetic browser contract. No patient data or model execution.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Phase 6I-C: focus on derived two-sided clipping without repeating old pinned gates.
+# Focus on derived two-sided clipping without repeating established gates.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 PY="${VOXELATLAS_APP_PYTHON:-.venv/bin/python}"
@@ -8,8 +8,8 @@ command -v node >/dev/null 2>&1 || { echo "Node.js required" >&2; false; }
 echo '===== 6I-C TARGETED CLIPPING CONTRACT + RUNTIME ====='
 "$PY" -m unittest discover -s tests -p 'test_phase6i_c_automatic_two_sided_clipping.py' -v
 "$PY" -m unittest discover -s tests -p 'test_phase4h6_qualification.py' -q
-# Select durable scientific contracts. The historical Phase 4E cache-prefix
-# assertion predates the current Phase 6I app entrypoint and fails on the B2 baseline.
+# Select durable scientific contracts. The historical cache-prefix
+# assertion predates the current application entrypoint and is excluded from this gate.
 "$PY" -m unittest \
   tests.test_phase4e_multiplane_patient_space_clipping.Phase4EMultiplanePatientSpaceClippingTests.test_ray_interval_is_clipped_in_dicom_patient_lps_space \
   tests.test_phase4e_multiplane_patient_space_clipping.Phase4EMultiplanePatientSpaceClippingTests.test_clipping_and_mpr_use_patient_coordinates_without_shared_state \

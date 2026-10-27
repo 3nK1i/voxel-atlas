@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Final scoped Phase 6I layout polish + durable prior-stage checks.
+# Validate integrated layout polish and durable presentation contracts.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 PY="${VOXELATLAS_APP_PYTHON:-.venv/bin/python}"

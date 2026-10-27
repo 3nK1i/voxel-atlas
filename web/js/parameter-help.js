@@ -1,4 +1,4 @@
-// Phase 6I-A: presentation-only contextual parameter help. No patient data or network calls.
+// Presentation-only contextual parameter help. No patient data or network calls.
 const HELP = Object.freeze({
   renderQualityPolicy: ["Rendering quality", "Sets the balance between responsiveness and image quality for direct volume rendering. Higher quality can increase GPU work; this does not alter the source scan."],
   transferPresetSelect: ["Medical preset", "Selects a predefined intensity-to-color and opacity mapping for the displayed volume. It does not modify the acquired voxel values."],

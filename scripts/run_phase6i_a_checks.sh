@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Phase 6I-A: run focused help-contract checks + the previously completed 6H-C gate.
+# Run focused help-contract checks and the preceding regression gate.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 

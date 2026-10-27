@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Phase 6J-D5C same-study presentation lifecycle probe. No server, DICOM, GPU, or inference.
+// Same-study presentation lifecycle probe. No server, DICOM, GPU, or inference.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';

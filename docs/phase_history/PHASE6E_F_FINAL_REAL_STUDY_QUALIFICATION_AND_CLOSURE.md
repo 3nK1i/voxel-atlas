@@ -29,7 +29,7 @@ Example:
 
 ```bash
 python scripts/qualify_phase6e_f_real_study.py \
-  --data-dir /home/eiatech/Desktop/voxel-atlas/data \
+  --data-dir $PWD/data \
   --surface-python "$HOME/.local/share/voxelatlas/surface-runtime-phase6a/bin/python" \
   --label-map-id map-c2c950145b6f01686eb9fb4d870bf53f \
   --label-id 91

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Phase 6H-C: source-only, synthetic regression and exact-candidate review.
+# Source-only synthetic regression and exact-candidate review.
 # No real-study access, worker execution, network calls, commit, or push.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."

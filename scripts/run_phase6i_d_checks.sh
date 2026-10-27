@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Phase 6I-D: presentation-only normal UI and readable Direct CT visibility.
+# Validate presentation-only normal UI and readable Direct CT visibility.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 PY="${VOXELATLAS_APP_PYTHON:-.venv/bin/python}"

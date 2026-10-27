@@ -1501,7 +1501,7 @@ button:disabled {
 }
 
 
-/* Phase 2B visual-density refinement against the frozen V1 workspace target. */
+/* Visual-density refinement for the workspace layout. */
 @media (min-width: 981px) {
   .topbar {
     grid-template-columns: minmax(285px, 1fr) minmax(560px, 1.7fr) minmax(250px, 1fr);
@@ -1769,7 +1769,7 @@ button:disabled {
   }
 }
 
-/* Phase 3A - real DICOM ingestion states */
+/* Real DICOM ingestion states. */
 .visually-hidden {
   position: absolute !important;
   width: 1px !important;
@@ -1945,7 +1945,7 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
-/* Phase 3B geometry qualification status inside the discovered-series dialog. */
+/* Geometry qualification status inside the discovered-series dialog. */
 .series-dialog-geometry {
   display: block;
   margin-top: 0.18rem;
@@ -1961,7 +1961,7 @@ button:disabled {
   color: #e8b96d;
 }
 
-/* Phase 3D - real patient-space MPR */
+/* Real patient-space MPR. */
 .mpr-view {
   touch-action: none;
   user-select: none;
@@ -2640,7 +2640,7 @@ button:disabled {
   cursor: ew-resize;
 }
 
-/* Phase 3D-R1 - professional physical MPR presentation */
+/* Physical MPR presentation. */
 .mpr-panel {
   --mpr-v-line: #51d693;
   --mpr-h-line: #ea5966;
@@ -2796,7 +2796,7 @@ button:disabled {
   .mpr-image-surface .orientation-label { font-size: 9px; }
 }
 
-/* Phase 3D-R2 - final MPR framing and target-style 3D controls */
+/* MPR framing and 3D controls. */
 .mpr-panel[data-volume-state="ready"] .mpr-view,
 .mpr-panel[data-volume-state="loading"] .mpr-view {
   position: relative;
@@ -2943,7 +2943,7 @@ button:disabled {
   }
 }
 
-/* Phase 3D-R2.1 - image-registered MPR crosshair and primary DICOM CTA */
+/* Image-registered MPR crosshair and primary DICOM action. */
 .mpr-image-surface {
   --mpr-crosshair-x-px: 50%;
   --mpr-crosshair-y-px: 50%;
@@ -3007,7 +3007,7 @@ button:disabled {
   transform: translateY(0) scale(0.995);
 }
 
-/* Phase 4G - curated sample study catalog */
+/* Curated sample-study catalog. */
 .sample-catalog-button {
   position: relative;
   width: 100%;
@@ -4122,7 +4122,7 @@ button:disabled {
 }
 
 
-/* Phase 6E-A — Fidelity / Presentation profile architecture. */
+/* Fidelity / Presentation profile architecture. */
 .reconstruction-presentation-profile {
   display: grid;
   gap: 7px;
@@ -4189,7 +4189,7 @@ button:disabled {
   line-height: 1.45;
 }
 
-/* Phase 6E-C — reconstruction-card border consistency.
+/* Reconstruction-card border consistency.
    Reconstruction readiness must not leak the legacy green ready-border into one
    mode card. Non-active ready cards share one neutral base treatment; only the
    active reconstruction mode receives the emphasized border and green check. */
@@ -4317,7 +4317,7 @@ button:disabled {
 }
 .volume-surface-region-control select:disabled { opacity: 0.48; cursor: not-allowed; }
 
-/* Phase 6I-A — accessible click-to-explain parameter help. Does not alter form state. */
+/* Accessible click-to-explain parameter help. Does not alter form state. */
 .va-parameter-help {
   display: inline-flex;
   flex: 0 0 auto;
@@ -4402,7 +4402,7 @@ button:disabled {
 .structure-row > .va-parameter-help { width: 14px; height: 14px; margin: 0; font-size: 9px; }
 
 
-/* Phase 6I-B1: legacy actions remain DOM-stable for prior contracts, but are not user-facing. */
+/* Legacy actions remain DOM-stable for compatibility contracts, but are not user-facing. */
 .volume-surface-actions[hidden] { display: none !important; }
 
 /* Canonical segmentation-workflow action. Use Segmentation is the visual source
@@ -4442,7 +4442,7 @@ button:disabled {
   opacity: 0.48;
 }
 
-/* Phase 6I-D — readable native Direct CT visibility menu. */
+/* Readable native Direct CT visibility menu. */
 .volume-surface-region-control select {
   display: block;
   box-sizing: border-box;

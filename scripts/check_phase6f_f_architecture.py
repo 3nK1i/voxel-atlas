@@ -16,25 +16,25 @@ viewer = (ROOT / "web/js/segmentation-surface-viewer.js").read_text(encoding="ut
 clipping = (ROOT / "web/js/reconstruction-surface-clipping.js").read_text(encoding="utf-8")
 explode = (ROOT / "web/js/segmentation-exploded-presentation.js").read_text(encoding="utf-8")
 
-# Phase 6F-B authoritative visibility/isolation remains present.
+# Authoritative visibility and isolation behavior remains present.
 for token in ("show-all", "hide-all", "restore-isolation", "isolateStructure"):
     require(token in panel, f"Phase 6F visibility/isolation token missing: {token}")
 
-# Phase 6F-C exact user opacity remains authoritative.
+# Exact user opacity remains authoritative.
 require("structure.opacity" in panel, "Phase 6F-C structure opacity state missing")
 require("accurate fallback" in viewer, "Phase 6B refined-to-accurate fallback presentation missing")
 
-# Phase 6F-D clipping participation remains structure-local and display-only.
+# Clipping participation remains structure-local and display-only.
 require("clippingEnabled" in panel, "Phase 6F-D clipping participation missing")
 require("setClippingPlanes" in viewer, "segmentation clipping plane application missing")
 require("descriptor.constant - normalDotOffset" in clipping, "exploded clipping translation missing")
 
-# Phase 6F-E bounded group explosion remains enabled without Direct CT translation.
+# Bounded group explosion remains enabled without Direct CT translation.
 require("explodedSeparationMm" in panel, "Phase 6F-E exploded separation state missing")
 require("MAX_ANATOMICAL_GROUP_EXPLODE_MM = 40" in explode, "Phase 6F-E 40 mm bound changed")
 require("item.mesh.position.set" in viewer, "display-only segmentation mesh translation missing")
 
-# Mode/profile architecture from Phase 6E remains the surrounding presentation authority.
+# The surrounding mode/profile architecture remains the presentation authority.
 require("requestReconstructionPresentationProfile" in app, "Fidelity/Presentation profile controller missing")
 require("applyCombinedPresentationBalance" in app, "Combined presentation balance missing")
 for label in ("Fidelity", "Presentation", "Surface", "Combined", "Explode anatomy", "Follow Directional Cut"):

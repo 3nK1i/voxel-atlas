@@ -1,4 +1,4 @@
-// Phase 6I-B2: wait only for surfaces from an already activated, source-bound label map.
+// Wait only for surfaces from an already activated, source-bound label map.
 // This adapter never calls a segmentation job endpoint or modifies the surface layer.
 export class ExistingSegmentationSurfaceGate {
   constructor({ readIdentity, hasResident, hasDesiredStructures, startSurface }) {

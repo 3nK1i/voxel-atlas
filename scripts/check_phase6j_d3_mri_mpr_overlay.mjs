@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Phase 6J-D3 synthetic browser checks. No patient data or model execution.
+// Synthetic browser checks. No patient data or model execution.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';

@@ -37,7 +37,7 @@ SURFACE_QUALITIES = {
 }
 MAX_SURFACE_STRIDE = 16
 
-# Phase 6A accurate transport. Later mesh-refinement policy remains out of scope.
+# Accurate surface transport. Mesh-refinement policy remains separate.
 ACCURATE_SURFACE_SCHEMA_VERSION = 2
 ACCURATE_SURFACE_MEDIA_TYPE = "application/x-voxelatlas-surface-v2"
 ACCURATE_SURFACE_HEADER = struct.Struct("<4s8I")
@@ -46,8 +46,8 @@ ACCURATE_SURFACE_QUALITY = "accurate"
 ACCURATE_SURFACE_FLAGS = 1  # Patient-LPS float32 normals are present.
 ACCURATE_SURFACE_ALGORITHM_VERSION = 1
 
-# Phase 6B remains the same surface service and v2 transport. The refined mesh is
-# a bounded derivative of the exact Phase 6A accurate artifact, never a second
+# The surface service and v2 transport remain unchanged. The refined mesh is
+# a bounded derivative of the exact reference artifact, never a second
 # mask-to-mesh pipeline. API default remains accurate for compatibility; the
 # browser presentation may prefer the refined derivative.
 REFINED_SURFACE_QUALITY = "refined"
@@ -64,10 +64,10 @@ REFINED_LOCAL_TOPOLOGY_REPAIR_MAX_CANDIDATE_FACES = 12
 REFINED_LOCAL_TOPOLOGY_REPAIR_MAX_REMOVED_FACES = 6
 REFINED_LOCAL_TOPOLOGY_REPAIR_MAX_REMOVED_FACE_FRACTION = 0.0001
 REFINED_LOCAL_TOPOLOGY_REPAIR_MAX_REMOVED_AREA_FRACTION = 0.0001
-# Phase 6J-D4 MRI presentation correction.  The exact/reference surface remains
+# MRI presentation correction. The exact/reference surface remains
 # unchanged; only the already-display-only refined derivative may use this
 # stronger profile.  Its total displacement bound is intentionally identical
-# to the long-standing Phase 6B bound.
+# to the established refinement bound.
 REFINED_MRI_TOTAL_MR_PROFILE = "mri_total_mr_v1"
 REFINED_MRI_TOTAL_MR_SMOOTHING_ITERATIONS = 20
 REFINED_MRI_TOTAL_MR_TAUBIN_LAMBDA = 0.40

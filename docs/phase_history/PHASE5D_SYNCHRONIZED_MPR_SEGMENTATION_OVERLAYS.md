@@ -55,7 +55,7 @@ Run:
 bash scripts/run_phase5d_checks.sh
 
 python scripts/qualify_phase5d_real_segmentation_overlay.py \
-  --data-dir /home/eiatech/Desktop/voxel-atlas/data \
+  --data-dir $PWD/data \
   --label-map-id map-c2c950145b6f01686eb9fb4d870bf53f
 ```
 

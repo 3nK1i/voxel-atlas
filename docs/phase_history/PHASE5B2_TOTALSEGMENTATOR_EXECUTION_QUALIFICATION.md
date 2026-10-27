@@ -90,7 +90,7 @@ First acquire and seal the weights:
 ```bash
 python scripts/prepare_phase5b2_totalsegmentator_weights.py \
   --data-dir /var/lib/voxelatlas \
-  --python /home/eiatech/anaconda3/envs/voxelatlas-totalseg-2.18/bin/python \
+  --python $HOME/anaconda3/envs/voxelatlas-totalseg-2.18/bin/python \
   --accept-download
 ```
 
@@ -100,7 +100,7 @@ canonical CT:
 ```bash
 python scripts/run_phase5b2_totalsegmentator_qualification.py \
   --data-dir /var/lib/voxelatlas \
-  --python /home/eiatech/anaconda3/envs/voxelatlas-totalseg-2.18/bin/python \
+  --python $HOME/anaconda3/envs/voxelatlas-totalseg-2.18/bin/python \
   --study-id 0123456789abcdef0123456789abcdef \
   --device cuda:0 \
   --confirm-nonclinical

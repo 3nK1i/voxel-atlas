@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Phase 6J-D5B static browser lifecycle contract. No server, DICOM, GPU, or MRI inference.
+// Static browser lifecycle contract. No server, DICOM, GPU, or MRI inference.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';

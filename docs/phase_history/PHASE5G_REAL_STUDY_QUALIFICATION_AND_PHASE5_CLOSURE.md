@@ -54,12 +54,12 @@ The previously qualified Head and Neck CT study must be active before running:
 
 ```bash
 python scripts/qualify_phase5f2_sample_study_identity.py \
-  --data-dir /home/eiatech/Desktop/voxel-atlas/data \
+  --data-dir $PWD/data \
   --sample-id head-neck-ct \
   --label-map-id map-c2c950145b6f01686eb9fb4d870bf53f
 
 python scripts/qualify_phase5g_real_study.py \
-  --data-dir /home/eiatech/Desktop/voxel-atlas/data \
+  --data-dir $PWD/data \
   --label-map-id map-c2c950145b6f01686eb9fb4d870bf53f \
   --label-id 91 \
   --quality preview

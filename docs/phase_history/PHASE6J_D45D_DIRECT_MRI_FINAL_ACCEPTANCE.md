@@ -41,7 +41,7 @@ Use the current qualified T1 MRI and the already-qualified isolated surface runt
 
 ```bash
 .venv/bin/python scripts/qualify_phase6j_d45d_real_mri.py \
-  --data-dir /home/eiatech/Desktop/voxel-atlas/data \
+  --data-dir $PWD/data \
   --surface-python "$HOME/.local/share/voxelatlas/surface-runtime-phase6a/bin/python" \
   --manual-preferred-isovalue 0.35
 ```

@@ -135,7 +135,7 @@ an older report accidentally. Keep runtime evidence OUTSIDE the repository.
 
 ```bash
 python scripts/check_phase4h6_evidence.py \
-  /home/eiatech/Downloads/voxelatlas_phase4h6_runtime_evidence.json
+  $HOME/Downloads/voxelatlas_phase4h6_runtime_evidence.json
 ```
 
 Expected: `PHASE4H6_RUNTIME_EVIDENCE=PASS`. The report itself retains

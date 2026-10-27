@@ -1,4 +1,4 @@
-// Phase 6I-B1: only coordinates a requested presentation mode. Resource ownership
+// Coordinates only the requested presentation mode. Resource ownership
 // and source/study validation stay in the existing surface layers and app.
 const VALID_MODES = new Set(["volume", "surface", "combined"]);
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Phase 6I-B1: focused scheduling, historical visualization contracts, 6I-A gate.
+# Run focused scheduling checks, historical visualization contracts, and the preceding gate.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 PY="${VOXELATLAS_APP_PYTHON:-.venv/bin/python}"

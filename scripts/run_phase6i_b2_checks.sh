@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Phase 6I-B2: existing activated segmentation surface mode and UI regression.
+# Verify the existing activated segmentation-surface mode and UI regression.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 PY="${VOXELATLAS_APP_PYTHON:-.venv/bin/python}"

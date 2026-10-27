@@ -142,7 +142,7 @@ def _require_no_links(path: Path, root: Path) -> None:
 
 
 def prepare_mri_root(paths: MRIAssetPaths) -> None:
-    # Never reuse or edit Phase 5B's CT 'totalsegmentator/2.18.0' directory.
+    # Keep MRI weights isolated from the CT 'totalsegmentator/2.18.0' directory.
     _guard_hierarchy(paths)
     for location in (paths.root.parent.parent.parent, paths.root.parent.parent, paths.root.parent,
                      paths.root, paths.home, paths.weights):

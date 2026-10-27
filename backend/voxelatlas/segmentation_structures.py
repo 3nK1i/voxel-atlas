@@ -11,7 +11,7 @@ _HEX_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 
 # TotalSegmentator's public ``total`` task taxonomy.  The numeric contract is
-# pinned by Phase 5B and intentionally lives in the lightweight application
+# This mapping is pinned and intentionally kept in the lightweight application
 # environment instead of importing the heavy provider runtime.
 # Source: wasserth/TotalSegmentator, totalsegmentator/map_to_binary.py.
 TOTAL_SEGMENTATOR_TOTAL_STRUCTURES: dict[int, str] = {
